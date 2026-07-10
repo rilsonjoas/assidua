@@ -1,8 +1,6 @@
 # Meus Remédios
 
-Gestão de medicamentos e estoque de farmácia caseira para pacientes crônicos — com controle rigoroso de doses, alarmes confiáveis e histórico de adesão ao tratamento.
-
-Produto de massa (app viral), modelo freemium com AdMob + assinatura Pro.
+Gestão de medicamentos para pacientes crônicos — controle de doses, alarmes, histórico de adesão e estoque. Produto de massa (freemium), com AdMob + assinatura Pro via RevenueCat planejados para pós-MVP.
 
 ---
 
@@ -13,18 +11,17 @@ Produto de massa (app viral), modelo freemium com AdMob + assinatura Pro.
 | App mobile | Expo SDK 56 (React Native) + TypeScript |
 | Navegação | Expo Router (file-based) |
 | Backend API | Laravel 13 (PHP 8.4) |
-| Banco de dados | MySQL 8.4 (via Docker / Laravel Sail) |
-| Autenticação | Laravel Sanctum + Google OAuth (Socialite) |
-| Notificações | expo-notifications + expo-task-manager |
-| Storage offline | expo-sqlite + AsyncStorage |
+| Banco de dados | MySQL 8.4 via Laravel Sail (Docker) |
+| Autenticação | Sanctum (tokens) + Socialite (Google OAuth) |
+| Notificações locais | expo-notifications |
 | Estado global | Zustand |
-| Cache de dados | TanStack React Query |
-| HTTP client | Axios |
-| Ícones | lucide-react-native |
-| Anúncios | Google AdMob — **pendente** |
-| Assinaturas | RevenueCat — **pendente** |
-| Dev backend | Laravel Sail (Docker) |
-| Build mobile | EAS Build (Expo cloud) |
+| Cache / server state | TanStack React Query |
+| HTTP | Axios + interceptor SecureStore |
+| Ícones | @expo/vector-icons (MaterialCommunityIcons) |
+| Tema | Hook `useTheme` + tokens light/dark, persistido em AsyncStorage |
+| Build | EAS Build (cloud) |
+| Anúncios | AdMob — pendente |
+| Assinaturas | RevenueCat — pendente |
 
 ---
 
@@ -32,32 +29,45 @@ Produto de massa (app viral), modelo freemium com AdMob + assinatura Pro.
 
 ```
 meus-remedios/
-├── app/                        # Expo (React Native)
+├── app/                          # Expo (React Native)
 │   ├── app/
-│   │   ├── _layout.tsx         # Root layout + auth guard
+│   │   ├── _layout.tsx           # Root layout, auth guard, permissão de notificação
 │   │   ├── (auth)/
-│   │   │   ├── login.tsx
-│   │   │   └── register.tsx
+│   │   │   ├── login.tsx         # Login email/senha + botão Google
+│   │   │   └── register.tsx      # Cadastro + botão Google
 │   │   ├── (tabs)/
-│   │   │   ├── index.tsx       # Hoje — doses do dia
-│   │   │   ├── medications.tsx # Lista de medicamentos
-│   │   │   ├── history.tsx     # Histórico de adesão
-│   │   │   ├── stock.tsx       # Controle de estoque
-│   │   │   └── profile.tsx     # Perfis e conta
-│   │   └── medication/[id].tsx # Adicionar / Editar medicamento
-│   ├── services/               # Chamadas à API
-│   │   ├── api.ts              # Instância Axios
-│   │   ├── auth.ts
-│   │   ├── medications.ts
-│   │   └── doses.ts
-│   └── store/                  # Estado global (Zustand)
-│       ├── authStore.ts
-│       └── profileStore.ts
-└── api/                        # Laravel
-    ├── app/Http/Controllers/   # AuthController, ProfileController...
-    ├── app/Models/             # User, Profile, Medication...
-    ├── database/migrations/    # Schema completo
-    └── routes/api.php          # Todas as rotas REST
+│   │   │   ├── index.tsx         # Hoje — doses do dia com Tomei/Pular
+│   │   │   ├── medications.tsx   # Lista de medicamentos
+│   │   │   ├── history.tsx       # Histórico com filtros de status
+│   │   │   ├── stock.tsx         # Controle de estoque
+│   │   │   └── profile.tsx       # Perfis, conta, seletor de tema
+│   │   └── medication/[id].tsx   # Criar/editar medicamento + gerenciar horários
+│   ├── constants/
+│   │   └── theme.ts              # Tokens de cor light/dark
+│   ├── hooks/
+│   │   └── useTheme.ts           # Hook que retorna colors + isDark
+│   ├── services/
+│   │   ├── api.ts                # Instância Axios com interceptor de token
+│   │   ├── auth.ts               # login, register, logout, getMe, loginWithGoogle
+│   │   ├── medications.ts        # CRUD medicamentos, horários, estoque
+│   │   ├── doses.ts              # Doses de hoje, histórico, registrar dose
+│   │   └── notifications.ts      # Agendar/cancelar notificações locais
+│   └── store/
+│       ├── authStore.ts          # Usuário autenticado
+│       ├── profileStore.ts       # Perfil ativo + lista de perfis
+│       └── themeStore.ts         # Preferência de tema (system/light/dark)
+└── api/                          # Laravel 13
+    ├── app/Http/Controllers/
+    │   ├── AuthController.php    # register, login, logout, me, googleRedirect, googleCallback
+    │   ├── ProfileController.php
+    │   ├── MedicationController.php
+    │   ├── DoseScheduleController.php
+    │   ├── DoseLogController.php
+    │   └── StockController.php
+    ├── app/Models/               # User, Profile, Medication, DoseSchedule, DoseLog, StockItem
+    ├── database/migrations/
+    ├── routes/api.php
+    └── docker/                   # nginx.conf, supervisord.conf, entrypoint.sh (para deploy)
 ```
 
 ---
@@ -65,67 +75,135 @@ meus-remedios/
 ## Modelo de dados
 
 ```
-users           → profiles → medications → dose_schedules → dose_logs
-                                        ↘ stock_items
+users
+ └── profiles
+      └── medications
+           ├── dose_schedules → dose_logs
+           └── stock_items
 ```
 
 ---
 
 ## O que está funcionando
 
-- [x] Cadastro e login (email/senha)
-- [x] Auth guard automático (redireciona p/ login se não autenticado)
-- [x] API REST completa (auth, perfis, medicamentos, horários, doses, estoque)
-- [x] Validação em português (pt_BR)
-- [x] Estrutura de telas com tabs (Hoje, Remédios, Histórico, Estoque, Perfis)
-- [x] Ícones Lucide em toda navegação
-- [x] Monorepo no GitHub
+### Auth
+- [x] Cadastro e login com email/senha
+- [x] Google OAuth — backend pronto (Socialite); frontend com `expo-web-browser` implementado, aguarda credenciais no Google Cloud Console
+- [x] Auth guard automático (redireciona para login se não autenticado)
+- [x] Validação de erros em português (pt_BR via laravel-lang)
+
+### App mobile
+- [x] Tela **Hoje** — lista doses do dia calculadas a partir dos schedules ativos, botões Tomei/Pular, contador de progresso, chips de perfil com ícone
+- [x] Tela **Remédios** — lista com cor, dosagem, quantidade em estoque; FAB para adicionar
+- [x] Tela **Histórico** — filtro por status (Todos/Tomado/Pulado/Perdido), agrupado por data, card de adesão com %
+- [x] Tela **Estoque** — edição inline de quantidade, alerta visual de estoque baixo
+- [x] Tela **Perfis** — múltiplos perfis de paciente, ícone + cor customizáveis, seletor de tema (Sistema/Claro/Escuro)
+- [x] Formulário de medicamento — criar/editar dados, seletor de cor, gerenciamento de horários com picker de dias da semana
+- [x] Modo claro e escuro com detecção automática do sistema ou escolha manual
+- [x] Ícones em todo o app (MaterialCommunityIcons), sem emojis
+
+### Backend
+- [x] API REST completa com autenticação Sanctum
+- [x] Endpoint `/today` calcula doses do dia dinamicamente via `dose_schedules` — não depende de logs pré-existentes
+- [x] Filtros no histórico: `status`, `medication_id`, `date_from`, `date_to`
+- [x] Dockerfile + nginx + supervisord prontos para deploy em container
+
+### Notificações locais
+- [x] Permissão solicitada no startup
+- [x] Notificação diária ou semanal agendada ao criar horário de dose
+- [x] Notificação cancelada ao remover horário
 
 ---
 
-## Próximos passos
+## Roadmap
 
-### Alta prioridade (MVP funcional)
-- [ ] Tela "Hoje" — buscar perfis da API ao entrar (hoje usa dados mock)
-- [ ] Tela "Hoje" — exibir doses sem perfil selecionado (onboarding)
-- [ ] Tela "Perfis" — criar primeiro perfil após cadastro (fluxo guiado)
-- [ ] Tela "Remédios" — adicionar medicamento e testar fluxo completo
-- [ ] Notificações locais — agendar alarme ao criar horário de dose
-- [ ] Sincronização offline → online (fila de dose_logs locais)
+### Fase 1 — MVP profissional (fazer antes de lançar)
 
-### Média prioridade
-- [ ] Google OAuth (botão "Entrar com Google" nas telas de auth)
-- [ ] Tela de histórico com filtro por data e medicamento
-- [ ] Alerta de estoque baixo na tela de estoque
-- [ ] Exportação de histórico em PDF (Pro)
+Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 
-### Baixa prioridade / futuro
-- [ ] Google AdMob (banners em telas do plano Free)
-- [ ] RevenueCat + assinatura Pro (perfis e medicamentos ilimitados, sem anúncios)
-- [ ] Notificações push (Expo Push Notification Service)
-- [ ] Deploy do backend (Railway ou VPS)
-- [ ] Publicar na Play Store e App Store
+- [ ] **Corrigir dose** — desmarcar um "Tomei" feito por engano (undo na tela Hoje)
+- [ ] **Status automático "Perdido"** — doses que passaram do horário sem ação viram `missed` automaticamente (job no backend ou lógica no frontend ao abrir o app)
+- [ ] **Onboarding guiado** — 3 telas exibidas apenas na primeira abertura: criar perfil → adicionar medicamento → ativar notificações
+- [ ] **Haptic feedback** — vibração ao marcar "Tomei" (`expo-haptics`, uma linha de código)
+- [ ] **Refill alert inteligente** — cálculo automático "seu estoque de X acaba em N dias" baseado em `current_quantity` ÷ doses por dia do schedule; alerta na tela Hoje e notificação
+- [ ] **Exclusão de conta** — botão em Perfis que apaga todos os dados do usuário (obrigatório pela LGPD)
+- [ ] **Política de privacidade** — link na tela de cadastro explicando que dados ficam na conta do usuário
+
+### Fase 2 — Retenção e qualidade (v1.1, após primeiros usuários)
+
+- [ ] **Gráfico de adesão** — barras semanais dos últimos 2 meses com % de doses tomadas; visível no Histórico
+- [ ] **Pausar medicamento** — suspender temporariamente sem deletar (ex.: internação, viagem); reativar depois
+- [ ] **Streak de adesão** — contador de dias consecutivos com 100% de doses; notificação de parabenização ao atingir 7, 30, 60 dias
+- [ ] **Resumo semanal** — notificação local automática (ex.: domingo à noite) com % de adesão da semana
+- [ ] **Skeleton loaders** — substituir `ActivityIndicator` por skeletons animados nas listas
+- [ ] **Editar horário existente** — hoje só cria/deleta; falta poder alterar hora e dias de um schedule já criado
+- [ ] **Filtro por medicamento no histórico** — dropdown/modal para filtrar por remédio específico
+
+### Fase 3 — Infraestrutura (paralela às fases 1 e 2)
+
+- [ ] **Google OAuth** — criar credenciais no Google Cloud Console, configurar URI de redirecionamento; frontend já implementado
+- [ ] **Offline support** — salvar `dose_logs` localmente (expo-sqlite) quando sem internet, sincronizar ao reconectar
+- [ ] **Deploy do backend** — Dockerfile pronto em `api/docker/`; opções: VPS próprio, Oracle Cloud Free Tier
+
+### Fase 4 — Monetização (pós-lançamento com usuários reais)
+
+- [ ] **Limites do plano Free** — ex.: 1 perfil, 5 medicamentos, histórico de 30 dias (para motivar upgrade Pro)
+- [ ] **Tier Pro** — perfis ilimitados, medicamentos ilimitados, histórico completo, sem anúncios; via RevenueCat
+- [ ] **AdMob** — banners e/ou interstitials para usuários Free
+- [ ] **Exportar histórico em PDF** — funcionalidade Pro: gerar relatório para levar ao médico
+- [ ] **Publicar na Play Store e App Store**
 
 ---
 
 ## Como rodar localmente
 
-### Backend
+### Backend (Laravel Sail)
 
 ```bash
 cd api
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan migrate
-# API em http://192.168.18.4 (porta 80)
+# API disponível em http://192.168.18.4 (porta 80)
 ```
+
+> Se mudar de rede, atualizar `api/.env` → `APP_URL` e `app/.env` → `EXPO_PUBLIC_API_URL` com o novo IP.
 
 ### App mobile
 
 ```bash
 cd app
 npx expo start --clear
-# Escanear QR com Expo Go (celular na mesma rede Wi-Fi)
-# ou: eas build --platform android --profile development
+# Abrir no dispositivo com o build de desenvolvimento instalado
 ```
 
-> Atualizar `app/.env` com o IP local do PC se mudar de rede.
+> Para gerar novo build de desenvolvimento: `eas build --platform android --profile development`
+
+### PHP/Composer (sem instalar localmente)
+
+```bash
+docker run --rm --user $(id -u):$(id -g) \
+  -v "$(pwd)/api":/opt -w /opt \
+  laravelsail/php84-composer:latest \
+  <comando>
+```
+
+---
+
+## Variáveis de ambiente
+
+### `api/.env` (desenvolvimento)
+```
+APP_KEY=base64:...
+DB_HOST=mysql
+DB_DATABASE=laravel
+DB_USERNAME=sail
+DB_PASSWORD=password
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://192.168.18.4/api/auth/google/callback
+```
+
+### `app/.env`
+```
+EXPO_PUBLIC_API_URL=http://192.168.18.4/api
+```

@@ -37,6 +37,11 @@ export async function getMedications(profileId: number): Promise<Medication[]> {
   return data;
 }
 
+export async function getMedication(id: number): Promise<Medication> {
+  const { data } = await api.get(`/medications/${id}`);
+  return data;
+}
+
 export async function createMedication(profileId: number, payload: Partial<Medication>) {
   const { data } = await api.post(`/profiles/${profileId}/medications`, payload);
   return data as Medication;
@@ -59,6 +64,10 @@ export async function createSchedule(medicationId: number, payload: Partial<Dose
 export async function updateSchedule(id: number, payload: Partial<DoseSchedule>) {
   const { data } = await api.put(`/schedules/${id}`, payload);
   return data as DoseSchedule;
+}
+
+export async function deleteSchedule(id: number): Promise<void> {
+  await api.delete(`/schedules/${id}`);
 }
 
 export async function updateStock(medicationId: number, payload: Partial<StockItem>) {

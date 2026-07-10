@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { register } from '../../services/auth';
+import { register, loginWithGoogle } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
@@ -24,9 +24,24 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const setUser = useAuthStore((s) => s.setUser);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
+    try {
+      const user = await loginWithGoogle();
+      setUser(user);
+    } catch (err: any) {
+      if (!err.message?.includes('cancelado')) {
+        Alert.alert('Erro', err.message ?? 'Erro ao entrar com Google.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   async function handleRegister() {
     if (!name || !email || !password || !passwordConfirmation) return;
@@ -72,6 +87,22 @@ export default function RegisterScreen() {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Criar conta</Text>}
         </TouchableOpacity>
 
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>ou</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={googleLoading}>
+          {googleLoading
+            ? <ActivityIndicator color={colors.text} />
+            : <>
+                <MaterialCommunityIcons name="google" size={20} color="#EA4335" />
+                <Text style={styles.googleButtonText}>Continuar com Google</Text>
+              </>
+          }
+        </TouchableOpacity>
+
         <Link href="/(auth)/login" style={styles.link}>
           Já tem conta? Entrar
         </Link>
@@ -95,6 +126,15 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center', marginTop: 8, marginBottom: 16,
     },
     buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+    dividerText: { color: c.textMuted, fontSize: 13 },
+    googleButton: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+      backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
+      borderRadius: 12, padding: 14, marginBottom: 16,
+    },
+    googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
     link: { textAlign: 'center', color: c.brand, fontSize: 15 },
   });
 }

@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import * as WebBrowser from 'expo-web-browser';
 import { api } from './api';
 
 export interface User {
@@ -35,7 +36,34 @@ export async function getMe(): Promise<User | null> {
   }
 }
 
-export function getGoogleAuthUrl() {
+const RETURN_URL = 'meusremedios://auth-callback';
+
+export async function loginWithGoogle(): Promise<User> {
   const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api';
-  return `${base}/auth/google`;
+  const googleUrl = `${base}/auth/google?return_url=${encodeURIComponent(RETURN_URL)}`;
+
+  const result = await WebBrowser.openAuthSessionAsync(googleUrl, RETURN_URL);
+
+  if (result.type !== 'success') {
+    throw new Error('Login com Google cancelado.');
+  }
+
+  const url = new URL(result.url);
+  const token = url.searchParams.get('token');
+
+  if (!token) {
+    throw new Error('Token não recebido do Google.');
+  }
+
+  await SecureStore.setItemAsync('auth_token', token);
+
+  const user: User = {
+    id: Number(url.searchParams.get('id')),
+    name: url.searchParams.get('name') ?? '',
+    email: url.searchParams.get('email') ?? '',
+    avatar_url: null,
+    subscription_tier: (url.searchParams.get('subscription_tier') as 'free' | 'pro') ?? 'free',
+  };
+
+  return user;
 }

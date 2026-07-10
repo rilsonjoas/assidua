@@ -63,12 +63,18 @@ class AuthController extends Controller
         return response()->json($request->user()->load('profiles'));
     }
 
-    public function googleRedirect(): \Symfony\Component\HttpFoundation\RedirectResponse
+    public function googleRedirect(Request $request): \Symfony\Component\HttpFoundation\RedirectResponse
     {
-        return Socialite::driver('google')->stateless()->redirect();
+        $driver = Socialite::driver('google')->stateless();
+
+        if ($request->filled('return_url')) {
+            $driver = $driver->with(['state' => $request->return_url]);
+        }
+
+        return $driver->redirect();
     }
 
-    public function googleCallback(): JsonResponse
+    public function googleCallback(Request $request): mixed
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
 
@@ -84,6 +90,18 @@ class AuthController extends Controller
 
         $user->tokens()->delete();
         $token = $user->createToken('mobile')->plainTextToken;
+
+        // Fluxo mobile: redireciona para deep link com token
+        $state = $request->get('state', '');
+        if (str_starts_with($state, 'meusremedios://')) {
+            return redirect($state . '?' . http_build_query([
+                'token' => $token,
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'subscription_tier' => $user->subscription_tier ?? 'free',
+            ]));
+        }
 
         return response()->json(['user' => $user, 'token' => $token]);
     }

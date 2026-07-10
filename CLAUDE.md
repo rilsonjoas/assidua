@@ -6,16 +6,18 @@ App mobile de gestão de medicamentos para pacientes crônicos. Objetivo é vira
 
 ## Stack definida (não mudar sem perguntar)
 
-- **Mobile**: Expo (React Native) + TypeScript — `app/`
+- **Mobile**: Expo SDK 56 (React Native) + TypeScript — `app/`
 - **Backend**: Laravel 13 + MySQL — `api/`
 - **Auth**: Sanctum (tokens) + Socialite (Google OAuth)
 - **Dev backend**: Laravel Sail (Docker)
-- **Notificações locais**: expo-notifications + expo-task-manager
-- **Offline**: expo-sqlite + AsyncStorage
+- **Notificações locais**: expo-notifications
 - **Estado**: Zustand
+- **Cache**: TanStack React Query
 - **HTTP**: Axios
-- **Ads**: react-native-google-mobile-ads (AdMob — não AdSense)
-- **IAP**: react-native-purchases (RevenueCat) — adiado
+- **Ícones**: @expo/vector-icons (MaterialCommunityIcons) — NÃO usar lucide-react-native (bug Metro com .mjs)
+- **Tema**: hook useTheme + tokens em constants/theme.ts + themeStore (Zustand persistido)
+- **Ads**: AdMob — adiado
+- **IAP**: RevenueCat — adiado
 
 ## Decisões importantes
 
@@ -23,22 +25,31 @@ App mobile de gestão de medicamentos para pacientes crônicos. Objetivo é vira
 - **AdMob, não AdSense**: AdSense é para web, AdMob é para mobile
 - **RevenueCat**: padrão cross-platform para IAP (App Store + Play Store)
 - **Tier Pro adiado**: deixar toda lógica de subscription/limite para versão futura
-- **Testes**: Expo Go no celular via QR (sem emulador, sem Android Studio)
-- **Deploy backend**: Railway/Render para MVP, escala depois
+- **Testes**: build de desenvolvimento via EAS Build instalado no celular (não Expo Go — incompatível com SDK 56)
+- **Sem commits a cada mudança**: só commitar quando o usuário pedir explicitamente
+- **Deploy backend**: pendente — Dockerfile pronto em `api/`, aguardando VPS ou Oracle Cloud
 
-## O que já foi instalado
+## Estado atual do app (o que está pronto)
 
-Ver README.md para lista completa de pacotes instalados.
+### Funcionando
+- Cadastro/login email+senha, Google OAuth (frontend implementado, aguarda credenciais GCloud)
+- Perfis de paciente com ícone + cor, modo claro/escuro com seletor em Perfis
+- Tela Hoje: doses calculadas dinamicamente via dose_schedules, Tomei/Pular, chips de perfil
+- Tela Remédios: lista + FAB, formulário completo com gerenciamento de horários (criar/deletar) e picker de dias da semana
+- Tela Histórico: filtros por status, agrupado por data, card de adesão com %
+- Tela Estoque: edição inline, alerta de estoque baixo
+- Notificações locais agendadas ao criar horário, canceladas ao deletar
 
-## Estado atual
-
-Backend e app scaffoldados e funcionando. Cadastro/login operacional.
-Ver README.md para lista completa de próximos passos.
+### Pendente
+- Google OAuth: aguarda credenciais no Google Cloud Console
+- Offline support (expo-sqlite)
+- Deploy do backend
+- Editar horários existentes (hora e dias)
+- AdMob + RevenueCat (pós-MVP)
 
 ## Próximo passo ao retomar
 
-Fluxo de onboarding pós-cadastro: usuário cria primeiro perfil e
-adiciona primeiro medicamento. Depois notificações locais.
+Offline support — salvar dose_logs localmente com expo-sqlite quando sem internet, sincronizar ao reconectar.
 
 ## Restrições do ambiente
 
@@ -48,3 +59,4 @@ adiciona primeiro medicamento. Depois notificações locais.
 - PHP/Composer NÃO instalados localmente — usar sempre via Docker:
   `docker run --rm --user $(id -u):$(id -g) -v "$(pwd)":/opt -w /opt laravelsail/php84-composer:latest <comando>`
 - Arquivos criados pelo Docker ficam como root — usar `--user $(id -u):$(id -g)` para evitar
+- IP local do PC: 192.168.18.4 (atualizar se mudar de rede)
