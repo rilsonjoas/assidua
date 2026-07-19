@@ -32,7 +32,7 @@ function AuthGuard() {
 }
 
 function ThemedLayout() {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
 
   return (
     <>
@@ -42,7 +42,15 @@ function ThemedLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="medication/[id]"
-          options={{ headerShown: true, title: 'Medicamento', presentation: 'modal' }}
+          options={{
+            headerShown: true,
+            title: 'Medicamento',
+            presentation: 'modal',
+            headerStyle: { backgroundColor: colors.surface },
+            headerTitleStyle: { color: colors.text, fontWeight: '700' },
+            headerTintColor: colors.text,
+            headerShadowVisible: false,
+          }}
         />
       </Stack>
     </>

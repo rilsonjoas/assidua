@@ -58,6 +58,26 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logout realizado com sucesso.']);
     }
 
+    public function destroyAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->password !== null) {
+            $request->validate(['password' => 'required|string']);
+
+            if (! Hash::check($request->input('password'), $user->password)) {
+                throw ValidationException::withMessages([
+                    'password' => ['Senha incorreta.'],
+                ]);
+            }
+        }
+
+        $user->tokens()->delete();
+        $user->delete();
+
+        return response()->json(['message' => 'Conta excluída com sucesso.']);
+    }
+
     public function me(Request $request): JsonResponse
     {
         return response()->json($request->user()->load('profiles'));

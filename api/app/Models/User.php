@@ -29,6 +29,10 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = [
+        'has_password',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -36,6 +40,11 @@ class User extends Authenticatable
             'subscription_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function getHasPasswordAttribute(): bool
+    {
+        return $this->password !== null;
     }
 
     public function profiles(): HasMany

@@ -19,9 +19,9 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->isPro() && $user->profiles()->count() >= 2) {
+        if (! $user->isPro() && $user->profiles()->count() >= 4) {
             return response()->json([
-                'message' => 'Limite de 2 perfis no plano gratuito. Faça upgrade para o Pro.',
+                'message' => 'Limite de 4 perfis no plano gratuito. Faça upgrade para o Pro.',
             ], 403);
         }
 

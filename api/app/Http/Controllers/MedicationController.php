@@ -27,9 +27,9 @@ class MedicationController extends Controller
 
         $user = $request->user();
 
-        if (! $user->isPro() && $profile->medications()->where('is_active', true)->count() >= 5) {
+        if (! $user->isPro() && $profile->medications()->where('is_active', true)->count() >= 15) {
             return response()->json([
-                'message' => 'Limite de 5 medicamentos por perfil no plano gratuito. Faça upgrade para o Pro.',
+                'message' => 'Limite de 15 medicamentos por perfil no plano gratuito. Faça upgrade para o Pro.',
             ], 403);
         }
 

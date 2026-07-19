@@ -16,7 +16,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
-import { logout } from '../../services/auth';
+import { logout, deleteAccount } from '../../services/auth';
 import { api } from '../../services/api';
 
 const AVATAR_ICONS: Array<React.ComponentProps<typeof MaterialCommunityIcons>['name']> = [
@@ -44,6 +44,9 @@ export default function ProfileScreen() {
   const [avatarIcon, setAvatarIcon] = useState<React.ComponentProps<typeof MaterialCommunityIcons>['name']>('account');
   const [color, setColor] = useState('#6366f1');
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.get('/profiles').then(({ data }) => setProfiles(data));
@@ -79,6 +82,40 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Excluir conta',
+      'Isso vai apagar permanentemente sua conta, perfis, medicamentos e histórico de doses. Essa ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => {
+            if (user?.has_password) {
+              setDeletingAccount(true);
+            } else {
+              performDeleteAccount();
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  async function performDeleteAccount(password?: string) {
+    setDeleting(true);
+    try {
+      await deleteAccount(password);
+      queryClient.clear();
+      setUser(null);
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.message ?? 'Não foi possível excluir a conta.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -214,6 +251,43 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
+
+      {/* Excluir conta */}
+      {deletingAccount ? (
+        <View style={styles.deleteBox}>
+          <Text style={styles.createTitle}>Confirmar exclusão</Text>
+          <Text style={styles.emptySubText}>Digite sua senha para excluir permanentemente sua conta e todos os dados.</Text>
+          <TextInput
+            style={[styles.input, { marginTop: 12 }]}
+            placeholder="Senha"
+            placeholderTextColor={colors.textMuted}
+            value={deletePassword}
+            onChangeText={setDeletePassword}
+            secureTextEntry
+            color={colors.text}
+          />
+          <View style={styles.createActions}>
+            <TouchableOpacity
+              onPress={() => { setDeletingAccount(false); setDeletePassword(''); }}
+              style={styles.cancelBtn}
+            >
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => performDeleteAccount(deletePassword)}
+              style={styles.deleteConfirmBtn}
+              disabled={deleting || !deletePassword}
+            >
+              <Text style={styles.saveBtnText}>{deleting ? 'Excluindo...' : 'Excluir permanentemente'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.logoutBtn} onPress={confirmDeleteAccount} disabled={deleting}>
+          <MaterialCommunityIcons name="account-remove-outline" size={18} color={colors.error} />
+          <Text style={styles.logoutText}>{deleting ? 'Excluindo...' : 'Excluir conta'}</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -284,5 +358,12 @@ function makeStyles(c: ThemeColors) {
       gap: 6, padding: 14, marginTop: 8,
     },
     logoutText: { color: c.error, fontWeight: '600', fontSize: 15 },
+    deleteBox: {
+      backgroundColor: c.surface, borderRadius: 16, padding: 16, marginTop: 8,
+      borderWidth: 1, borderColor: c.error,
+    },
+    deleteConfirmBtn: {
+      flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10, alignItems: 'center',
+    },
   });
 }

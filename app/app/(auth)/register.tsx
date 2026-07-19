@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,6 +18,8 @@ import { register, loginWithGoogle } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+
+const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/privacidade`;
 
 export default function RegisterScreen() {
   const [name, setName] = useState('');
@@ -106,6 +109,14 @@ export default function RegisterScreen() {
         <Link href="/(auth)/login" style={styles.link}>
           Já tem conta? Entrar
         </Link>
+
+        <Text style={styles.privacyText}>
+          Ao criar uma conta, você concorda com nossa{' '}
+          <Text style={styles.privacyLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
+            Política de Privacidade
+          </Text>
+          .
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -136,5 +147,7 @@ function makeStyles(c: ThemeColors) {
     },
     googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
     link: { textAlign: 'center', color: c.brand, fontSize: 15 },
+    privacyText: { textAlign: 'center', color: c.textMuted, fontSize: 12, marginTop: 20, lineHeight: 18 },
+    privacyLink: { color: c.brand, fontWeight: '600' },
   });
 }

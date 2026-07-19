@@ -108,7 +108,7 @@ class DoseLogController extends Controller
         $log = DoseLog::updateOrCreate(
             [
                 'dose_schedule_id' => $data['dose_schedule_id'],
-                'scheduled_at' => $data['scheduled_at'],
+                'scheduled_at' => Carbon::parse($data['scheduled_at'])->format('Y-m-d H:i:s'),
             ],
             $data
         );

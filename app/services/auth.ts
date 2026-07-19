@@ -8,6 +8,7 @@ export interface User {
   email: string;
   avatar_url: string | null;
   subscription_tier: 'free' | 'pro';
+  has_password: boolean;
 }
 
 export async function register(name: string, email: string, password: string, password_confirmation: string) {
@@ -24,6 +25,11 @@ export async function login(email: string, password: string) {
 
 export async function logout() {
   await api.post('/auth/logout');
+  await SecureStore.deleteItemAsync('auth_token');
+}
+
+export async function deleteAccount(password?: string) {
+  await api.delete('/auth/account', { data: password ? { password } : undefined });
   await SecureStore.deleteItemAsync('auth_token');
 }
 
@@ -63,6 +69,7 @@ export async function loginWithGoogle(): Promise<User> {
     email: url.searchParams.get('email') ?? '',
     avatar_url: null,
     subscription_tier: (url.searchParams.get('subscription_tier') as 'free' | 'pro') ?? 'free',
+    has_password: false,
   };
 
   return user;
