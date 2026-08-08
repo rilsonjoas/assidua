@@ -203,6 +203,11 @@ estado real deste projeto em cada fase.
       atrás de login, sem conteúdo indexável
 - [x] **P6 — Funcionalidades**: roadmap de produto próprio, ver seção
       "Roadmap" acima (Fases 1-4)
+
+**Roadmap de engenharia completo (P0-P7), 2026-08-08.** Pendências reais
+restantes: credencial do Google OAuth e DSN do Sentry — ambas dependem
+de conta pessoal externa (Google Cloud Console, sentry.io), código já
+pronto pras duas, só falta a chave.
 - [x] **P7 — Documentação** (2026-08-08): `knuckleswtf/scribe` instalado
       (`require-dev` — mesmo padrão do SIC: doc de API só existe em
       dev/homologação, nem instala no build de produção). Gera OpenAPI
