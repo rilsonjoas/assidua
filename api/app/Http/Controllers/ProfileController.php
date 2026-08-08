@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Profile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ProfileController extends Controller
 {
@@ -38,14 +39,14 @@ class ProfileController extends Controller
 
     public function show(Request $request, Profile $profile): JsonResponse
     {
-        $this->authorizeProfile($request, $profile);
+        Gate::authorize('view', $profile);
 
         return response()->json($profile->load(['medications.schedules', 'medications.stock']));
     }
 
     public function update(Request $request, Profile $profile): JsonResponse
     {
-        $this->authorizeProfile($request, $profile);
+        Gate::authorize('update', $profile);
 
         $data = $request->validate([
             'name' => 'sometimes|string|max:100',
@@ -61,14 +62,9 @@ class ProfileController extends Controller
 
     public function destroy(Request $request, Profile $profile): JsonResponse
     {
-        $this->authorizeProfile($request, $profile);
+        Gate::authorize('delete', $profile);
         $profile->delete();
 
         return response()->json(null, 204);
-    }
-
-    private function authorizeProfile(Request $request, Profile $profile): void
-    {
-        abort_if($profile->user_id !== $request->user()->id, 403);
     }
 }

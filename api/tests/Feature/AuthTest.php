@@ -192,4 +192,40 @@ class AuthTest extends TestCase
     {
         $this->deleteJson('/api/auth/account')->assertUnauthorized();
     }
+
+    public function test_login_e_bloqueado_por_rate_limit_apos_5_tentativas(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('senha1234')]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/auth/login', [
+                'email' => $user->email,
+                'password' => 'senha-errada',
+            ])->assertUnprocessable();
+        }
+
+        $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'senha-errada',
+        ])->assertStatus(429);
+    }
+
+    public function test_register_e_bloqueado_por_rate_limit_apos_5_tentativas(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/auth/register', [
+                'name' => "Usuário {$i}",
+                'email' => "usuario{$i}@example.com",
+                'password' => 'senha1234',
+                'password_confirmation' => 'senha1234',
+            ])->assertCreated();
+        }
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Sexto usuário',
+            'email' => 'sexto@example.com',
+            'password' => 'senha1234',
+            'password_confirmation' => 'senha1234',
+        ])->assertStatus(429);
+    }
 }

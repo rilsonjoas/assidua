@@ -6,19 +6,20 @@ use App\Models\DoseSchedule;
 use App\Models\Medication;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class DoseScheduleController extends Controller
 {
     public function index(Request $request, Medication $medication): JsonResponse
     {
-        $this->authorizeMedication($request, $medication);
+        Gate::authorize('view', $medication);
 
         return response()->json($medication->schedules()->where('is_active', true)->get());
     }
 
     public function store(Request $request, Medication $medication): JsonResponse
     {
-        $this->authorizeMedication($request, $medication);
+        Gate::authorize('view', $medication);
 
         $data = $request->validate([
             'time' => 'required|date_format:H:i',
@@ -34,7 +35,7 @@ class DoseScheduleController extends Controller
 
     public function update(Request $request, DoseSchedule $doseSchedule): JsonResponse
     {
-        $this->authorizeSchedule($request, $doseSchedule);
+        Gate::authorize('update', $doseSchedule);
 
         $data = $request->validate([
             'time' => 'sometimes|date_format:H:i',
@@ -51,19 +52,9 @@ class DoseScheduleController extends Controller
 
     public function destroy(Request $request, DoseSchedule $doseSchedule): JsonResponse
     {
-        $this->authorizeSchedule($request, $doseSchedule);
+        Gate::authorize('delete', $doseSchedule);
         $doseSchedule->delete();
 
         return response()->json(null, 204);
-    }
-
-    private function authorizeMedication(Request $request, Medication $medication): void
-    {
-        abort_if($medication->profile->user_id !== $request->user()->id, 403);
-    }
-
-    private function authorizeSchedule(Request $request, DoseSchedule $schedule): void
-    {
-        abort_if($schedule->medication->profile->user_id !== $request->user()->id, 403);
     }
 }

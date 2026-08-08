@@ -6,12 +6,13 @@ use App\Models\Medication;
 use App\Models\Profile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class MedicationController extends Controller
 {
     public function index(Request $request, Profile $profile): JsonResponse
     {
-        abort_if($profile->user_id !== $request->user()->id, 403);
+        Gate::authorize('view', $profile);
 
         $medications = $profile->medications()
             ->with(['schedules', 'stock'])
@@ -23,7 +24,7 @@ class MedicationController extends Controller
 
     public function store(Request $request, Profile $profile): JsonResponse
     {
-        abort_if($profile->user_id !== $request->user()->id, 403);
+        Gate::authorize('view', $profile);
 
         $user = $request->user();
 
@@ -53,14 +54,14 @@ class MedicationController extends Controller
 
     public function show(Request $request, Medication $medication): JsonResponse
     {
-        $this->authorizeMedication($request, $medication);
+        Gate::authorize('view', $medication);
 
         return response()->json($medication->load(['schedules', 'stock']));
     }
 
     public function update(Request $request, Medication $medication): JsonResponse
     {
-        $this->authorizeMedication($request, $medication);
+        Gate::authorize('update', $medication);
 
         $data = $request->validate([
             'name' => 'sometimes|string|max:150',
@@ -79,14 +80,9 @@ class MedicationController extends Controller
 
     public function destroy(Request $request, Medication $medication): JsonResponse
     {
-        $this->authorizeMedication($request, $medication);
+        Gate::authorize('delete', $medication);
         $medication->delete();
 
         return response()->json(null, 204);
-    }
-
-    private function authorizeMedication(Request $request, Medication $medication): void
-    {
-        abort_if($medication->profile->user_id !== $request->user()->id, 403);
     }
 }
