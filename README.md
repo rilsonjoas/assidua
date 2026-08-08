@@ -234,9 +234,15 @@ cd api
 
 ```bash
 cd api
+./vendor/bin/sail artisan vendor:publish --tag=scribe-config  # 1x, gera config/scribe.php local (gitignored)
 ./vendor/bin/sail artisan scribe:generate
 # abrir http://192.168.18.4/docs
 ```
+
+> `config/scribe.php` **nunca é commitado** — ele usa classes do próprio
+> pacote (`Knuckles\Scribe\Config\*`) direto no arquivo, e como o Scribe
+> é `require-dev`, isso quebra `composer install --no-dev` (aconteceu de
+> verdade em produção, 2026-08-08 — corrigido tirando o arquivo do git).
 
 > Só funciona em dev — `knuckleswtf/scribe` é `require-dev`, não é
 > instalado no build de produção (mesma decisão do SIC: doc de API

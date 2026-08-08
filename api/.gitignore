@@ -21,6 +21,12 @@
 /public/vendor/scribe
 /resources/views/scribe
 /.scribe
+# scribe.php referencia classes do próprio pacote (Knuckles\Scribe\Config\*)
+# em nível de topo do arquivo — como o pacote é require-dev, publicar esse
+# config e commitar quebra `composer install --no-dev` (achado real em
+# produção, 2026-08-08). Gerar local com `vendor:publish --tag=scribe-config`
+# quando precisar customizar, nunca commitar.
+/config/scribe.php
 /storage/*.key
 /storage/pail
 /vendor
