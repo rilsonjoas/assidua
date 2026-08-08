@@ -174,9 +174,10 @@ estado real deste projeto em cada fase.
       continuam passando
 - [x] **P1 — Docker & VPS** (2026-08-08): deploy real em
       `api-remedios.narniano.com`, Postgres compartilhado do VPS
-- [ ] **P2 — CI/CD**: GitHub Actions rodando `php artisan test` a cada
-      push/PR (+ `composer audit`) — os 8 arquivos de Feature test já
-      existem (~1000 linhas) mas não rodam sozinhos em lugar nenhum hoje
+- [x] **P2 — CI/CD** (2026-08-08): `.github/workflows/ci.yml` rodando
+      `php artisan test` (62 testes, SQLite em memória) + `composer
+      audit` a cada push/PR. Confirmado com run real no Actions (não só
+      leitura de código), sucesso em 18s
 - [ ] **P3 — Testes**: backend já coberto (62 testes); mobile é o maior
       buraco — zero testes automatizados no `app/` (Jest + React Native
       Testing Library nas telas críticas: login, marcar dose como
