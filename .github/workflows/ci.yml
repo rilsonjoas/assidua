@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API (Testes, Composer Audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_pgsql, bcmath
+          coverage: none
+
+      - name: Instalar dependências
+        working-directory: api
+        run: composer install --prefer-dist --no-progress
+
+      - name: Preparar ambiente de teste
+        working-directory: api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Composer audit
+        working-directory: api
+        run: composer audit
+
+      - name: Testes (PHPUnit — usa SQLite em memória, ver phpunit.xml)
+        working-directory: api
+        run: php artisan test
