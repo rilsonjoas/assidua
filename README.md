@@ -158,43 +158,40 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 ## Roadmap de Engenharia (qualidade/produção)
 
 Complementar ao roadmap de produto acima, não concorrente — essas fases
-rodam em paralelo. Definido em 2026-08-08 depois de uma auditoria real do
-código (não é lista genérica de boas práticas, cada item veio de algo
-verificado no repo nessa data).
+rodam em paralelo. Segue o padrão comum a todos os projetos pessoais,
+documentado em `hetzner-infra/PADRAO-DE-ENGENHARIA.md` — aqui só o
+estado real deste projeto em cada fase.
 
-### Fase E0 — Segurança básica (prioridade — risco real, não polimento)
-
-- [ ] **Rate limiting em `/api/auth/login` e `/api/auth/register`** — hoje
-      não existe nenhum throttle nessas rotas, permite tentativa de senha
-      infinita. Laravel já tem `throttle:` de fábrica, é pouca linha
-- [ ] **Extrair `app/Policies/`** — hoje a autorização por dono do dado
-      existe (`abort_if($x->user_id !== $request->user()->id, 403)`) mas
-      duplicada como método privado em `MedicationController`,
-      `ProfileController` e `DoseScheduleController`. Funciona, mas é
-      onde um controller novo esquece de replicar a checagem
-
-### Fase E1 — CI mínimo
-
-- [ ] GitHub Actions rodando `php artisan test` a cada push/PR — os 8
-      arquivos de Feature test já existem (~1000 linhas) mas não rodam
-      sozinhos em lugar nenhum hoje
-
-### Fase E2 — Testes do mobile (maior buraco de cobertura do projeto)
-
-- [ ] Jest + React Native Testing Library nas telas críticas (login,
-      marcar dose como tomada) — hoje zero testes automatizados no `app/`
-
-### Fase E3 — Documentação de API
-
-- [ ] OpenAPI/Swagger (ex. `laravel/scribe`, gera a partir das rotas +
-      form requests existentes) — hoje a única documentação de API é ler
-      controller por controller
-
-### Fase E4 — Monitoramento
-
-- [ ] Sentry no backend (mesmo padrão já usado no ERP corporativo do
-      Rilson) — hoje não tem visibilidade de erro em produção além de
+- [x] **P0 — Segurança** (2026-08-08): `throttle:login` (5/min por
+      email+IP) e `throttle:register` (5/min por IP) em
+      `/api/auth/login` e `/api/auth/register` — antes não existia
+      nenhum limite, permitia força bruta de senha. `app/Policies/`
+      extraídas (`ProfilePolicy`, `MedicationPolicy`,
+      `DoseSchedulePolicy`) — a autorização por dono do dado estava
+      duplicada como método privado em 3 controllers, agora é uma fonte
+      só via `Gate::authorize()`. Validado com 2 testes novos provando
+      bloqueio na 6ª tentativa (429), + os 60 testes existentes
+      continuam passando
+- [x] **P1 — Docker & VPS** (2026-08-08): deploy real em
+      `api-remedios.narniano.com`, Postgres compartilhado do VPS
+- [ ] **P2 — CI/CD**: GitHub Actions rodando `php artisan test` a cada
+      push/PR (+ `composer audit`) — os 8 arquivos de Feature test já
+      existem (~1000 linhas) mas não rodam sozinhos em lugar nenhum hoje
+- [ ] **P3 — Testes**: backend já coberto (62 testes); mobile é o maior
+      buraco — zero testes automatizados no `app/` (Jest + React Native
+      Testing Library nas telas críticas: login, marcar dose como
+      tomada)
+- [ ] **P4 — Monitoramento**: Sentry no backend (mesmo padrão já usado
+      no SIC) — hoje não tem visibilidade de erro em produção além de
       log
+- [ ] **P5 — UI/UX e responsividade**: app já tem tema claro/escuro e
+      múltiplos perfis; falta auditoria de acessibilidade (labels,
+      contraste) — não verificado ainda
+- [x] **P6 — Funcionalidades**: roadmap de produto próprio, ver seção
+      "Roadmap" acima (Fases 1-4)
+- [ ] **P7 — Documentação**: OpenAPI/Swagger via `laravel/scribe`
+      (gera a partir das rotas + form requests existentes) — hoje a
+      única documentação de API é ler controller por controller
 
 ---
 
