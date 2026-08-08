@@ -195,9 +195,12 @@ estado real deste projeto em cada fase.
       Google OAuth: sem a chave, roda normal sem erro (no-op), só não
       manda telemetria ainda. Um projeto Sentry só cobre os dois (não
       precisa 1 conta por app, mesmo padrão do SIC)
-- [ ] **P5 — UI/UX e responsividade**: app já tem tema claro/escuro e
-      múltiplos perfis; falta auditoria de acessibilidade (labels,
-      contraste) — não verificado ainda
+- [ ] **P5 — UI/UX, acessibilidade e SEO**: app já tem tema claro/escuro
+      e múltiplos perfis; falta auditoria de acessibilidade real (labels
+      de `accessibilityLabel`, contraste, teste com TalkBack/VoiceOver —
+      importa de verdade aqui, é app de saúde, usuário pode ter
+      dificuldade visual). **SEO não se aplica** — app mobile privado
+      atrás de login, sem conteúdo indexável
 - [x] **P6 — Funcionalidades**: roadmap de produto próprio, ver seção
       "Roadmap" acima (Fases 1-4)
 - [ ] **P7 — Documentação**: OpenAPI/Swagger via `laravel/scribe`
