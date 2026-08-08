@@ -38,3 +38,24 @@ jobs:
       - name: Testes (PHPUnit — usa SQLite em memória, ver phpunit.xml)
         working-directory: api
         run: php artisan test
+
+  mobile:
+    name: Mobile (Testes)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: app
+        run: npm ci
+
+      - name: Testes (Jest + React Native Testing Library)
+        working-directory: app
+        run: npm test
