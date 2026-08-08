@@ -203,9 +203,12 @@ estado real deste projeto em cada fase.
       atrás de login, sem conteúdo indexável
 - [x] **P6 — Funcionalidades**: roadmap de produto próprio, ver seção
       "Roadmap" acima (Fases 1-4)
-- [ ] **P7 — Documentação**: OpenAPI/Swagger via `laravel/scribe`
-      (gera a partir das rotas + form requests existentes) — hoje a
-      única documentação de API é ler controller por controller
+- [x] **P7 — Documentação** (2026-08-08): `knuckleswtf/scribe` instalado
+      (`require-dev` — mesmo padrão do SIC: doc de API só existe em
+      dev/homologação, nem instala no build de produção). Gera OpenAPI
+      3.0 + Postman collection a partir das rotas reais + `$request->
+      validate()` de cada controller. Ver "Documentação da API" abaixo
+      pra gerar localmente
 
 ---
 
@@ -221,6 +224,20 @@ cd api
 ```
 
 > Se mudar de rede, atualizar `api/.env` → `APP_URL` e `app/.env` → `EXPO_PUBLIC_API_URL` com o novo IP.
+
+### Documentação da API (Scribe)
+
+```bash
+cd api
+./vendor/bin/sail artisan scribe:generate
+# abrir http://192.168.18.4/docs
+```
+
+> Só funciona em dev — `knuckleswtf/scribe` é `require-dev`, não é
+> instalado no build de produção (mesma decisão do SIC: doc de API
+> completa não fica exposta publicamente). Regenerar sempre que mudar
+> uma rota ou uma regra de validação, o conteúdo é extraído do código
+> real, não escrito à mão.
 
 ### App mobile
 
