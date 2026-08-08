@@ -188,9 +188,13 @@ estado real deste projeto em cada fase.
       nem no SDK 57 mais recente) — só rodam em build-time
       (`expo prebuild`), nunca no app publicado. Não é ignorado, é
       bloqueado por terceiro; reavaliar quando o `xcode` package atualizar
-- [ ] **P4 — Monitoramento**: Sentry no backend (mesmo padrão já usado
-      no SIC) — hoje não tem visibilidade de erro em produção além de
-      log
+- [x] **P4 — Monitoramento** (2026-08-08): Sentry no backend
+      (`sentry/sentry-laravel`) **e** no mobile (`@sentry/react-native`)
+      — código pronto nos dois, mas **DSN ainda não configurado**
+      (conta é pessoal, só o Rilson cria em sentry.io). Mesmo padrão do
+      Google OAuth: sem a chave, roda normal sem erro (no-op), só não
+      manda telemetria ainda. Um projeto Sentry só cobre os dois (não
+      precisa 1 conta por app, mesmo padrão do SIC)
 - [ ] **P5 — UI/UX e responsividade**: app já tem tema claro/escuro e
       múltiplos perfis; falta auditoria de acessibilidade (labels,
       contraste) — não verificado ainda
