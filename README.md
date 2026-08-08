@@ -143,7 +143,7 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 
 - [ ] **Google OAuth** — criar credenciais no Google Cloud Console, configurar URI de redirecionamento; frontend já implementado
 - [ ] **Offline support** — salvar `dose_logs` localmente (expo-sqlite) quando sem internet, sincronizar ao reconectar
-- [ ] **Deploy do backend** — Dockerfile pronto em `api/docker/`; opções: VPS próprio, Oracle Cloud Free Tier
+- [x] **Deploy do backend** (2026-08-08) — VPS Hetzner próprio, `api-remedios.narniano.com`, Postgres (não MySQL — ver `hetzner-infra/MIGRATION.md` Fase 4.2)
 
 ### Fase 4 — Monetização (pós-lançamento com usuários reais)
 
@@ -152,6 +152,49 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 - [ ] **AdMob** — banners e/ou interstitials para usuários Free
 - [ ] **Exportar histórico em PDF** — funcionalidade Pro: gerar relatório para levar ao médico
 - [ ] **Publicar na Play Store e App Store**
+
+---
+
+## Roadmap de Engenharia (qualidade/produção)
+
+Complementar ao roadmap de produto acima, não concorrente — essas fases
+rodam em paralelo. Definido em 2026-08-08 depois de uma auditoria real do
+código (não é lista genérica de boas práticas, cada item veio de algo
+verificado no repo nessa data).
+
+### Fase E0 — Segurança básica (prioridade — risco real, não polimento)
+
+- [ ] **Rate limiting em `/api/auth/login` e `/api/auth/register`** — hoje
+      não existe nenhum throttle nessas rotas, permite tentativa de senha
+      infinita. Laravel já tem `throttle:` de fábrica, é pouca linha
+- [ ] **Extrair `app/Policies/`** — hoje a autorização por dono do dado
+      existe (`abort_if($x->user_id !== $request->user()->id, 403)`) mas
+      duplicada como método privado em `MedicationController`,
+      `ProfileController` e `DoseScheduleController`. Funciona, mas é
+      onde um controller novo esquece de replicar a checagem
+
+### Fase E1 — CI mínimo
+
+- [ ] GitHub Actions rodando `php artisan test` a cada push/PR — os 8
+      arquivos de Feature test já existem (~1000 linhas) mas não rodam
+      sozinhos em lugar nenhum hoje
+
+### Fase E2 — Testes do mobile (maior buraco de cobertura do projeto)
+
+- [ ] Jest + React Native Testing Library nas telas críticas (login,
+      marcar dose como tomada) — hoje zero testes automatizados no `app/`
+
+### Fase E3 — Documentação de API
+
+- [ ] OpenAPI/Swagger (ex. `laravel/scribe`, gera a partir das rotas +
+      form requests existentes) — hoje a única documentação de API é ler
+      controller por controller
+
+### Fase E4 — Monitoramento
+
+- [ ] Sentry no backend (mesmo padrão já usado no ERP corporativo do
+      Rilson) — hoje não tem visibilidade de erro em produção além de
+      log
 
 ---
 
