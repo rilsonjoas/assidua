@@ -141,19 +141,104 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 
 ### Fase 3 — Infraestrutura (paralela às fases 1 e 2)
 
-- [ ] **Google OAuth** — criar credenciais no Google Cloud Console, configurar URI de redirecionamento; frontend já implementado
+- [x] **Google OAuth** (2026-08-08) — credenciais criadas, testado com redirect real em produção
 - [ ] **Offline support** — salvar `dose_logs` localmente (expo-sqlite) quando sem internet, sincronizar ao reconectar
 - [x] **Deploy do backend** (2026-08-08) — VPS Hetzner próprio, `api-remedios.narniano.com`, Postgres (não MySQL — ver `hetzner-infra/MIGRATION.md` Fase 4.2)
 
 ### Fase 4 — Monetização (pós-lançamento com usuários reais)
 
-- [ ] **Limites do plano Free** — ex.: 1 perfil, 5 medicamentos, histórico de 30 dias (para motivar upgrade Pro)
+- [x] **Limites do plano Free** — 4 perfis, 15 medicamentos por perfil, histórico de 30 dias — já implementado e testado (ver `tests/Feature/ProfileTest.php`, `MedicationTest.php`, `DoseLogHistoryTest.php`). Falta a parte de cobrança em si (Fase L1 abaixo)
 - [ ] **Tier Pro** — perfis ilimitados, medicamentos ilimitados, histórico completo, sem anúncios; via RevenueCat
 - [ ] **AdMob** — banners e/ou interstitials para usuários Free
 - [ ] **Exportar histórico em PDF** — funcionalidade Pro: gerar relatório para levar ao médico
 - [ ] **Publicar na Play Store e App Store**
 
 ---
+
+## Roadmap de Lançamento e Crescimento (2026-08-08)
+
+Resposta a uma pergunta direta: "o quanto falta pra virar um app com
+milhares de usuários na Play Store?". Não duplica as Fases 1-4 acima —
+linka nelas onde já existe o item, só adiciona o que faltava (processo
+de publicação em si, monetização de verdade, aquisição, legal em
+escala). Prioridade estrita: **L0 → L1 → L2 → resto**, nessa ordem —
+não adianta ter monetização sem estar na loja, nem growth sem retenção.
+
+### L0 — Publicação (bloqueadores reais, sem isso não sai do zero)
+
+- [ ] Conta de desenvolvedor Google Play (**US$25, taxa única**)
+- [ ] **Teste fechado obrigatório**: Google exige **12 testadores ativos
+      por 14 dias** antes de liberar produção pra conta de desenvolvedor
+      nova — não dá pra pular, planejar esse tempo
+- [ ] **Formulário "Data safety"** no Play Console — declarar coleta de
+      dado de saúde, passa por revisão mais rigorosa que app comum
+- [ ] `eas build --profile production` + `eas submit` — nunca rodado
+- [ ] Resto da **Fase 1** acima (corrigir dose, status "Perdido",
+      onboarding, haptic feedback, refill alert) — são os itens que,
+      segundo o próprio roadmap, "se faltarem, o usuário desinstala"
+
+### L1 — Monetização de verdade (a régua já existe, falta cobrança)
+
+- [x] Limites do plano Free já codados e testados (ver Fase 4 acima)
+- [ ] **RevenueCat**: criar conta, configurar produto de assinatura
+      (mensal + anual, com desconto no anual), integrar SDK
+      (`react-native-purchases`), tela de paywall
+- [ ] **Decisão de preço**: pesquisar concorrência direta antes de
+      chutar número — Medisafe e MyTherapy são a referência do nicho
+- [ ] **AdMob**: conta, unidades de anúncio, SDK, posicionamento que não
+      atrapalhe a experiência de quem toma remédio (nada de interstitial
+      na hora de marcar "Tomei")
+- [ ] Exportar histórico em PDF (Pro) — já mapeado acima
+
+### L2 — Retenção (Fase 2 acima, sem mudança — só reforçando a ordem)
+
+Sem isso, app de hábito tende a abandono alto nos primeiros dias — é o
+padrão da categoria, não conquista de pouca gente. Fazer **antes** de
+investir em aquisição, senão o usuário novo entra e sai sem voltar.
+
+### L3 — Aquisição (a parte que não é código)
+
+- [ ] **ASO** (App Store Optimization) — título, descrição, screenshots
+      e ícone da ficha otimizados pra busca dentro da própria Play
+      Store (é a maior fonte de instalação orgânica pra app novo sem
+      budget de ads)
+- [ ] **Ângulo de diferenciação real** — Medisafe/MyTherapy já têm
+      milhões de instalações; "mais um app de lembrete" sozinho não
+      compete. Precisa de um motivo específico (nicho: idioma, público
+      cuidador↔paciente, algo que os grandes não fazem bem) — decisão de
+      produto, não de engenharia, mas trava tudo o resto se não for
+      resolvida
+- [ ] **Analytics de aquisição real** — hoje não existe nada disso
+      (Sentry cobre erro, não uso). Firebase Analytics ou similar antes
+      de gastar esforço tentando crescer às cegas
+
+### L4 — Legal/compliance em escala
+
+- [x] Política de privacidade real, publicada (`/privacidade`)
+- [ ] **Revisão jurídica de verdade** da política — dado de saúde é
+      categoria sensível pela LGPD; com poucos usuários o risco é
+      teórico, com milhares vira exposição real (resposta a incidente,
+      portabilidade de dado, etc.)
+- [ ] Termos de uso — hoje só existe a política de privacidade, não um
+      termo de uso separado
+
+### L5 — Infra em escala (só quando o uso justificar, não adiantar)
+
+- [ ] **Notificação push via servidor**, não só local — hoje a
+      notificação é agendada no próprio celular; se o SO mata o app ou
+      o celular reinicia, pode falhar silenciosamente. Em escala pequena
+      não importa muito, em escala grande vira reclamação recorrente
+- [ ] Sair do VPS único compartilhado com os outros projetos pessoais,
+      se o uso realmente justificar — não é preocupação de agora
+
+### Resumo honesto
+
+**Pra estar na loja**: dias/poucas semanas — é a parte mais perto de
+terminar, a base técnica (P0-P7) que fechamos hoje é justamente o que
+mais diferencia isto de um projeto que nunca sai do papel.
+**Pra ter milhares de usuários reais**: a distância maior não é mais
+código — é produto (retenção, L2) e principalmente aquisição (L3), que
+é decisão de negócio e de nicho, não engenharia.
 
 ## Roadmap de Engenharia (qualidade/produção)
 
