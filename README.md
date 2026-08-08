@@ -178,10 +178,16 @@ estado real deste projeto em cada fase.
       `php artisan test` (62 testes, SQLite em memória) + `composer
       audit` a cada push/PR. Confirmado com run real no Actions (não só
       leitura de código), sucesso em 18s
-- [ ] **P3 — Testes**: backend já coberto (62 testes); mobile é o maior
-      buraco — zero testes automatizados no `app/` (Jest + React Native
-      Testing Library nas telas críticas: login, marcar dose como
-      tomada)
+- [x] **P3 — Testes** (2026-08-08): Jest + React Native Testing Library
+      no `app/`, cobrindo login (sucesso, erro genérico, guarda contra
+      campo vazio) e marcar dose como tomada na tela Hoje. 5 testes,
+      confirmados com run real no Actions. `npm audit fix` também
+      rodado: resolveu 4 de 21 vulnerabilidades de dev-deps sem quebrar
+      nada; as 17 restantes têm raiz única (`xcode`→`uuid`, dependência
+      de terceiro do `@expo/config-plugins`, sem fix upstream disponível
+      nem no SDK 57 mais recente) — só rodam em build-time
+      (`expo prebuild`), nunca no app publicado. Não é ignorado, é
+      bloqueado por terceiro; reavaliar quando o `xcode` package atualizar
 - [ ] **P4 — Monitoramento**: Sentry no backend (mesmo padrão já usado
       no SIC) — hoje não tem visibilidade de erro em produção além de
       log
