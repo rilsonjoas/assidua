@@ -39,6 +39,16 @@ jobs:
         working-directory: api
         run: php artisan test
 
+      - name: Valida build de produção (--no-dev)
+        working-directory: api
+        run: |
+          rm -rf vendor
+          composer install --no-dev --optimize-autoloader --no-interaction
+        # Achado real em 2026-08-08: config/scribe.php commitado usava
+        # classe de um pacote require-dev, quebrando silenciosamente
+        # 'composer install --no-dev' — só apareceu no build de deploy,
+        # depois de já commitado. Esse passo pega isso na CI, antes.
+
   mobile:
     name: Mobile (Testes)
     runs-on: ubuntu-latest
