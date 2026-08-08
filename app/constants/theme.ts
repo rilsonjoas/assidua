@@ -1,4 +1,29 @@
-export const lightColors = {
+// Interface explícita, não `typeof lightColors` — com `typeof` o tipo
+// carrega os valores literais do tema claro, e o tema escuro (valores
+// literais diferentes) nunca bate no type-check. Bug real, achado ao
+// rodar `tsc --noEmit` no mobile pela primeira vez (nunca rodava em CI).
+export interface ThemeColors {
+  background: string;
+  surface: string;
+  surfaceSecondary: string;
+  border: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  brand: string;
+  brandLight: string;
+  brandSubtle: string;
+  headerBg: string;
+  headerText: string;
+  headerSubtext: string;
+  tabBar: string;
+  tabBarBorder: string;
+  success: string;
+  warning: string;
+  error: string;
+}
+
+export const lightColors: ThemeColors = {
   background: '#f8fafc',
   surface: '#ffffff',
   surfaceSecondary: '#f1f5f9',
@@ -17,9 +42,9 @@ export const lightColors = {
   success: '#22c55e',
   warning: '#f59e0b',
   error: '#ef4444',
-} as const;
+};
 
-export const darkColors = {
+export const darkColors: ThemeColors = {
   background: '#0f172a',
   surface: '#1e293b',
   surfaceSecondary: '#111827',
@@ -38,6 +63,4 @@ export const darkColors = {
   success: '#22c55e',
   warning: '#f59e0b',
   error: '#ef4444',
-} as const;
-
-export type ThemeColors = typeof lightColors;
+};

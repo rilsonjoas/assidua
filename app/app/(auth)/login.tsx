@@ -70,7 +70,6 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          color={colors.text}
         />
         <TextInput
           style={styles.input}
@@ -79,7 +78,6 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          color={colors.text}
         />
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
@@ -119,7 +117,7 @@ function makeStyles(c: ThemeColors) {
     subtitle: { fontSize: 16, textAlign: 'center', color: c.textSecondary, marginBottom: 32 },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12,
+      borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12, color: c.text,
     },
     button: {
       backgroundColor: c.brand, borderRadius: 12, padding: 16,

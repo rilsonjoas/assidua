@@ -1,6 +1,11 @@
 // @testing-library/react-native v13+ já inclui os matchers (toBeVisible
 // etc.) sem precisar de import separado.
 
+// Import explícito em vez de depender do global ambiente do @types/jest:
+// o "module": "preserve" do expo/tsconfig.base não resolve bem o
+// namespace `jest` como valor nesse modo (TS2708), import direto resolve.
+import { jest } from '@jest/globals';
+
 // AsyncStorage real bate em disco nativo — themeStore usa como storage do
 // zustand/persist, precisa do mock oficial pra não quebrar em teste.
 jest.mock('@react-native-async-storage/async-storage', () =>

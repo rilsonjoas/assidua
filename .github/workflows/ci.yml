@@ -56,6 +56,10 @@ jobs:
         working-directory: app
         run: npm ci
 
+      - name: TypeScript check
+        working-directory: app
+        run: npx tsc --noEmit
+
       - name: Testes (Jest + React Native Testing Library)
         working-directory: app
         run: npm test

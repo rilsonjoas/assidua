@@ -1,4 +1,5 @@
 import React from 'react';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HomeScreen from '../app/(tabs)/index';
@@ -33,6 +34,8 @@ const medication = {
   instructions: null,
   notes: null,
   is_active: true,
+  schedules: [],
+  stock: null,
 };
 
 const pendingDose = {
@@ -45,7 +48,7 @@ const pendingDose = {
   status: 'pending' as const,
   notes: null,
   medication,
-  dose_schedule: { id: 5, medication_id: 10, time: '08:00', days_of_week: null, is_active: true },
+  dose_schedule: { id: 5, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
 };
 
 function renderHome() {

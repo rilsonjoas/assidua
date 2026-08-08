@@ -172,12 +172,11 @@ export default function ProfileScreen() {
         <View style={styles.createBox}>
           <Text style={styles.createTitle}>Novo perfil</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text }]}
             placeholder="Nome do paciente"
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
-            color={colors.text}
           />
           <Text style={styles.createLabel}>Ícone</Text>
           <FlatList
@@ -258,13 +257,12 @@ export default function ProfileScreen() {
           <Text style={styles.createTitle}>Confirmar exclusão</Text>
           <Text style={styles.emptySubText}>Digite sua senha para excluir permanentemente sua conta e todos os dados.</Text>
           <TextInput
-            style={[styles.input, { marginTop: 12 }]}
+            style={[styles.input, { marginTop: 12, color: colors.text }]}
             placeholder="Senha"
             placeholderTextColor={colors.textMuted}
             value={deletePassword}
             onChangeText={setDeletePassword}
             secureTextEntry
-            color={colors.text}
           />
           <View style={styles.createActions}>
             <TouchableOpacity

@@ -198,7 +198,6 @@ export default function MedicationFormScreen() {
         onChangeText={setName}
         placeholder="Ex: Losartana"
         placeholderTextColor={colors.textMuted}
-        color={colors.text}
       />
 
       <Text style={styles.label}>Dosagem *</Text>
@@ -210,7 +209,6 @@ export default function MedicationFormScreen() {
           placeholder="50"
           placeholderTextColor={colors.textMuted}
           keyboardType="decimal-pad"
-          color={colors.text}
         />
         <TextInput
           style={[styles.input, styles.unitInput]}
@@ -218,7 +216,6 @@ export default function MedicationFormScreen() {
           onChangeText={setUnit}
           placeholder="mg"
           placeholderTextColor={colors.textMuted}
-          color={colors.text}
         />
       </View>
 
@@ -242,7 +239,6 @@ export default function MedicationFormScreen() {
         placeholderTextColor={colors.textMuted}
         multiline
         numberOfLines={3}
-        color={colors.text}
       />
 
       <TouchableOpacity style={styles.saveBtn} onPress={saveMedication} disabled={saving}>
@@ -297,7 +293,6 @@ export default function MedicationFormScreen() {
                 placeholder="08:00"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="numbers-and-punctuation"
-                color={colors.text}
               />
 
               <Text style={styles.label}>Dias da semana</Text>
@@ -349,7 +344,6 @@ export default function MedicationFormScreen() {
             placeholder="08:00"
             placeholderTextColor={colors.textMuted}
             keyboardType="numbers-and-punctuation"
-            color={colors.text}
           />
 
           <Text style={styles.label}>Dias da semana</Text>
@@ -383,7 +377,7 @@ function makeStyles(c: ThemeColors) {
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 14 },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14, fontSize: 16,
+      borderRadius: 12, padding: 14, fontSize: 16, color: c.text,
     },
     unitInput: { width: 80, marginLeft: 8 },
     row: { flexDirection: 'row', alignItems: 'center' },

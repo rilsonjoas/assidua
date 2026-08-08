@@ -75,13 +75,12 @@ export default function StockScreen() {
                   {editing === item.id ? (
                     <View style={styles.editRow}>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, { color: colors.text }]}
                         value={qty}
                         onChangeText={setQty}
                         keyboardType="decimal-pad"
                         placeholder="Qtd"
                         placeholderTextColor={colors.textMuted}
-                        color={colors.text}
                       />
                       <Text style={styles.unit}>{stock?.unit}</Text>
                       <TouchableOpacity onPress={() => saveQty(item)} style={styles.saveBtn}>

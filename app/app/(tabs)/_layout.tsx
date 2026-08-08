@@ -1,10 +1,13 @@
 import { Tabs } from 'expo-router';
+import { ColorValue } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-function TabIcon({ name, color }: { name: IconName; color: string }) {
+// tabBarIcon do expo-router entrega `color: ColorValue` (tipo mais amplo
+// do RN, cobre objetos de cor de plataforma além de string), não `string`.
+function TabIcon({ name, color }: { name: IconName; color: ColorValue }) {
   return <MaterialCommunityIcons name={name} size={24} color={color} />;
 }
 

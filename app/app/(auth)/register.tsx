@@ -72,7 +72,7 @@ export default function RegisterScreen() {
         </View>
         <Text style={styles.title}>Criar conta</Text>
 
-        <TextInput style={styles.input} placeholder="Nome" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} color={colors.text} />
+        <TextInput style={styles.input} placeholder="Nome" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -81,10 +81,9 @@ export default function RegisterScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          color={colors.text}
         />
-        <TextInput style={styles.input} placeholder="Senha" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry color={colors.text} />
-        <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry color={colors.text} />
+        <TextInput style={styles.input} placeholder="Senha" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry />
+        <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry />
 
         <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Criar conta</Text>}
@@ -130,7 +129,7 @@ function makeStyles(c: ThemeColors) {
     title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: c.text, marginBottom: 32 },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12,
+      borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12, color: c.text,
     },
     button: {
       backgroundColor: c.brand, borderRadius: 12, padding: 16,

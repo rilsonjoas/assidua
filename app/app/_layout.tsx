@@ -2,12 +2,24 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
+import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '../store/authStore';
 import { getMe } from '../services/auth';
 import { requestNotificationPermission } from '../services/notifications';
 import { useTheme } from '../hooks/useTheme';
 
 const queryClient = new QueryClient();
+
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+// enabled: false sem DSN — SDK vira no-op, não tenta mandar nada.
+// Mesmo padrão do backend (config/sentry.php lê de env, sem quebrar
+// sem a chave configurada).
+Sentry.init({
+  dsn: sentryDsn,
+  enabled: !!sentryDsn,
+  tracesSampleRate: 1.0,
+});
 
 function AuthGuard() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
@@ -57,7 +69,7 @@ function ThemedLayout() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   useEffect(() => {
     requestNotificationPermission();
   }, []);
@@ -69,3 +81,5 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

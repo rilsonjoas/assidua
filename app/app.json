@@ -42,7 +42,8 @@
           "sounds": []
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "@sentry/react-native"
     ],
     "extra": {
       "eas": {

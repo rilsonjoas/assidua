@@ -1,5 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../app/(auth)/login';
 import { useAuthStore } from '../store/authStore';
