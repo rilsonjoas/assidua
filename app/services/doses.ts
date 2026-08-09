@@ -46,3 +46,11 @@ export async function logDose(payload: {
   const { data } = await api.post('/dose-logs', payload);
   return data;
 }
+
+// Corrigir dose (Fase 1 do roadmap) — desmarcar um "Tomei"/"Pulei" feito
+// por engano. `id` só é um número de verdade quando a dose já foi
+// registrada (ver comentário em DoseLog.id acima); undoDose só deve ser
+// chamado nesse caso.
+export async function undoDose(doseLogId: number): Promise<void> {
+  await api.delete(`/dose-logs/${doseLogId}`);
+}

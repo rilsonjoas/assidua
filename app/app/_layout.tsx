@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '../store/authStore';
+import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
-import { requestNotificationPermission } from '../services/notifications';
 import { useTheme } from '../hooks/useTheme';
 
 const queryClient = new QueryClient();
@@ -23,6 +23,7 @@ Sentry.init({
 
 function AuthGuard() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
+  const hasCompletedOnboarding = useOnboardingStore((s) => s.hasCompletedOnboarding);
   const segments = useSegments();
   const router = useRouter();
 
@@ -36,9 +37,18 @@ function AuthGuard() {
   useEffect(() => {
     if (isLoading) return;
     const inAuth = segments[0] === '(auth)';
-    if (!user && !inAuth) router.replace('/(auth)/login');
+    const inOnboarding = segments[0] === '(onboarding)';
+
+    if (!user && !inAuth) {
+      router.replace('/(auth)/login');
+      return;
+    }
+    if (user && !hasCompletedOnboarding && !inOnboarding) {
+      router.replace('/(onboarding)');
+      return;
+    }
     if (user && inAuth) router.replace('/(tabs)/');
-  }, [user, isLoading, segments]);
+  }, [user, isLoading, hasCompletedOnboarding, segments]);
 
   return null;
 }
@@ -51,6 +61,7 @@ function ThemedLayout() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="medication/[id]"
@@ -70,10 +81,6 @@ function ThemedLayout() {
 }
 
 function RootLayout() {
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGuard />

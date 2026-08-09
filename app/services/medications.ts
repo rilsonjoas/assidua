@@ -12,7 +12,16 @@ export interface Medication {
   is_active: boolean;
   schedules: DoseSchedule[];
   stock: StockItem | null;
+  // Calculado no backend (current_quantity ÷ doses/dia médio dos
+  // schedules ativos) — null sem schedule ativo ou sem estoque.
+  days_remaining: number | null;
 }
+
+// Refill alert inteligente (Fase 1 do roadmap): abaixo disso, avisa na
+// tela Hoje/Estoque e agenda notificação local. Sem base científica —
+// é o "tempo de reação razoável pra ir à farmácia" que apps do nicho
+// (Medisafe/MyTherapy) também usam como ordem de grandeza.
+export const LOW_STOCK_DAYS_THRESHOLD = 7;
 
 export interface DoseSchedule {
   id: number;

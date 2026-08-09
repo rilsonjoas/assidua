@@ -12,7 +12,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useProfileStore } from '../../store/profileStore';
-import { getMedications, updateStock, Medication } from '../../services/medications';
+import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
+import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 
@@ -33,8 +34,21 @@ export default function StockScreen() {
   const mutation = useMutation({
     mutationFn: ({ id, quantity }: { id: number; quantity: number }) =>
       updateStock(id, { current_quantity: quantity }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['medications'] });
+    onSuccess: async (_stock, { id }) => {
+      // Espera o refetch terminar (não só invalidar) pra pegar o
+      // days_remaining recalculado no backend antes de (re)agendar o
+      // aviso — evita duplicar a conta de doses/dia aqui no frontend.
+      await queryClient.invalidateQueries({ queryKey: ['medications', activeProfile?.id] });
+      const fresh = queryClient.getQueryData<Medication[]>(['medications', activeProfile?.id]);
+      const medication = fresh?.find((m) => m.id === id);
+      if (medication) {
+        await scheduleRefillAlert({
+          medicationId: medication.id,
+          medicationName: medication.name,
+          daysRemaining: medication.days_remaining,
+          thresholdDays: LOW_STOCK_DAYS_THRESHOLD,
+        });
+      }
       setEditing(null);
     },
   });
@@ -60,7 +74,10 @@ export default function StockScreen() {
           ListEmptyComponent={<Text style={styles.empty}>Nenhum medicamento cadastrado.</Text>}
           renderItem={({ item }) => {
             const stock = item.stock;
-            const isLow = stock && stock.current_quantity <= stock.min_alert_quantity;
+            const daysRemaining = item.days_remaining;
+            // "Baixo" agora é sobre tempo, não só quantidade absoluta —
+            // 5 comprimidos é muito diferente entre 1x/dia e 4x/dia.
+            const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
             return (
               <View style={[styles.card, isLow && styles.cardAlert]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
@@ -69,7 +86,11 @@ export default function StockScreen() {
                   {isLow && (
                     <View style={styles.alertRow}>
                       <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
-                      <Text style={styles.alertText}>Estoque baixo</Text>
+                      <Text style={styles.alertText}>
+                        {daysRemaining! <= 0
+                          ? 'Estoque acabou'
+                          : `Acaba em ${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}`}
+                      </Text>
                     </View>
                   )}
                   {editing === item.id ? (
@@ -93,7 +114,10 @@ export default function StockScreen() {
                     </Text>
                   )}
                 </View>
-                <TouchableOpacity onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}>
+                <TouchableOpacity
+                  testID={`edit-stock-${item.id}`}
+                  onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
+                >
                   <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>

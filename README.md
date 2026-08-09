@@ -121,13 +121,13 @@ users
 
 Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 
-- [ ] **Corrigir dose** — desmarcar um "Tomei" feito por engano (undo na tela Hoje)
-- [ ] **Status automático "Perdido"** — doses que passaram do horário sem ação viram `missed` automaticamente (job no backend ou lógica no frontend ao abrir o app)
-- [ ] **Onboarding guiado** — 3 telas exibidas apenas na primeira abertura: criar perfil → adicionar medicamento → ativar notificações
-- [ ] **Haptic feedback** — vibração ao marcar "Tomei" (`expo-haptics`, uma linha de código)
-- [ ] **Refill alert inteligente** — cálculo automático "seu estoque de X acaba em N dias" baseado em `current_quantity` ÷ doses por dia do schedule; alerta na tela Hoje e notificação
-- [ ] **Exclusão de conta** — botão em Perfis que apaga todos os dados do usuário (obrigatório pela LGPD)
-- [ ] **Política de privacidade** — link na tela de cadastro explicando que dados ficam na conta do usuário
+- [x] **Corrigir dose** (2026-08-09) — toque no badge "Tomado"/"Pulado" na tela Hoje desmarca (`DELETE /dose-logs/{id}`, `DoseLogPolicy`, testado em `DoseLogDestroyTest.php` e `__tests__/home.test.tsx`)
+- [x] **Status automático "Perdido"** (2026-08-09) — dose com horário passado e sem log vira `missed` na hora em que o app é aberto (não precisa de cron), persistido de verdade pra contar no histórico; continua acionável (dá pra marcar "Tomei" atrasado, sobrescreve via `updateOrCreate`)
+- [x] **Onboarding guiado** (2026-08-09) — carrossel de 3 telas na primeira abertura (`app/(onboarding)/`), gate por `onboardingStore` persistido (não por perfil vazio — apagar perfis não deveria reabrir onboarding). Pedido de notificação saiu do boot "a frio" e passou a acontecer contextualizado no fim do onboarding
+- [x] **Haptic feedback** (2026-08-09) — `expo-haptics`, dispara no sucesso da mutação (não no toque em si, evita falso positivo se a chamada falhar)
+- [x] **Refill alert inteligente** (2026-08-09) — `days_remaining` calculado no backend (`Medication::dosesPerDay()`, considera `days_of_week` restrito, não só doses/dia fixo), exposto em todo JSON de medicamento; banner na tela Hoje, texto "Acaba em N dias" na tela Estoque, notificação local agendada ao atualizar quantidade (limiar: 7 dias, ajustável via `LOW_STOCK_DAYS_THRESHOLD`)
+- [x] **Exclusão de conta** — já implementado (tela Perfil, confirma senha se houver), mas achado real em 2026-08-09: zero teste cobria isso. `AuthDestroyAccountTest.php` agora confirma cascata real no banco (profile → medication → schedule → dose_log → stock, todos apagados), senha errada rejeitada, conta OAuth sem senha exclui sem pedir senha
+- [x] **Política de privacidade** — já implementado: link real na tela de cadastro (`app/(auth)/register.tsx`) pra `/privacidade`, página publicada no backend (`routes/web.php`, `resources/views/privacy.blade.php`)
 
 ### Fase 2 — Retenção e qualidade (v1.1, após primeiros usuários)
 
@@ -173,9 +173,12 @@ não adianta ter monetização sem estar na loja, nem growth sem retenção.
 - [ ] **Formulário "Data safety"** no Play Console — declarar coleta de
       dado de saúde, passa por revisão mais rigorosa que app comum
 - [ ] `eas build --profile production` + `eas submit` — nunca rodado
-- [ ] Resto da **Fase 1** acima (corrigir dose, status "Perdido",
-      onboarding, haptic feedback, refill alert) — são os itens que,
-      segundo o próprio roadmap, "se faltarem, o usuário desinstala"
+- [x] **Fase 1 completa** (2026-08-09) — os 7 itens que, segundo o
+      próprio roadmap, "se faltarem, o usuário desinstala" (corrigir
+      dose, status "Perdido", onboarding, haptic feedback, refill alert,
+      exclusão de conta, política de privacidade). Único bloqueador real
+      de L0 que restava era código — o resto é conta/processo/tempo de
+      espera do Google, não engenharia
 
 ### L1 — Monetização de verdade (a régua já existe, falta cobrança)
 

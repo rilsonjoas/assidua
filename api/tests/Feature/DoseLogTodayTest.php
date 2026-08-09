@@ -143,6 +143,74 @@ class DoseLogTodayTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_marca_dose_como_perdida_quando_horario_ja_passou(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create([
+            'time' => '08:00:00', // já passou às 10h
+            'days_of_week' => null,
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(1);
+        $response->assertJsonFragment(['status' => 'missed']);
+        $this->assertDatabaseHas('dose_logs', [
+            'dose_schedule_id' => $schedule->id,
+            'status' => 'missed',
+        ]);
+    }
+
+    public function test_dose_perdida_continua_com_horario_futuro_como_pendente(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $medication->schedules()->create([
+            'time' => '20:00:00', // ainda não chegou às 10h
+            'days_of_week' => null,
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(1);
+        $response->assertJsonFragment(['status' => 'pending']);
+    }
+
+    public function test_dose_perdida_ainda_pode_ser_marcada_como_tomada_depois(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        // Abre o app às 10h — vira "missed" automaticamente.
+        $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+        $this->assertDatabaseHas('dose_logs', ['dose_schedule_id' => $schedule->id, 'status' => 'missed']);
+
+        // Usuário percebe e marca como tomada mesmo assim, atrasada.
+        $response = $this->actingAs($user)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'taken_at' => Carbon::now()->toISOString(),
+            'status' => 'taken',
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(1, DoseLog::where('dose_schedule_id', $schedule->id)->count());
+        $this->assertDatabaseHas('dose_logs', ['dose_schedule_id' => $schedule->id, 'status' => 'taken']);
+    }
+
     public function test_ordena_doses_por_horario(): void
     {
         $user = User::factory()->create();

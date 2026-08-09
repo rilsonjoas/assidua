@@ -7,6 +7,7 @@ use App\Models\Profile;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class DoseLogController extends Controller
 {
@@ -18,7 +19,10 @@ class DoseLogController extends Controller
         $dayOfWeek = (int) $today->dayOfWeek; // 0 = domingo, 6 = sábado
 
         $medications = $profile->medications()
-            ->with(['schedules' => fn ($q) => $q->where('is_active', true)])
+            ->with([
+                'schedules' => fn ($q) => $q->where('is_active', true),
+                'stock',
+            ])
             ->where('is_active', true)
             ->get();
 
@@ -38,6 +42,24 @@ class DoseLogController extends Controller
                     ->whereDate('scheduled_at', $today)
                     ->first();
 
+                // Status automático "Perdido" (Fase 1 do roadmap): dose
+                // cujo horário já passou e ninguém agiu vira `missed` —
+                // registrado agora (não só calculado na resposta), pra
+                // entrar de verdade no histórico/adesão depois. Continua
+                // acionável: o usuário ainda pode tocar "Tomei" e
+                // sobrescrever (store() já faz updateOrCreate pela
+                // mesma chave dose_schedule_id+scheduled_at).
+                if (! $log && $scheduledAt->isPast()) {
+                    $log = DoseLog::create([
+                        'dose_schedule_id' => $schedule->id,
+                        'medication_id' => $medication->id,
+                        'profile_id' => $profile->id,
+                        'scheduled_at' => $scheduledAt,
+                        'taken_at' => null,
+                        'status' => 'missed',
+                    ]);
+                }
+
                 $doses[] = [
                     'id' => $log?->id ?? 'pending_' . $schedule->id,
                     'dose_schedule_id' => $schedule->id,
@@ -47,7 +69,7 @@ class DoseLogController extends Controller
                     'taken_at' => $log?->taken_at,
                     'status' => $log?->status ?? 'pending',
                     'notes' => $log?->notes,
-                    'medication' => $medication->only(['id', 'name', 'dosage', 'unit', 'color']),
+                    'medication' => $medication->only(['id', 'name', 'dosage', 'unit', 'color', 'days_remaining']),
                     'dose_schedule' => $schedule->only(['id', 'time', 'days_of_week']),
                 ];
             }
@@ -117,5 +139,20 @@ class DoseLogController extends Controller
             'medication' => $log->medication->only(['id', 'name', 'dosage', 'unit', 'color']),
             'dose_schedule' => $log->doseSchedule->only(['id', 'time', 'days_of_week']),
         ]), 201);
+    }
+
+    /**
+     * "Corrigir dose" (Fase 1 do roadmap) — desmarcar um "Tomei"/"Pulei"
+     * feito por engano. Não tem status "voltar pra pendente" no banco:
+     * apagar o log é o próprio "voltar a pendente", porque today() já
+     * trata ausência de log como pending_<scheduleId>.
+     */
+    public function destroy(Request $request, DoseLog $doseLog): JsonResponse
+    {
+        Gate::authorize('delete', $doseLog);
+
+        $doseLog->delete();
+
+        return response()->json(null, 204);
     }
 }

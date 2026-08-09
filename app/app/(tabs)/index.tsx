@@ -9,12 +9,14 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Link } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useProfileStore } from '../../store/profileStore';
-import { getTodayDoses, logDose, DoseLog } from '../../services/doses';
+import { getTodayDoses, logDose, undoDose, DoseLog } from '../../services/doses';
+import { LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { api } from '../../services/api';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
@@ -45,7 +47,13 @@ export default function HomeScreen() {
         taken_at: new Date().toISOString(),
         status: 'taken',
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['today-doses'] }),
+    onSuccess: () => {
+      // Haptic feedback (Fase 1) — só no sucesso, não no toque em si:
+      // vibrar antes de confirmar que salvou daria falso positivo se a
+      // chamada falhar.
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+    },
   });
 
   const skipDose = useMutation({
@@ -60,8 +68,27 @@ export default function HomeScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['today-doses'] }),
   });
 
+  // Corrigir dose (Fase 1) — desmarcar "Tomei"/"Pulei" feito por engano.
+  const undoMutation = useMutation({
+    mutationFn: (dose: DoseLog) => undoDose(dose.id as number),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['today-doses'] }),
+  });
+
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
   const takenCount = doses.filter((d) => d.status === 'taken').length;
+
+  // Refill alert inteligente (Fase 1) — nomes únicos com estoque baixo
+  // entre os medicamentos que têm dose hoje, pra um banner compacto.
+  const lowStockNames = Array.from(
+    new Set(
+      doses
+        .filter((d) => {
+          const days = d.medication.days_remaining;
+          return days !== null && days <= LOW_STOCK_DAYS_THRESHOLD;
+        })
+        .map((d) => d.medication.name),
+    ),
+  );
 
   return (
     <View style={styles.container}>
@@ -98,6 +125,15 @@ export default function HomeScreen() {
           />
         )}
       </View>
+
+      {lowStockNames.length > 0 && (
+        <View style={styles.stockBanner}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.warning} />
+          <Text style={styles.stockBannerText} numberOfLines={2}>
+            Estoque acabando: {lowStockNames.join(', ')}
+          </Text>
+        </View>
+      )}
 
       {!isLoading && profiles.length === 0 && (
         <View style={styles.emptyBox}>
@@ -136,12 +172,14 @@ export default function HomeScreen() {
           renderItem={({ item }) => {
             const taken = item.status === 'taken';
             const skipped = item.status === 'skipped';
+            const missed = item.status === 'missed';
             const time = format(parseISO(item.scheduled_at), 'HH:mm');
             return (
               <View style={[styles.card, (taken || skipped) && styles.cardDone]}>
-                <View style={[styles.colorBar, { backgroundColor: item.medication.color }]} />
+                <View style={[styles.colorBar, { backgroundColor: missed ? colors.warning : item.medication.color }]} />
                 <View style={styles.timeCol}>
-                  <Text style={styles.time}>{time}</Text>
+                  <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
+                  {missed && <Text style={styles.missedLabel}>Atrasado</Text>}
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.medName}>{item.medication.name}</Text>
@@ -159,16 +197,26 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {taken && (
-                  <View style={styles.statusBadge}>
+                  <TouchableOpacity
+                    style={styles.statusBadge}
+                    onPress={() => undoMutation.mutate(item)}
+                    disabled={undoMutation.isPending}
+                  >
                     <MaterialCommunityIcons name="check-circle" size={18} color={colors.success} />
                     <Text style={styles.takenText}>Tomado</Text>
-                  </View>
+                    <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
+                  </TouchableOpacity>
                 )}
                 {skipped && (
-                  <View style={styles.statusBadge}>
+                  <TouchableOpacity
+                    style={styles.statusBadge}
+                    onPress={() => undoMutation.mutate(item)}
+                    disabled={undoMutation.isPending}
+                  >
                     <MaterialCommunityIcons name="minus-circle" size={18} color={colors.textMuted} />
                     <Text style={styles.skippedText}>Pulado</Text>
-                  </View>
+                    <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
+                  </TouchableOpacity>
                 )}
               </View>
             );
@@ -195,6 +243,13 @@ function makeStyles(c: ThemeColors) {
     profileChipActive: { backgroundColor: c.surface },
     profileChipText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500' },
     profileChipTextActive: { color: c.brand },
+    stockBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      marginHorizontal: 16, marginTop: 12, padding: 12,
+      backgroundColor: c.brandSubtle, borderRadius: 12,
+      borderWidth: 1, borderColor: c.warning,
+    },
+    stockBannerText: { flex: 1, fontSize: 13, color: c.text, fontWeight: '500' },
     list: { padding: 16, gap: 10 },
     emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
     emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
@@ -210,6 +265,7 @@ function makeStyles(c: ThemeColors) {
     colorBar: { width: 5, alignSelf: 'stretch' },
     timeCol: { paddingHorizontal: 12, alignItems: 'center' },
     time: { fontSize: 15, fontWeight: '700', color: c.brand },
+    missedLabel: { fontSize: 10, fontWeight: '600', color: c.warning, marginTop: 2 },
     cardBody: { flex: 1, paddingVertical: 16 },
     medName: { fontSize: 15, fontWeight: '600', color: c.text },
     medDosage: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
@@ -220,7 +276,8 @@ function makeStyles(c: ThemeColors) {
     },
     takeButtonText: { color: '#fff', fontWeight: '600', fontSize: 13 },
     skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
-    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14 },
+    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4 },
+    undoIcon: { marginLeft: 2, opacity: 0.6 },
     takenText: { color: c.success, fontWeight: '600', fontSize: 13 },
     skippedText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
   });

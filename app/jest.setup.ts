@@ -28,13 +28,18 @@ jest.mock('expo-secure-store', () => {
 });
 
 // expo-router não tem contexto de rota nos testes de unidade/componente
-// isolado — troca <Link> por um wrapper que só renderiza os filhos.
+// isolado — troca <Link> por um wrapper que só renderiza os filhos, e
+// useRouter()/useSegments() por versões mockáveis (mesmo objeto `router`
+// pra manter push/replace/back espionáveis num lugar só).
 jest.mock('expo-router', () => {
   const React = require('react');
   const { Text } = require('react-native');
+  const router = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
   return {
     Link: ({ children, ...props }: any) =>
       React.createElement(Text, props, children),
-    router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+    router,
+    useRouter: () => router,
+    useSegments: jest.fn(() => []),
   };
 });

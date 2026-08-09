@@ -82,6 +82,43 @@ export async function scheduleScheduleNotifications(params: {
   }
 }
 
+// Refill alert inteligente (Fase 1) — agenda UM aviso local pra data em
+// que o estoque acaba, se estiver dentro do horizonte de alerta. Cancela
+// o aviso anterior desse medicamento antes (evita acumular vários se o
+// usuário reabastecer e o dia mudar). Não agenda nada se days_remaining
+// for null (sem schedule ativo) ou já tiver passado do limiar — não faz
+// sentido notificar sobre algo 200 dias no futuro.
+export async function scheduleRefillAlert(params: {
+  medicationId: number;
+  medicationName: string;
+  daysRemaining: number | null;
+  thresholdDays: number;
+}): Promise<void> {
+  const { medicationId, medicationName, daysRemaining, thresholdDays } = params;
+  const identifier = `refill_${medicationId}`;
+
+  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+
+  if (daysRemaining === null || daysRemaining > thresholdDays) return;
+
+  // Já acabou ou acaba hoje — não dá pra agendar gatilho no passado.
+  if (daysRemaining <= 0) return;
+
+  await Notifications.scheduleNotificationAsync({
+    identifier,
+    content: {
+      title: 'Estoque acabando',
+      body: `${medicationName} vai acabar em ${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}. Hora de repor.`,
+      sound: true,
+      data: { medicationId },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: daysRemaining * 24 * 60 * 60,
+    },
+  });
+}
+
 export async function cancelScheduleNotifications(scheduleId: number): Promise<void> {
   const all = await Notifications.getAllScheduledNotificationsAsync();
   const prefix = `schedule_${scheduleId}_`;
