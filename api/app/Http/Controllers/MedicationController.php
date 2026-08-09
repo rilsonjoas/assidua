@@ -24,7 +24,9 @@ class MedicationController extends Controller
 
     public function store(Request $request, Profile $profile): JsonResponse
     {
-        Gate::authorize('view', $profile);
+        // Mesmo achado do DoseScheduleController::store() — 'view', não
+        // 'update'. Cadastrar medicamento novo continua só do dono.
+        Gate::authorize('update', $profile);
 
         $user = $request->user();
 

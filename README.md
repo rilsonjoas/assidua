@@ -168,11 +168,21 @@ Construindo por etapas, cada uma testada e revisada antes da próxima:
       usado, não expirou, dono não resgata o próprio convite, sem
       duplicar colaboração. `GET`/`DELETE` de colaboradores pro dono
       gerenciar. `ProfileCollaboratorInviteTest.php`, 11/11
-- [ ] **Etapa 3 — Autorização revisada**: `ProfilePolicy`,
-      `MedicationPolicy`, `DoseSchedulePolicy`, `DoseLogPolicy` passam a
-      checar "é dono OU é colaborador com papel suficiente", não só
-      `user_id === profile.user_id` — toca autorização em todo o app,
-      fazer com teste cobrindo dono/colaborador/estranho em cada uma
+- [x] **Etapa 3 — Autorização revisada** (2026-08-09): decisão de
+      escopo — cuidador pode **ver e agir sobre doses/estoque**
+      (marcar tomada/pulada/desfazer, reabastecer), mas **não gerencia
+      o cadastro** (editar/apagar remédio, criar/editar horário,
+      renomear/apagar perfil, convidar outro cuidador — isso continua
+      só do dono). `DoseLogPolicy::create/delete` e
+      `MedicationPolicy::manageStock` abrem pro colaborador;
+      `update`/`delete` das outras Policies continuam checando só dono.
+      2 achados reais no caminho: `DoseScheduleController::store()` e
+      `MedicationController::store()` usavam `Gate::authorize('view',
+      ...)` em vez de `'update'` — inofensivo antes (view e update eram
+      o mesmo critério), teria virado brecha real agora que view() abre
+      pro colaborador. Corrigido. Matriz dono/colaborador/estranho
+      testada em cada recurso tocado (`ProfileCollaboratorAuthorizationTest.php`,
+      12/12). 105/105 no total, zero regressão
 - [ ] **Etapa 4 — Notificação push real (servidor)**: pré-requisito
       técnico direto — pra avisar o cuidador que o paciente perdeu uma
       dose, a notificação não pode depender do celular do paciente

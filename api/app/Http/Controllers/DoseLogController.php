@@ -13,7 +13,11 @@ class DoseLogController extends Controller
 {
     public function today(Request $request, Profile $profile): JsonResponse
     {
-        abort_if($profile->user_id !== $request->user()->id, 403);
+        // Fase 1.5 (2026-08-09): abort_if direto virou Gate::authorize —
+        // ProfilePolicy::view agora também aceita colaborador aceito, não
+        // só dono. Sem essa troca, o cuidador remoto nunca conseguiria
+        // ver a tela Hoje do paciente.
+        Gate::authorize('view', $profile);
 
         $today = Carbon::today();
         $dayOfWeek = (int) $today->dayOfWeek; // 0 = domingo, 6 = sábado
@@ -83,7 +87,7 @@ class DoseLogController extends Controller
 
     public function history(Request $request, Profile $profile): JsonResponse
     {
-        abort_if($profile->user_id !== $request->user()->id, 403);
+        Gate::authorize('view', $profile);
 
         $days = $request->user()->isPro() ? 3650 : 30;
 
@@ -125,7 +129,7 @@ class DoseLogController extends Controller
         ]);
 
         $profile = Profile::findOrFail($data['profile_id']);
-        abort_if($profile->user_id !== $request->user()->id, 403);
+        Gate::authorize('create', [DoseLog::class, $profile]);
 
         $log = DoseLog::updateOrCreate(
             [

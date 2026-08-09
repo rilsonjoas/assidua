@@ -19,7 +19,11 @@ class DoseScheduleController extends Controller
 
     public function store(Request $request, Medication $medication): JsonResponse
     {
-        Gate::authorize('view', $medication);
+        // Achado real (Fase 1.5, 2026-08-09): isto usava 'view', não
+        // 'update'. Antes da introdução de colaborador não fazia
+        // diferença (view === update === dono); agora que view() abre
+        // pro cuidador, criar horário precisa continuar só do dono.
+        Gate::authorize('update', $medication);
 
         $data = $request->validate([
             'time' => 'required|date_format:H:i',

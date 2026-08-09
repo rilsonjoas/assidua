@@ -8,21 +8,33 @@ use App\Models\User;
 class MedicationPolicy
 {
     /**
-     * Dono é quem é dono do perfil ao qual o medicamento pertence
-     * (medication -> profile -> user), não uma coluna direta em Medication.
+     * Fase 1.5 (2026-08-09): view abre pra colaborador aceito do perfil
+     * (via medication -> profile). update/delete continuam só do dono —
+     * editar/apagar o cadastro do remédio é gerenciamento, diferente de
+     * agir sobre uma dose (isso é DoseLogPolicy).
      */
     public function view(User $user, Medication $medication): bool
     {
-        return $medication->profile->user_id === $user->id;
+        return $medication->profile->isAccessibleBy($user);
     }
 
     public function update(User $user, Medication $medication): bool
     {
-        return $this->view($user, $medication);
+        return $medication->profile->user_id === $user->id;
     }
 
     public function delete(User $user, Medication $medication): bool
     {
-        return $this->view($user, $medication);
+        return $this->update($user, $medication);
+    }
+
+    /**
+     * Atualizar quantidade em estoque é uma ação de cuidador (reabastecer),
+     * não gerenciamento do cadastro — colaborador tem o mesmo nível do
+     * dono aqui, diferente de update()/delete() acima.
+     */
+    public function manageStock(User $user, Medication $medication): bool
+    {
+        return $medication->profile->isAccessibleBy($user);
     }
 }
