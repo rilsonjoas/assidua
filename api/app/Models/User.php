@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -50,6 +51,16 @@ class User extends Authenticatable
     public function profiles(): HasMany
     {
         return $this->hasMany(Profile::class);
+    }
+
+    // Perfis de OUTRAS contas em que este usuário é cuidador aceito
+    // (Fase 1.5, Etapa 1) — não inclui os perfis próprios, que já vêm
+    // de profiles() acima.
+    public function sharedProfiles(): BelongsToMany
+    {
+        return $this->belongsToMany(Profile::class, 'profile_collaborators')
+            ->wherePivot('accepted_at', '!=', null)
+            ->withPivot('role', 'accepted_at');
     }
 
     public function isPro(): bool

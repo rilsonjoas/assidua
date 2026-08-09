@@ -152,10 +152,13 @@ diferentes**, não só multi-perfil numa conta só.
 
 Construindo por etapas, cada uma testada e revisada antes da próxima:
 
-- [ ] **Etapa 1 — Modelo de dados de compartilhamento**: tabela pivot
-      `profile_collaborators` (profile_id, user_id, role, invited_at,
-      accepted_at) — dono continua sendo `profiles.user_id`,
-      colaborador (cuidador) ganha acesso via convite aceito
+- [x] **Etapa 1 — Modelo de dados de compartilhamento** (2026-08-09):
+      tabela `profile_collaborators` (profile_id, invited_by_user_id,
+      user_id nulo até aceitar, role, invite_code único, accepted_at) —
+      dono continua sendo `profiles.user_id`. `User::sharedProfiles()`
+      só retorna colaborações aceitas. Cascata testada nos dois
+      sentidos: apagar perfil apaga colaborações; apagar conta do
+      cuidador apaga só a colaboração, não o perfil (`ProfileCollaboratorModelTest.php`, 6/6)
 - [ ] **Etapa 2 — Fluxo de convite**: dono gera código/link de convite
       pra um perfil; outro usuário (com sua própria conta) resgata o
       código e vira colaborador

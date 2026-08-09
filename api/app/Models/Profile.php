@@ -40,4 +40,9 @@ class Profile extends Model
     {
         return $this->hasMany(DoseLog::class);
     }
+
+    public function collaborators(): HasMany
+    {
+        return $this->hasMany(ProfileCollaborator::class);
+    }
 }
