@@ -72,7 +72,7 @@ export default function RegisterScreen() {
         </View>
         <Text style={styles.title}>Criar conta</Text>
 
-        <TextInput style={styles.input} placeholder="Nome" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} />
+        <TextInput style={styles.input} placeholder="Nome" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} accessibilityLabel="Nome" />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -81,11 +81,19 @@ export default function RegisterScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          accessibilityLabel="Email"
         />
-        <TextInput style={styles.input} placeholder="Senha" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry />
-        <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry />
+        <TextInput style={styles.input} placeholder="Senha" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry accessibilityLabel="Senha" />
+        <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry accessibilityLabel="Confirmar senha" />
 
-        <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleRegister}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Criar conta"
+          accessibilityState={{ busy: loading }}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Criar conta</Text>}
         </TouchableOpacity>
 
@@ -95,7 +103,14 @@ export default function RegisterScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={googleLoading}>
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleLogin}
+          disabled={googleLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Continuar com Google"
+          accessibilityState={{ busy: googleLoading }}
+        >
           {googleLoading
             ? <ActivityIndicator color={colors.text} />
             : <>

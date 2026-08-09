@@ -55,11 +55,11 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.skip} onPress={finish}>
+      <TouchableOpacity style={styles.skip} onPress={finish} accessibilityRole="button" accessibilityLabel="Pular introdução">
         <Text style={styles.skipText}>Pular</Text>
       </TouchableOpacity>
 
-      <View style={styles.content}>
+      <View style={styles.content} accessible accessibilityLabel={`Etapa ${step + 1} de ${STEPS.length}. ${current.title}. ${current.text}`}>
         <View style={styles.iconCircle}>
           <MaterialCommunityIcons name={current.icon} size={56} color={colors.brand} />
         </View>
@@ -67,7 +67,7 @@ export default function OnboardingScreen() {
         <Text style={styles.text}>{current.text}</Text>
       </View>
 
-      <View style={styles.dots}>
+      <View style={styles.dots} importantForAccessibility="no-hide-descendants">
         {STEPS.map((_, i) => (
           <View key={i} style={[styles.dot, i === step && styles.dotActive]} />
         ))}
@@ -76,6 +76,8 @@ export default function OnboardingScreen() {
       <TouchableOpacity
         style={styles.nextBtn}
         onPress={() => (isLast ? finish() : setStep((s) => s + 1))}
+        accessibilityRole="button"
+        accessibilityLabel={isLast ? 'Ativar notificações e começar' : 'Próximo'}
       >
         <Text style={styles.nextBtnText}>{isLast ? 'Ativar notificações e começar' : 'Próximo'}</Text>
       </TouchableOpacity>

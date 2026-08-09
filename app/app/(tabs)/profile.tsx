@@ -200,6 +200,9 @@ export default function ProfileScreen() {
           key={item.id}
           style={[styles.profileRow, activeProfile?.id === item.id && styles.profileRowActive]}
           onPress={() => setActiveProfile(item)}
+          accessibilityRole="button"
+          accessibilityLabel={item.is_owner === false ? `Perfil ${item.name}, você cuida remotamente` : `Perfil ${item.name}`}
+          accessibilityState={{ selected: activeProfile?.id === item.id }}
         >
           <View style={[styles.profileIconBox, { backgroundColor: item.color }]}>
             <MaterialCommunityIcons name={(item.avatar_emoji as any) ?? 'account'} size={22} color="#fff" />
@@ -219,6 +222,8 @@ export default function ProfileScreen() {
               onPress={() => handleInvite(item.id)}
               disabled={invitingProfileId === item.id}
               style={styles.inviteBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Convidar cuidador para ${item.name}`}
             >
               <MaterialCommunityIcons
                 name="account-plus-outline"
@@ -246,18 +251,36 @@ export default function ProfileScreen() {
             value={redeemCode}
             onChangeText={setRedeemCode}
             autoCapitalize="characters"
+            accessibilityLabel="Código de convite"
           />
           <View style={styles.createActions}>
-            <TouchableOpacity onPress={() => { setRedeeming(false); setRedeemCode(''); }} style={styles.cancelBtn}>
+            <TouchableOpacity
+              onPress={() => { setRedeeming(false); setRedeemCode(''); }}
+              style={styles.cancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+            >
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleRedeem} style={styles.saveBtn} disabled={redeemingLoading}>
+            <TouchableOpacity
+              onPress={handleRedeem}
+              style={styles.saveBtn}
+              disabled={redeemingLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Entrar"
+              accessibilityState={{ busy: redeemingLoading }}
+            >
               <Text style={styles.saveBtnText}>{redeemingLoading ? 'Entrando...' : 'Entrar'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
-        <TouchableOpacity style={styles.addBtn} onPress={() => setRedeeming(true)}>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => setRedeeming(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Tenho um código"
+        >
           <MaterialCommunityIcons name="account-heart-outline" size={18} color={colors.brand} />
           <Text style={styles.addBtnText}>Tenho um código</Text>
         </TouchableOpacity>
@@ -272,6 +295,7 @@ export default function ProfileScreen() {
             placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
+            accessibilityLabel="Nome do paciente"
           />
           <Text style={styles.createLabel}>Ícone</Text>
           <FlatList
@@ -283,6 +307,9 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 onPress={() => setAvatarIcon(item)}
                 style={[styles.iconBtn, avatarIcon === item && { backgroundColor: color }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Ícone ${item.replace(/-/g, ' ')}`}
+                accessibilityState={{ selected: avatarIcon === item }}
               >
                 <MaterialCommunityIcons
                   name={item}
@@ -295,25 +322,45 @@ export default function ProfileScreen() {
           />
           <Text style={styles.createLabel}>Cor</Text>
           <View style={styles.colorRow}>
-            {COLORS.map((c) => (
+            {COLORS.map((c, i) => (
               <TouchableOpacity
                 key={c}
                 onPress={() => setColor(c)}
                 style={[styles.colorBtn, { backgroundColor: c }, color === c && styles.colorBtnActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`Cor ${i + 1}`}
+                accessibilityState={{ selected: color === c }}
               />
             ))}
           </View>
           <View style={styles.createActions}>
-            <TouchableOpacity onPress={() => setCreating(false)} style={styles.cancelBtn}>
+            <TouchableOpacity
+              onPress={() => setCreating(false)}
+              style={styles.cancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+            >
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={createProfile} style={styles.saveBtn} disabled={saving}>
+            <TouchableOpacity
+              onPress={createProfile}
+              style={styles.saveBtn}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Criar perfil"
+              accessibilityState={{ busy: saving }}
+            >
               <Text style={styles.saveBtnText}>{saving ? 'Salvando...' : 'Criar perfil'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
-        <TouchableOpacity style={styles.addBtn} onPress={() => setCreating(true)}>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() => setCreating(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Novo perfil"
+        >
           <MaterialCommunityIcons name="plus" size={20} color={colors.brand} />
           <Text style={styles.addBtnText}>Novo Perfil</Text>
         </TouchableOpacity>
@@ -327,6 +374,9 @@ export default function ProfileScreen() {
             key={opt.mode}
             style={[styles.themeBtn, themeMode === opt.mode && styles.themeBtnActive]}
             onPress={() => setThemeMode(opt.mode)}
+            accessibilityRole="button"
+            accessibilityLabel={`Tema ${opt.label}`}
+            accessibilityState={{ selected: themeMode === opt.mode }}
           >
             <MaterialCommunityIcons
               name={opt.icon}
@@ -341,7 +391,12 @@ export default function ProfileScreen() {
       </View>
 
       {/* Logout */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={handleLogout}
+        accessibilityRole="button"
+        accessibilityLabel="Sair da conta"
+      >
         <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
         <Text style={styles.logoutText}>Sair da conta</Text>
       </TouchableOpacity>
@@ -358,11 +413,14 @@ export default function ProfileScreen() {
             value={deletePassword}
             onChangeText={setDeletePassword}
             secureTextEntry
+            accessibilityLabel="Senha"
           />
           <View style={styles.createActions}>
             <TouchableOpacity
               onPress={() => { setDeletingAccount(false); setDeletePassword(''); }}
               style={styles.cancelBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
             >
               <Text style={styles.cancelText}>Cancelar</Text>
             </TouchableOpacity>
@@ -370,13 +428,22 @@ export default function ProfileScreen() {
               onPress={() => performDeleteAccount(deletePassword)}
               style={styles.deleteConfirmBtn}
               disabled={deleting || !deletePassword}
+              accessibilityRole="button"
+              accessibilityLabel="Excluir permanentemente"
+              accessibilityState={{ busy: deleting }}
             >
               <Text style={styles.saveBtnText}>{deleting ? 'Excluindo...' : 'Excluir permanentemente'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
-        <TouchableOpacity style={styles.logoutBtn} onPress={confirmDeleteAccount} disabled={deleting}>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={confirmDeleteAccount}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel="Excluir conta"
+        >
           <MaterialCommunityIcons name="account-remove-outline" size={18} color={colors.error} />
           <Text style={styles.logoutText}>{deleting ? 'Excluindo...' : 'Excluir conta'}</Text>
         </TouchableOpacity>

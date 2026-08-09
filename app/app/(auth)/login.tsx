@@ -70,6 +70,7 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          accessibilityLabel="Email"
         />
         <TextInput
           style={styles.input}
@@ -78,9 +79,17 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          accessibilityLabel="Senha"
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLogin}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Entrar"
+          accessibilityState={{ busy: loading }}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
         </TouchableOpacity>
 
@@ -90,7 +99,14 @@ export default function LoginScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin} disabled={googleLoading}>
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleLogin}
+          disabled={googleLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Entrar com Google"
+          accessibilityState={{ busy: googleLoading }}
+        >
           {googleLoading
             ? <ActivityIndicator color={colors.text} />
             : <>

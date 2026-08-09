@@ -110,6 +110,9 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={[styles.profileChip, activeProfile?.id === item.id && styles.profileChipActive]}
                 onPress={() => setActiveProfile(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Perfil ${item.name}`}
+                accessibilityState={{ selected: activeProfile?.id === item.id }}
               >
                 <MaterialCommunityIcons
                   name={(item.avatar_emoji as any) ?? 'account'}
@@ -141,7 +144,7 @@ export default function HomeScreen() {
           <Text style={styles.emptyTitle}>Nenhum perfil criado</Text>
           <Text style={styles.emptyText}>Crie um perfil de paciente para começar.</Text>
           <Link href="/(tabs)/profile" asChild>
-            <TouchableOpacity style={styles.emptyBtn}>
+            <TouchableOpacity style={styles.emptyBtn} accessibilityRole="button">
               <Text style={styles.emptyBtnText}>Criar perfil</Text>
             </TouchableOpacity>
           </Link>
@@ -154,7 +157,7 @@ export default function HomeScreen() {
           <Text style={styles.emptyTitle}>Nenhuma dose hoje</Text>
           <Text style={styles.emptyText}>Adicione um medicamento com horário para vê-lo aqui.</Text>
           <Link href="/(tabs)/medications" asChild>
-            <TouchableOpacity style={styles.emptyBtn}>
+            <TouchableOpacity style={styles.emptyBtn} accessibilityRole="button">
               <Text style={styles.emptyBtnText}>Adicionar medicamento</Text>
             </TouchableOpacity>
           </Link>
@@ -187,11 +190,23 @@ export default function HomeScreen() {
                 </View>
                 {!taken && !skipped && (
                   <View style={styles.actions}>
-                    <TouchableOpacity style={styles.takeButton} onPress={() => markDose.mutate(item)} disabled={markDose.isPending}>
+                    <TouchableOpacity
+                      style={styles.takeButton}
+                      onPress={() => markDose.mutate(item)}
+                      disabled={markDose.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Marcar ${item.medication.name} das ${time} como tomado`}
+                    >
                       <MaterialCommunityIcons name="check" size={18} color="#fff" />
                       <Text style={styles.takeButtonText}>Tomei</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.skipButton} onPress={() => skipDose.mutate(item)} disabled={skipDose.isPending}>
+                    <TouchableOpacity
+                      style={styles.skipButton}
+                      onPress={() => skipDose.mutate(item)}
+                      disabled={skipDose.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Pular ${item.medication.name} das ${time}`}
+                    >
                       <MaterialCommunityIcons name="close" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -201,6 +216,9 @@ export default function HomeScreen() {
                     style={styles.statusBadge}
                     onPress={() => undoMutation.mutate(item)}
                     disabled={undoMutation.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.medication.name} das ${time}, tomado`}
+                    accessibilityHint="Toque para desfazer, caso tenha marcado por engano"
                   >
                     <MaterialCommunityIcons name="check-circle" size={18} color={colors.success} />
                     <Text style={styles.takenText}>Tomado</Text>
@@ -212,6 +230,9 @@ export default function HomeScreen() {
                     style={styles.statusBadge}
                     onPress={() => undoMutation.mutate(item)}
                     disabled={undoMutation.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.medication.name} das ${time}, pulado`}
+                    accessibilityHint="Toque para desfazer, caso tenha marcado por engano"
                   >
                     <MaterialCommunityIcons name="minus-circle" size={18} color={colors.textMuted} />
                     <Text style={styles.skippedText}>Pulado</Text>

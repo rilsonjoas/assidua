@@ -198,6 +198,7 @@ export default function MedicationFormScreen() {
         onChangeText={setName}
         placeholder="Ex: Losartana"
         placeholderTextColor={colors.textMuted}
+        accessibilityLabel="Nome do medicamento"
       />
 
       <Text style={styles.label}>Dosagem *</Text>
@@ -209,6 +210,7 @@ export default function MedicationFormScreen() {
           placeholder="50"
           placeholderTextColor={colors.textMuted}
           keyboardType="decimal-pad"
+          accessibilityLabel="Dosagem"
         />
         <TextInput
           style={[styles.input, styles.unitInput]}
@@ -216,16 +218,20 @@ export default function MedicationFormScreen() {
           onChangeText={setUnit}
           placeholder="mg"
           placeholderTextColor={colors.textMuted}
+          accessibilityLabel="Unidade da dosagem"
         />
       </View>
 
       <Text style={styles.label}>Cor</Text>
       <View style={styles.colorRow}>
-        {COLORS.map((c) => (
+        {COLORS.map((c, i) => (
           <TouchableOpacity
             key={c}
             style={[styles.colorBtn, { backgroundColor: c }, color === c && styles.colorBtnActive]}
             onPress={() => setColor(c)}
+            accessibilityRole="button"
+            accessibilityLabel={`Cor ${i + 1}`}
+            accessibilityState={{ selected: color === c }}
           />
         ))}
       </View>
@@ -239,9 +245,17 @@ export default function MedicationFormScreen() {
         placeholderTextColor={colors.textMuted}
         multiline
         numberOfLines={3}
+        accessibilityLabel="Instruções de uso"
       />
 
-      <TouchableOpacity style={styles.saveBtn} onPress={saveMedication} disabled={saving}>
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={saveMedication}
+        disabled={saving}
+        accessibilityRole="button"
+        accessibilityLabel={isNew ? 'Criar medicamento' : 'Salvar alterações'}
+        accessibilityState={{ busy: saving }}
+      >
         {saving
           ? <ActivityIndicator color="#fff" />
           : <Text style={styles.saveBtnText}>{isNew ? 'Criar medicamento' : 'Salvar alterações'}</Text>
@@ -254,7 +268,12 @@ export default function MedicationFormScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Horários</Text>
             {!addingSchedule && (
-              <TouchableOpacity style={styles.addScheduleBtn} onPress={() => setAddingSchedule(true)}>
+              <TouchableOpacity
+                style={styles.addScheduleBtn}
+                onPress={() => setAddingSchedule(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Adicionar horário"
+              >
                 <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
                 <Text style={styles.addScheduleBtnText}>Adicionar</Text>
               </TouchableOpacity>
@@ -275,7 +294,12 @@ export default function MedicationFormScreen() {
                 <Text style={styles.scheduleTime}>{s.time}</Text>
                 <Text style={styles.scheduleDays}>{formatDays(s.days_of_week)}</Text>
               </View>
-              <TouchableOpacity onPress={() => removeSchedule(s)} style={styles.deleteBtn}>
+              <TouchableOpacity
+                onPress={() => removeSchedule(s)}
+                style={styles.deleteBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`Remover horário das ${s.time}, ${formatDays(s.days_of_week)}`}
+              >
                 <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
               </TouchableOpacity>
             </View>
@@ -293,6 +317,7 @@ export default function MedicationFormScreen() {
                 placeholder="08:00"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="numbers-and-punctuation"
+                accessibilityLabel="Hora do horário, formato HH:MM"
               />
 
               <Text style={styles.label}>Dias da semana</Text>
@@ -302,6 +327,9 @@ export default function MedicationFormScreen() {
                     key={i}
                     style={[styles.dayBtn, newDays.includes(i) && styles.dayBtnActive]}
                     onPress={() => toggleDay(i)}
+                    accessibilityRole="button"
+                    accessibilityLabel={DAYS_FULL[i]}
+                    accessibilityState={{ selected: newDays.includes(i) }}
                   >
                     <Text style={[styles.dayBtnText, newDays.includes(i) && styles.dayBtnTextActive]}>
                       {label}
@@ -314,10 +342,19 @@ export default function MedicationFormScreen() {
                 <TouchableOpacity
                   style={styles.cancelBtn}
                   onPress={() => { setAddingSchedule(false); setNewDays(ALL_DAYS); setNewTime('08:00'); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancelar"
                 >
                   <Text style={styles.cancelBtnText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.confirmBtn} onPress={addSchedule} disabled={savingSchedule}>
+                <TouchableOpacity
+                  style={styles.confirmBtn}
+                  onPress={addSchedule}
+                  disabled={savingSchedule}
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar horário"
+                  accessibilityState={{ busy: savingSchedule }}
+                >
                   {savingSchedule
                     ? <ActivityIndicator color="#fff" size="small" />
                     : <Text style={styles.confirmBtnText}>Adicionar</Text>
@@ -344,6 +381,7 @@ export default function MedicationFormScreen() {
             placeholder="08:00"
             placeholderTextColor={colors.textMuted}
             keyboardType="numbers-and-punctuation"
+            accessibilityLabel="Hora do horário, formato HH:MM"
           />
 
           <Text style={styles.label}>Dias da semana</Text>
@@ -353,6 +391,9 @@ export default function MedicationFormScreen() {
                 key={i}
                 style={[styles.dayBtn, newDays.includes(i) && styles.dayBtnActive]}
                 onPress={() => toggleDay(i)}
+                accessibilityRole="button"
+                accessibilityLabel={DAYS_FULL[i]}
+                accessibilityState={{ selected: newDays.includes(i) }}
               >
                 <Text style={[styles.dayBtnText, newDays.includes(i) && styles.dayBtnTextActive]}>
                   {label}

@@ -38,7 +38,11 @@ export default function MedicationsScreen() {
           ListEmptyComponent={<Text style={styles.empty}>Nenhum medicamento cadastrado.</Text>}
           renderItem={({ item }) => (
             <Link href={`/medication/${item.id}`} asChild>
-              <TouchableOpacity style={styles.card}>
+              <TouchableOpacity
+                style={styles.card}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${item.dosage} ${item.unit}, ${item.schedules.length} horário${item.schedules.length === 1 ? '' : 's'}`}
+              >
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
                 <View style={styles.info}>
                   <Text style={styles.name}>{item.name}</Text>
@@ -55,7 +59,7 @@ export default function MedicationsScreen() {
       )}
 
       <Link href="/medication/new" asChild>
-        <TouchableOpacity style={styles.fab}>
+        <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel="Adicionar medicamento">
           <MaterialCommunityIcons name="plus" size={28} color="#fff" />
         </TouchableOpacity>
       </Link>

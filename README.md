@@ -419,12 +419,25 @@ estado real deste projeto em cada fase.
       backup/`, testado ponta a ponta). Categoria nova; vale confirmar
       que o dump inclui o banco `meus_remedios_db` especificamente, não
       só assumir que "o backup geral cobre"
-- [x] **P7 — UI/UX, acessibilidade e SEO**: app já tem tema claro/escuro
-      e múltiplos perfis; falta auditoria de acessibilidade real (labels
-      de `accessibilityLabel`, contraste, teste com TalkBack/VoiceOver —
-      importa de verdade aqui, é app de saúde, usuário pode ter
-      dificuldade visual). **SEO não se aplica** — app mobile privado
-      atrás de login, sem conteúdo indexável
+- [x] **P7 — UI/UX, acessibilidade e SEO** (acessibilidade real em
+      2026-08-09): achado — zero `accessibilityLabel` no app inteiro até
+      então (`grep` confirmou, não suposição). Passada completa nas 9
+      telas com elemento tocável: `accessibilityRole`/`accessibilityLabel`
+      em todo ícone-sem-texto (botão de pular dose, editar estoque,
+      remover horário, convidar cuidador), `accessibilityState` pra
+      seleção (perfil ativo, dia da semana, tema, filtro de histórico),
+      `accessibilityState={{ busy }}` nos botões que viram só spinner
+      durante loading (senão o leitor de tela não anuncia nada nesse
+      estado). Achado extra corrigido no caminho: os botões de dia da
+      semana ("D S T Q Q S S") são visualmente ambíguos — Terça/Quinta e
+      Sexta/Sábado têm a mesma letra — sem rótulo, um usuário de leitor
+      de tela não teria como diferenciá-los; agora usam o nome completo
+      do dia. Fonte dinâmica do sistema: já funcionava (sem
+      `allowFontScaling={false}` bloqueando em lugar nenhum, conferido).
+      Teste com TalkBack/VoiceOver de verdade num aparelho ainda não
+      feito — só dá pra fazer manualmente, não automatizado. **SEO não
+      se aplica** — app mobile privado atrás de login, sem conteúdo
+      indexável
 - [x] **P8 — Funcionalidades**: roadmap de produto próprio, ver seção
       "Roadmap" acima (Fases 1-4)
 - [x] **P9 — Documentação** (2026-08-08): `knuckleswtf/scribe` instalado

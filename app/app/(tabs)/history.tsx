@@ -111,6 +111,9 @@ export default function HistoryScreen() {
             key={f.key}
             style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
             onPress={() => setStatusFilter(f.key)}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtrar por ${f.label}`}
+            accessibilityState={{ selected: statusFilter === f.key }}
           >
             <Text style={[styles.filterChipText, statusFilter === f.key && styles.filterChipTextActive]}>
               {f.label}
@@ -145,7 +148,11 @@ export default function HistoryScreen() {
             const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
             const time = format(parseISO(item.scheduled_at), 'HH:mm');
             return (
-              <View style={styles.row}>
+              <View
+                style={styles.row}
+                accessible
+                accessibilityLabel={`${item.medication.name}, ${item.medication.dosage} ${item.medication.unit}, ${time}, ${cfg.label}`}
+              >
                 <View style={styles.timeBox}>
                   <Text style={styles.time}>{time}</Text>
                 </View>

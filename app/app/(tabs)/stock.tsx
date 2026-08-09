@@ -102,9 +102,15 @@ export default function StockScreen() {
                         keyboardType="decimal-pad"
                         placeholder="Qtd"
                         placeholderTextColor={colors.textMuted}
+                        accessibilityLabel={`Quantidade em estoque de ${item.name}`}
                       />
                       <Text style={styles.unit}>{stock?.unit}</Text>
-                      <TouchableOpacity onPress={() => saveQty(item)} style={styles.saveBtn}>
+                      <TouchableOpacity
+                        onPress={() => saveQty(item)}
+                        style={styles.saveBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Salvar"
+                      >
                         <Text style={styles.saveBtnText}>Salvar</Text>
                       </TouchableOpacity>
                     </View>
@@ -117,6 +123,8 @@ export default function StockScreen() {
                 <TouchableOpacity
                   testID={`edit-stock-${item.id}`}
                   onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Editar estoque de ${item.name}`}
                 >
                   <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
