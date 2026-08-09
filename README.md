@@ -129,6 +129,53 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 - [x] **Exclusão de conta** — já implementado (tela Perfil, confirma senha se houver), mas achado real em 2026-08-09: zero teste cobria isso. `AuthDestroyAccountTest.php` agora confirma cascata real no banco (profile → medication → schedule → dose_log → stock, todos apagados), senha errada rejeitada, conta OAuth sem senha exclui sem pedir senha
 - [x] **Política de privacidade** — já implementado: link real na tela de cadastro (`app/(auth)/register.tsx`) pra `/privacidade`, página publicada no backend (`routes/web.php`, `resources/views/privacy.blade.php`)
 
+### Fase 1.5 — Cuidador remoto (aposta de diferenciação, antes de L1)
+
+> [!DECISION] Decidido em 2026-08-09
+> Pergunta feita: o app tem potencial de crescer sozinho como está, ou
+> precisa de algo a mais? Resposta honesta: essa categoria não tem
+> dinâmica viral (ninguém compartilha app de lembrete de remédio como
+> compartilha rede social), e hoje o app está em **paridade** de
+> funcionalidade com Medisafe/MyTherapy, não à frente deles — replicar
+> o que os grandes já fazem bem não é motivo de troca. Decisão: apostar
+> na diferenciação real identificada em L3 (cuidador↔paciente) **antes**
+> de L1 (monetização) — monetizar paridade de funcionalidade não resolve
+> o problema de aquisição, só adiciona atrito antes de ter algo que
+> realmente diferencia.
+
+Hoje "perfis" é multi-paciente **dentro da mesma conta** (ex.: um pai
+gerenciando o próprio filho no mesmo aparelho) — não existe o cenário
+que é o gancho emocional real do nicho: uma filha em outra cidade
+acompanhando remotamente se o pai idoso tomou o remédio, recebendo
+alerta se ele esquecer. Isso exige conta **compartilhada entre usuários
+diferentes**, não só multi-perfil numa conta só.
+
+Construindo por etapas, cada uma testada e revisada antes da próxima:
+
+- [ ] **Etapa 1 — Modelo de dados de compartilhamento**: tabela pivot
+      `profile_collaborators` (profile_id, user_id, role, invited_at,
+      accepted_at) — dono continua sendo `profiles.user_id`,
+      colaborador (cuidador) ganha acesso via convite aceito
+- [ ] **Etapa 2 — Fluxo de convite**: dono gera código/link de convite
+      pra um perfil; outro usuário (com sua própria conta) resgata o
+      código e vira colaborador
+- [ ] **Etapa 3 — Autorização revisada**: `ProfilePolicy`,
+      `MedicationPolicy`, `DoseSchedulePolicy`, `DoseLogPolicy` passam a
+      checar "é dono OU é colaborador com papel suficiente", não só
+      `user_id === profile.user_id` — toca autorização em todo o app,
+      fazer com teste cobrindo dono/colaborador/estranho em cada uma
+- [ ] **Etapa 4 — Notificação push real (servidor)**: pré-requisito
+      técnico direto — pra avisar o cuidador que o paciente perdeu uma
+      dose, a notificação não pode depender do celular do paciente
+      estar com o app aberto. Isso antecipa o item que já estava listado
+      em L5 ("Notificação push via servidor") — não é mais "só quando
+      escalar", é pré-requisito desta feature. Job agendado no backend
+      (Laravel scheduler) detecta dose recém-perdida e dispara push pros
+      colaboradores do perfil, via Expo Push Notifications
+- [ ] **Etapa 5 — UI do cuidador**: tela mostrando os perfis
+      compartilhados com o usuário (não só os próprios), com indicação
+      visual de "última dose tomada"/"perdeu dose hoje" por paciente
+
 ### Fase 2 — Retenção e qualidade (v1.1, após primeiros usuários)
 
 - [ ] **Gráfico de adesão** — barras semanais dos últimos 2 meses com % de doses tomadas; visível no Histórico
@@ -161,8 +208,10 @@ Resposta a uma pergunta direta: "o quanto falta pra virar um app com
 milhares de usuários na Play Store?". Não duplica as Fases 1-4 acima —
 linka nelas onde já existe o item, só adiciona o que faltava (processo
 de publicação em si, monetização de verdade, aquisição, legal em
-escala). Prioridade estrita: **L0 → L1 → L2 → resto**, nessa ordem —
-não adianta ter monetização sem estar na loja, nem growth sem retenção.
+escala). Prioridade estrita: **L0 → Fase 1.5 → L1 → L2 → resto**, nessa
+ordem — não adianta ter monetização sem estar na loja, nem growth sem
+retenção, nem monetizar paridade de funcionalidade sem diferenciação
+real (decisão de 2026-08-09, ver Fase 1.5 acima).
 
 ### L0 — Publicação (bloqueadores reais, sem isso não sai do zero)
 
@@ -181,6 +230,12 @@ não adianta ter monetização sem estar na loja, nem growth sem retenção.
       espera do Google, não engenharia
 
 ### L1 — Monetização de verdade (a régua já existe, falta cobrança)
+
+> [!NOTE] Ordem revisada em 2026-08-09
+> **Fase 1.5 (cuidador remoto) vem antes disto.** Monetizar um app em
+> paridade de funcionalidade com os concorrentes grandes não resolve o
+> problema de aquisição — só adiciona atrito antes de ter algo que
+> realmente diferencia. Ver decisão completa na Fase 1.5.
 
 - [x] Limites do plano Free já codados e testados (ver Fase 4 acima)
 - [ ] **RevenueCat**: criar conta, configurar produto de assinatura
@@ -205,12 +260,8 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       e ícone da ficha otimizados pra busca dentro da própria Play
       Store (é a maior fonte de instalação orgânica pra app novo sem
       budget de ads)
-- [ ] **Ângulo de diferenciação real** — Medisafe/MyTherapy já têm
-      milhões de instalações; "mais um app de lembrete" sozinho não
-      compete. Precisa de um motivo específico (nicho: idioma, público
-      cuidador↔paciente, algo que os grandes não fazem bem) — decisão de
-      produto, não de engenharia, mas trava tudo o resto se não for
-      resolvida
+- [ ] **Ângulo de diferenciação real** — decisão tomada em 2026-08-09:
+      cuidador↔paciente remoto (ver Fase 1.5 acima, em construção)
 - [ ] **Analytics de aquisição real** — hoje não existe nada disso
       (Sentry cobre erro, não uso). Firebase Analytics ou similar antes
       de gastar esforço tentando crescer às cegas
@@ -227,10 +278,10 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
 
 ### L5 — Infra em escala (só quando o uso justificar, não adiantar)
 
-- [ ] **Notificação push via servidor**, não só local — hoje a
-      notificação é agendada no próprio celular; se o SO mata o app ou
-      o celular reinicia, pode falhar silenciosamente. Em escala pequena
-      não importa muito, em escala grande vira reclamação recorrente
+- [ ] **Notificação push via servidor**, não só local — antecipado pra
+      Fase 1.5 (Etapa 4) como pré-requisito do alerta de cuidador, não
+      mais só "quando escalar". O que resta aqui depois disso é só
+      generalizar pra outros usos além do alerta de dose perdida
 - [ ] Sair do VPS único compartilhado com os outros projetos pessoais,
       se o uso realmente justificar — não é preocupação de agora
 
@@ -241,7 +292,10 @@ terminar, a base técnica (P0-P7) que fechamos hoje é justamente o que
 mais diferencia isto de um projeto que nunca sai do papel.
 **Pra ter milhares de usuários reais**: a distância maior não é mais
 código — é produto (retenção, L2) e principalmente aquisição (L3), que
-é decisão de negócio e de nicho, não engenharia.
+é decisão de negócio e de nicho, não engenharia. **Atualizado
+2026-08-09**: decidimos atacar a diferenciação (cuidador remoto, Fase
+1.5) antes de L1 — sem isso, "milhares de usuários" não tem por que
+escolher este app em vez do Medisafe.
 
 ## Roadmap de Engenharia (qualidade/produção)
 
