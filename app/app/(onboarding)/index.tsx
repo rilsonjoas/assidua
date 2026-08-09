@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { useOnboardingStore } from '../../store/onboardingStore';
-import { requestNotificationPermission } from '../../services/notifications';
+import { requestNotificationPermission, registerPushToken } from '../../services/notifications';
 
 // Onboarding guiado (Fase 1 do roadmap) — 3 telas na primeira abertura.
 // Decisão: carrossel explicativo, não formulário embutido. Quem já usa
@@ -45,6 +45,10 @@ export default function OnboardingScreen() {
 
   const finish = async () => {
     await requestNotificationPermission();
+    // Fase 1.5 — precisa vir DEPOIS da permissão (sem permissão, o token
+    // não existe pra registrar mesmo). Best-effort, não bloqueia o fim
+    // do onboarding se falhar.
+    await registerPushToken();
     setCompleted();
     router.replace('/(tabs)/');
   };

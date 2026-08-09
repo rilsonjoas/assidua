@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\MarkDoseMissedAndNotifyCollaborators;
 use App\Models\DoseLog;
 use App\Models\Profile;
 use Carbon\Carbon;
@@ -11,7 +12,7 @@ use Illuminate\Support\Facades\Gate;
 
 class DoseLogController extends Controller
 {
-    public function today(Request $request, Profile $profile): JsonResponse
+    public function today(Request $request, Profile $profile, MarkDoseMissedAndNotifyCollaborators $markMissed): JsonResponse
     {
         // Fase 1.5 (2026-08-09): abort_if direto virou Gate::authorize —
         // ProfilePolicy::view agora também aceita colaborador aceito, não
@@ -53,15 +54,13 @@ class DoseLogController extends Controller
                 // acionável: o usuário ainda pode tocar "Tomei" e
                 // sobrescrever (store() já faz updateOrCreate pela
                 // mesma chave dose_schedule_id+scheduled_at).
+                //
+                // Fase 1.5, Etapa 4: a criação virou MarkDoseMissedAndNotifyCollaborators
+                // — mesma ação usada pelo comando agendado, garante que
+                // o cuidador é avisado tanto quando o paciente abre o
+                // app quanto quando ninguém abre (cron).
                 if (! $log && $scheduledAt->isPast()) {
-                    $log = DoseLog::create([
-                        'dose_schedule_id' => $schedule->id,
-                        'medication_id' => $medication->id,
-                        'profile_id' => $profile->id,
-                        'scheduled_at' => $scheduledAt,
-                        'taken_at' => null,
-                        'status' => 'missed',
-                    ]);
+                    $log = $markMissed->handle($schedule, $medication, $profile, $scheduledAt);
                 }
 
                 $doses[] = [

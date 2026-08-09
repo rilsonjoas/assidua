@@ -183,14 +183,21 @@ Construindo por etapas, cada uma testada e revisada antes da próxima:
       pro colaborador. Corrigido. Matriz dono/colaborador/estranho
       testada em cada recurso tocado (`ProfileCollaboratorAuthorizationTest.php`,
       12/12). 105/105 no total, zero regressão
-- [ ] **Etapa 4 — Notificação push real (servidor)**: pré-requisito
-      técnico direto — pra avisar o cuidador que o paciente perdeu uma
-      dose, a notificação não pode depender do celular do paciente
-      estar com o app aberto. Isso antecipa o item que já estava listado
-      em L5 ("Notificação push via servidor") — não é mais "só quando
-      escalar", é pré-requisito desta feature. Job agendado no backend
-      (Laravel scheduler) detecta dose recém-perdida e dispara push pros
-      colaboradores do perfil, via Expo Push Notifications
+- [x] **Etapa 4 — Notificação push real (servidor)** (2026-08-09):
+      `MarkDoseMissedAndNotifyCollaborators` centraliza "o que acontece
+      quando uma dose vira perdida" — chamada tanto por `today()`
+      (preguiçoso, só roda se alguém abrir o app) quanto pelo novo
+      comando `doses:check-missed` (agendado a cada 15 min via
+      `bootstrap/app.php`, é o que garante o aviso mesmo que o paciente
+      nunca abra o app). `ExpoPushService` envia via Expo Push API (sem
+      precisar de credencial própria pro MVP), falha de envio nunca
+      derruba o fluxo que marcou a dose. App mobile registra o token
+      (`registerPushToken()`) depois de conceder notificação no
+      onboarding, e refresca a cada abertura pra quem já passou por ali
+      (token muda entre instalações). **Pré-requisito de infra
+      cumprido**: cron `schedule:run` não existia pra este projeto no
+      VPS, adicionado junto (ver hetzner-infra). 116/116 backend, 13/13
+      mobile
 - [ ] **Etapa 5 — UI do cuidador**: tela mostrando os perfis
       compartilhados com o usuário (não só os próprios), com indicação
       visual de "última dose tomada"/"perdeu dose hoje" por paciente

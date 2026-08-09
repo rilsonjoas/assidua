@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        // Fase 1.5, Etapa 4 (2026-08-09) — primeiro agendamento deste
+        // projeto. Precisa de `* * * * * php artisan schedule:run` no
+        // cron do container/VPS pra funcionar de verdade; sem isso o
+        // schedule fica só declarado, nunca dispara.
+        $schedule->command('doses:check-missed')->everyFifteenMinutes();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

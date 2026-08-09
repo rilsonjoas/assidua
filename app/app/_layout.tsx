@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/react-native';
 import { useAuthStore } from '../store/authStore';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
+import { registerPushToken } from '../services/notifications';
 import { useTheme } from '../hooks/useTheme';
 
 const queryClient = new QueryClient();
@@ -48,6 +49,11 @@ function AuthGuard() {
       return;
     }
     if (user && inAuth) router.replace('/(tabs)/');
+
+    // Fase 1.5 — refresca o token a cada abertura pra quem já passou
+    // pelo onboarding (token do Expo pode mudar entre instalações).
+    // Quem está indo pro onboarding agora já registra lá dentro.
+    if (user && hasCompletedOnboarding) registerPushToken();
   }, [user, isLoading, hasCompletedOnboarding, segments]);
 
   return null;

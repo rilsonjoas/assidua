@@ -1,5 +1,7 @@
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { api } from './api';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -117,6 +119,31 @@ export async function scheduleRefillAlert(params: {
       seconds: daysRemaining * 24 * 60 * 60,
     },
   });
+}
+
+// Fase 1.5, Etapa 4 — sem isto o backend nunca tem pra onde mandar o
+// alerta de dose perdida pro cuidador. Chamada silenciosa (não trava
+// nada se falhar — dispositivo físico/simulador sem push configurado
+// não deveria quebrar o app) e best-effort: token pode mudar entre
+// aberturas (reinstall, etc.), por isso é chamada a cada login/abertura,
+// não só uma vez no onboarding.
+export async function registerPushToken(): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) return; // dev local sem EAS configurado — não é erro
+
+    const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync({ projectId });
+
+    await api.post('/push-tokens', {
+      token: expoPushToken,
+      platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'unknown',
+    });
+  } catch (err) {
+    console.warn('[meus-remedios] Falha ao registrar push token:', err);
+  }
 }
 
 export async function cancelScheduleNotifications(scheduleId: number): Promise<void> {

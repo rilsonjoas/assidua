@@ -56,6 +56,11 @@ class User extends Authenticatable
     // Perfis de OUTRAS contas em que este usuário é cuidador aceito
     // (Fase 1.5, Etapa 1) — não inclui os perfis próprios, que já vêm
     // de profiles() acima.
+    public function pushTokens(): HasMany
+    {
+        return $this->hasMany(PushToken::class);
+    }
+
     public function sharedProfiles(): BelongsToMany
     {
         return $this->belongsToMany(Profile::class, 'profile_collaborators')

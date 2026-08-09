@@ -6,6 +6,7 @@ use App\Http\Controllers\DoseScheduleController;
 use App\Http\Controllers\MedicationController;
 use App\Http\Controllers\ProfileCollaboratorController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/profiles/{profile}/collaborators', [ProfileCollaboratorController::class, 'store']);
     Route::delete('/profiles/{profile}/collaborators/{collaborator}', [ProfileCollaboratorController::class, 'destroy']);
     Route::post('/invites/{code}/accept', [ProfileCollaboratorController::class, 'accept']);
+    Route::post('/push-tokens', [PushTokenController::class, 'store']);
 
     Route::get('/profiles/{profile}/medications', [MedicationController::class, 'index']);
     Route::post('/profiles/{profile}/medications', [MedicationController::class, 'store']);
