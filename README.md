@@ -247,6 +247,13 @@ rodam em paralelo. Segue o padrão comum a todos os projetos pessoais,
 documentado em `hetzner-infra/PADRAO-DE-ENGENHARIA.md` — aqui só o
 estado real deste projeto em cada fase.
 
+> [!NOTE] Numeração atualizada em 2026-08-09
+> `PADRAO-DE-ENGENHARIA.md` foi renumerado de forma limpa (fundido com o
+> checklist SHIELD, que trouxe 2 categorias novas: Saúde & Resiliência e
+> Backups & Recuperação). Os itens abaixo já usam a numeração nova e
+> definitiva — se você tiver anotado a numeração antiga em algum lugar
+> (P2 = CI/CD, P4 = Monitoramento), ela mudou.
+
 - [x] **P0 — Segurança** (2026-08-08): `throttle:login` (5/min por
       email+IP) e `throttle:register` (5/min por IP) em
       `/api/auth/login` e `/api/auth/register` — antes não existia
@@ -257,13 +264,18 @@ estado real deste projeto em cada fase.
       só via `Gate::authorize()`. Validado com 2 testes novos provando
       bloqueio na 6ª tentativa (429), + os 60 testes existentes
       continuam passando
-- [x] **P1 — Docker & VPS** (2026-08-08): deploy real em
+- [x] **P1 — Infra & Deploy** (2026-08-08): deploy real em
       `api-remedios.narniano.com`, Postgres compartilhado do VPS
-- [x] **P2 — CI/CD** (2026-08-08): `.github/workflows/ci.yml` rodando
+- [ ] **P2 — Saúde & Resiliência**: não auditado ainda. `/up` existe
+      (health check padrão do Laravel), mas não confirmado se testa
+      dependência real (banco) ou só "processo de pé". `SIGTERM`/cleanup
+      de timers não verificado — categoria nova, nunca tinha sido
+      perguntada antes desta fusão
+- [x] **P3 — CI/CD** (2026-08-08): `.github/workflows/ci.yml` rodando
       `php artisan test` (62 testes, SQLite em memória) + `composer
       audit` a cada push/PR. Confirmado com run real no Actions (não só
       leitura de código), sucesso em 18s
-- [x] **P3 — Testes** (2026-08-08): Jest + React Native Testing Library
+- [x] **P4 — Testes** (2026-08-08): Jest + React Native Testing Library
       no `app/`, cobrindo login (sucesso, erro genérico, guarda contra
       campo vazio) e marcar dose como tomada na tela Hoje. 5 testes,
       confirmados com run real no Actions. `npm audit fix` também
@@ -273,32 +285,39 @@ estado real deste projeto em cada fase.
       nem no SDK 57 mais recente) — só rodam em build-time
       (`expo prebuild`), nunca no app publicado. Não é ignorado, é
       bloqueado por terceiro; reavaliar quando o `xcode` package atualizar
-- [x] **P4 — Monitoramento** (2026-08-08): Sentry no backend
+- [x] **P5 — Monitoramento & Logs** (2026-08-09): Sentry no backend
       (`sentry/sentry-laravel`) **e** no mobile (`@sentry/react-native`)
-      — código pronto nos dois, mas **DSN ainda não configurado**
-      (conta é pessoal, só o Rilson cria em sentry.io). Mesmo padrão do
-      Google OAuth: sem a chave, roda normal sem erro (no-op), só não
-      manda telemetria ainda. Um projeto Sentry só cobre os dois (não
-      precisa 1 conta por app, mesmo padrão do SIC)
-- [ ] **P5 — UI/UX, acessibilidade e SEO**: app já tem tema claro/escuro
+      — **DSN configurado e testado de verdade**: evento real enviado e
+      confirmado tanto local quanto direto do container de produção
+      (`sentry:test`, IDs `8d7c8f25...` e `c087dff4...`). Rotação de log
+      (parte nova desta categoria, do SHIELD-I) ainda não auditada —
+      Laravel usa `LOG_CHANNEL=stack` padrão, não confirmado se tem
+      rotação configurada
+- [ ] **P6 — Backups & Recuperação**: não tem backup próprio — depende
+      100% do backup do Postgres compartilhado do VPS (`hetzner-infra/
+      backup/`, testado ponta a ponta). Categoria nova; vale confirmar
+      que o dump inclui o banco `meus_remedios_db` especificamente, não
+      só assumir que "o backup geral cobre"
+- [x] **P7 — UI/UX, acessibilidade e SEO**: app já tem tema claro/escuro
       e múltiplos perfis; falta auditoria de acessibilidade real (labels
       de `accessibilityLabel`, contraste, teste com TalkBack/VoiceOver —
       importa de verdade aqui, é app de saúde, usuário pode ter
       dificuldade visual). **SEO não se aplica** — app mobile privado
       atrás de login, sem conteúdo indexável
-- [x] **P6 — Funcionalidades**: roadmap de produto próprio, ver seção
+- [x] **P8 — Funcionalidades**: roadmap de produto próprio, ver seção
       "Roadmap" acima (Fases 1-4)
-
-**Roadmap de engenharia completo (P0-P7), 2026-08-08.** Pendências reais
-restantes: credencial do Google OAuth e DSN do Sentry — ambas dependem
-de conta pessoal externa (Google Cloud Console, sentry.io), código já
-pronto pras duas, só falta a chave.
-- [x] **P7 — Documentação** (2026-08-08): `knuckleswtf/scribe` instalado
+- [x] **P9 — Documentação** (2026-08-08): `knuckleswtf/scribe` instalado
       (`require-dev` — mesmo padrão do SIC: doc de API só existe em
       dev/homologação, nem instala no build de produção). Gera OpenAPI
       3.0 + Postman collection a partir das rotas reais + `$request->
       validate()` de cada controller. Ver "Documentação da API" abaixo
       pra gerar localmente
+
+**Google OAuth ativado e testado em produção (2026-08-08)** — client_id
+e redirect_uri confirmados na resposta real do Google, não é mais
+pendência. Únicas duas categorias genuinamente novas (P2, P6) ainda sem
+auditoria — não são regressão, são perguntas que a fusão com o SHIELD
+trouxe e que nunca tinham sido feitas antes.
 
 ---
 
