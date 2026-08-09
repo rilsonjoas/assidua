@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DoseLogController;
 use App\Http\Controllers\DoseScheduleController;
 use App\Http\Controllers\MedicationController;
+use App\Http\Controllers\ProfileCollaboratorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/auth/account', [AuthController::class, 'destroyAccount']);
 
     Route::apiResource('profiles', ProfileController::class);
+
+    // Fase 1.5, Etapa 2 — convite/resgate de cuidador remoto.
+    Route::get('/profiles/{profile}/collaborators', [ProfileCollaboratorController::class, 'index']);
+    Route::post('/profiles/{profile}/collaborators', [ProfileCollaboratorController::class, 'store']);
+    Route::delete('/profiles/{profile}/collaborators/{collaborator}', [ProfileCollaboratorController::class, 'destroy']);
+    Route::post('/invites/{code}/accept', [ProfileCollaboratorController::class, 'accept']);
 
     Route::get('/profiles/{profile}/medications', [MedicationController::class, 'index']);
     Route::post('/profiles/{profile}/medications', [MedicationController::class, 'store']);

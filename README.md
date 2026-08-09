@@ -159,9 +159,15 @@ Construindo por etapas, cada uma testada e revisada antes da próxima:
       só retorna colaborações aceitas. Cascata testada nos dois
       sentidos: apagar perfil apaga colaborações; apagar conta do
       cuidador apaga só a colaboração, não o perfil (`ProfileCollaboratorModelTest.php`, 6/6)
-- [ ] **Etapa 2 — Fluxo de convite**: dono gera código/link de convite
-      pra um perfil; outro usuário (com sua própria conta) resgata o
-      código e vira colaborador
+- [x] **Etapa 2 — Fluxo de convite** (2026-08-09): `POST
+      /profiles/{id}/collaborators` (só dono, `Gate::authorize('update')`
+      reaproveitado da `ProfilePolicy`) gera código de 8 caracteres sem
+      ambiguidade (sem 0/O/1/I/l — pensando em alguém digitando o
+      código), expira em 7 dias. `POST /invites/{code}/accept` (rota
+      solta, quem resgata não é dono) valida: código existe e não foi
+      usado, não expirou, dono não resgata o próprio convite, sem
+      duplicar colaboração. `GET`/`DELETE` de colaboradores pro dono
+      gerenciar. `ProfileCollaboratorInviteTest.php`, 11/11
 - [ ] **Etapa 3 — Autorização revisada**: `ProfilePolicy`,
       `MedicationPolicy`, `DoseSchedulePolicy`, `DoseLogPolicy` passam a
       checar "é dono OU é colaborador com papel suficiente", não só

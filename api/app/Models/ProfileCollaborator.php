@@ -21,6 +21,7 @@ class ProfileCollaborator extends Model
         'user_id',
         'role',
         'invite_code',
+        'expires_at',
         'accepted_at',
     ];
 
@@ -28,6 +29,7 @@ class ProfileCollaborator extends Model
     {
         return [
             'accepted_at' => 'datetime',
+            'expires_at' => 'datetime',
         ];
     }
 
