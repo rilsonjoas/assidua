@@ -16,6 +16,15 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+
+        // Achado real em produção (2026-08-09, pré-existente, não
+        // introduzido pela Fase 1.5): sem isto, uma requisição sem
+        // Accept: application/json (curl cru, bot, scanner) numa rota
+        // protegida derrubava com 500 em vez de 401 — o middleware
+        // Authenticate tentava montar a rota nomeada "login" pra
+        // redirecionar, que não existe numa API pura. Forçar null
+        // garante 401 JSON sempre, sem depender do header do cliente.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withSchedule(function (Schedule $schedule): void {
         // Fase 1.5, Etapa 4 (2026-08-09) — primeiro agendamento deste

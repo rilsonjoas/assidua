@@ -347,6 +347,18 @@ estado real deste projeto em cada fase.
       só via `Gate::authorize()`. Validado com 2 testes novos provando
       bloqueio na 6ª tentativa (429), + os 60 testes existentes
       continuam passando
+- [x] **Achado real em produção, 2026-08-09**: qualquer requisição sem
+      `Accept: application/json` (curl cru, bot, scanner) numa rota
+      protegida derrubava com **500**, não 401 — o middleware
+      `Authenticate` tentava montar a rota nomeada `login` pra
+      redirecionar, que não existe numa API pura, e explodia com
+      `RouteNotFoundException`. Pré-existente, não introduzido pela
+      Fase 1.5 — só apareceu porque testei as rotas novas com `curl`
+      cru. Corrigido com `$middleware->redirectGuestsTo(fn () => null)`
+      em `bootstrap/app.php`, força 401 JSON sempre, testado
+      (`UnauthenticatedRequestTest.php` — confirmei que falha sem a
+      correção antes de reaplicar, não só assumi que resolveria),
+      verificado ao vivo em produção depois do deploy
 - [x] **P1 — Infra & Deploy** (2026-08-08): deploy real em
       `api-remedios.narniano.com`, Postgres compartilhado do VPS
 - [ ] **P2 — Saúde & Resiliência**: não auditado ainda. `/up` existe

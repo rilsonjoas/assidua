@@ -7,8 +7,14 @@
  */
 return [
 
+    // Achado real, 2026-08-09: rodar `php artisan test` localmente
+    // estava mandando evento pro Sentry de produção toda vez que um
+    // teste passava por uma exceção — poluindo o projeto com "erros"
+    // que nunca aconteceram de verdade. APP_ENV=testing (definido no
+    // phpunit.xml) força DSN nulo aqui, SDK vira no-op nesse ambiente,
+    // mesmo padrão "enabled: !!dsn" já usado no app mobile.
     // @see https://docs.sentry.io/concepts/key-terms/dsn-explainer/
-    'dsn' => env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')),
+    'dsn' => env('APP_ENV') === 'testing' ? null : env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')),
 
     // @see https://spotlightjs.com/
     // 'spotlight' => env('SENTRY_SPOTLIGHT', false),
