@@ -381,11 +381,17 @@ estado real deste projeto em cada fase.
       verificado ao vivo em produção depois do deploy
 - [x] **P1 — Infra & Deploy** (2026-08-08): deploy real em
       `api-remedios.narniano.com`, Postgres compartilhado do VPS
-- [ ] **P2 — Saúde & Resiliência**: não auditado ainda. `/up` existe
-      (health check padrão do Laravel), mas não confirmado se testa
-      dependência real (banco) ou só "processo de pé". `SIGTERM`/cleanup
-      de timers não verificado — categoria nova, nunca tinha sido
-      perguntada antes desta fusão
+- [x] **P2 — Saúde & Resiliência** (2026-08-09): achado real — `/up`
+      só confirmava "processo de pé", não testava o banco. Se o
+      Postgres caísse, o app continuaria reportando saudável pro Uptime
+      Kuma (alerta falso-negativo bem na hora que mais importa).
+      Corrigido com listener em `DiagnosingHealth` (hook oficial do
+      Laravel 11+) checando `DB::connection()->getPdo()`. Testado
+      forçando falha de conexão de verdade (`HealthCheckTest.php`, 2/2
+      — confirma 200 saudável e 500 com banco indisponível, não só
+      assumido). `SIGTERM`/cleanup de timers: não se aplica aqui —
+      PHP-FPM é stateless por requisição, sem conexão persistente/timer
+      pra limpar como um processo Node teria
 - [x] **P3 — CI/CD** (2026-08-08): `.github/workflows/ci.yml` rodando
       `php artisan test` (62 testes, SQLite em memória) + `composer
       audit` a cada push/PR. Confirmado com run real no Actions (não só
