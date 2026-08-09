@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Profile;
+use App\Models\ProfileCollaborator;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,6 +21,25 @@ class ProfileTest extends TestCase
         $response = $this->actingAs($user)->getJson('/api/profiles');
 
         $response->assertOk()->assertJsonCount(2);
+    }
+
+    public function test_lista_inclui_perfis_compartilhados_marcados_como_nao_dono(): void
+    {
+        $owner = User::factory()->create();
+        $caregiver = User::factory()->create();
+        $ownProfile = Profile::factory()->create(['user_id' => $caregiver->id]);
+        $sharedProfile = Profile::factory()->create(['user_id' => $owner->id]);
+        ProfileCollaborator::factory()->accepted()->create([
+            'profile_id' => $sharedProfile->id,
+            'invited_by_user_id' => $owner->id,
+            'user_id' => $caregiver->id,
+        ]);
+
+        $response = $this->actingAs($caregiver)->getJson('/api/profiles');
+
+        $response->assertOk()->assertJsonCount(2);
+        $response->assertJsonFragment(['id' => $ownProfile->id, 'is_owner' => true]);
+        $response->assertJsonFragment(['id' => $sharedProfile->id, 'is_owner' => false]);
     }
 
     public function test_cria_perfil(): void

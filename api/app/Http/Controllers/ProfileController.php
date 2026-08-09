@@ -11,9 +11,18 @@ class ProfileController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $profiles = $request->user()->profiles()->with(['medications.stock'])->get();
+        // Fase 1.5, Etapa 5 — lista os próprios perfis + os que o
+        // usuário cuida remotamente (colaboração aceita), marcados com
+        // is_owner pra o app distinguir na UI (etiqueta "Cuidando de").
+        $user = $request->user();
 
-        return response()->json($profiles);
+        $owned = $user->profiles()->with(['medications.stock'])->get()
+            ->each(fn ($profile) => $profile->is_owner = true);
+
+        $shared = $user->sharedProfiles()->with(['medications.stock'])->get()
+            ->each(fn ($profile) => $profile->is_owner = false);
+
+        return response()->json($owned->concat($shared)->values());
     }
 
     public function store(Request $request): JsonResponse

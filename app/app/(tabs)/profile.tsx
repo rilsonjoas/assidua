@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  Share,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -17,6 +18,7 @@ import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { logout, deleteAccount } from '../../services/auth';
+import { createInvite, acceptInvite } from '../../services/collaborators';
 import { api } from '../../services/api';
 
 const AVATAR_ICONS: Array<React.ComponentProps<typeof MaterialCommunityIcons>['name']> = [
@@ -47,10 +49,51 @@ export default function ProfileScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [invitingProfileId, setInvitingProfileId] = useState<number | null>(null);
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeemingLoading, setRedeemingLoading] = useState(false);
+
+  function refetchProfiles() {
+    api.get('/profiles').then(({ data }) => setProfiles(data));
+  }
 
   useEffect(() => {
-    api.get('/profiles').then(({ data }) => setProfiles(data));
+    refetchProfiles();
   }, []);
+
+  // Fase 1.5, Etapa 5 — dono gera o convite e compartilha o código por
+  // fora do app (WhatsApp, SMS, o que for — Share nativo cobre isso sem
+  // precisar de integração própria).
+  async function handleInvite(profileId: number) {
+    setInvitingProfileId(profileId);
+    try {
+      const { invite_code } = await createInvite(profileId);
+      await Share.share({
+        message: `Use o código ${invite_code} no app Meus Remédios pra acompanhar comigo — Perfil > Tenho um código. Válido por 7 dias.`,
+      });
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.message ?? 'Não foi possível criar o convite.');
+    } finally {
+      setInvitingProfileId(null);
+    }
+  }
+
+  async function handleRedeem() {
+    if (!redeemCode.trim()) return;
+    setRedeemingLoading(true);
+    try {
+      await acceptInvite(redeemCode.trim().toUpperCase());
+      refetchProfiles();
+      setRedeeming(false);
+      setRedeemCode('');
+      Alert.alert('Pronto', 'Agora você acompanha esse perfil também.');
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.message ?? 'Código inválido ou expirado.');
+    } finally {
+      setRedeemingLoading(false);
+    }
+  }
 
   async function createProfile() {
     if (!name.trim()) return;
@@ -161,12 +204,64 @@ export default function ProfileScreen() {
           <View style={[styles.profileIconBox, { backgroundColor: item.color }]}>
             <MaterialCommunityIcons name={(item.avatar_emoji as any) ?? 'account'} size={22} color="#fff" />
           </View>
-          <Text style={styles.profileName}>{item.name}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.profileName}>{item.name}</Text>
+            {item.is_owner === false && (
+              <View style={styles.sharedBadge}>
+                <MaterialCommunityIcons name="account-heart-outline" size={12} color={colors.brand} />
+                <Text style={styles.sharedBadgeText}>Cuidando de</Text>
+              </View>
+            )}
+          </View>
+          {item.is_owner !== false && (
+            <TouchableOpacity
+              testID={`invite-btn-${item.id}`}
+              onPress={() => handleInvite(item.id)}
+              disabled={invitingProfileId === item.id}
+              style={styles.inviteBtn}
+            >
+              <MaterialCommunityIcons
+                name="account-plus-outline"
+                size={18}
+                color={invitingProfileId === item.id ? colors.textMuted : colors.brand}
+              />
+            </TouchableOpacity>
+          )}
           {activeProfile?.id === item.id && (
             <MaterialCommunityIcons name="check-circle" size={22} color={colors.brand} />
           )}
         </TouchableOpacity>
       ))}
+
+      {redeeming ? (
+        <View style={styles.createBox}>
+          <Text style={styles.createTitle}>Tenho um código</Text>
+          <Text style={styles.emptySubText}>
+            Cole o código que recebeu de quem te convidou pra acompanhar um perfil.
+          </Text>
+          <TextInput
+            style={[styles.input, { marginTop: 12, color: colors.text }]}
+            placeholder="Ex: AB3D9F2K"
+            placeholderTextColor={colors.textMuted}
+            value={redeemCode}
+            onChangeText={setRedeemCode}
+            autoCapitalize="characters"
+          />
+          <View style={styles.createActions}>
+            <TouchableOpacity onPress={() => { setRedeeming(false); setRedeemCode(''); }} style={styles.cancelBtn}>
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleRedeem} style={styles.saveBtn} disabled={redeemingLoading}>
+              <Text style={styles.saveBtnText}>{redeemingLoading ? 'Entrando...' : 'Entrar'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.addBtn} onPress={() => setRedeeming(true)}>
+          <MaterialCommunityIcons name="account-heart-outline" size={18} color={colors.brand} />
+          <Text style={styles.addBtnText}>Tenho um código</Text>
+        </TouchableOpacity>
+      )}
 
       {creating ? (
         <View style={styles.createBox}>
@@ -318,7 +413,10 @@ function makeStyles(c: ThemeColors) {
     },
     profileRowActive: { borderWidth: 2, borderColor: c.brand },
     profileIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-    profileName: { flex: 1, fontSize: 15, color: c.text, fontWeight: '600' },
+    profileName: { fontSize: 15, color: c.text, fontWeight: '600' },
+    sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+    sharedBadgeText: { fontSize: 11, color: c.brand, fontWeight: '600' },
+    inviteBtn: { padding: 8, marginRight: 4 },
     createBox: { backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
     createTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 14 },
     createLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8, marginTop: 4 },

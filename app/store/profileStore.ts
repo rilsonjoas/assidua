@@ -7,6 +7,10 @@ export interface Profile {
   color: string;
   avatar_emoji: string;
   is_active: boolean;
+  // Fase 1.5 — ausente em respostas antigas/outros endpoints que não
+  // passaram por ProfileController::index(); tratar como true nesse
+  // caso (perfil próprio é o padrão histórico).
+  is_owner?: boolean;
 }
 
 interface ProfileState {

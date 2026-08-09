@@ -131,6 +131,14 @@ Funcionalidades que, se faltarem, o usuário desinstala ou não confia no app.
 
 ### Fase 1.5 — Cuidador remoto (aposta de diferenciação, antes de L1)
 
+> [!DONE] Completa em 2026-08-09
+> As 5 etapas prontas, testadas e no ar (backend deployado, cron do
+> scheduler rodando no VPS): modelo de dados, convite/resgate,
+> autorização revisada, push via servidor, UI essencial no app. 117/117
+> testes backend, 16/16 mobile. 2 achados reais em produção corrigidos
+> no caminho (500 em rota não-autenticada sem `Accept: application/json`,
+> Sentry poluído por `php artisan test` local).
+
 > [!DECISION] Decidido em 2026-08-09
 > Pergunta feita: o app tem potencial de crescer sozinho como está, ou
 > precisa de algo a mais? Resposta honesta: essa categoria não tem
@@ -198,9 +206,21 @@ Construindo por etapas, cada uma testada e revisada antes da próxima:
       cumprido**: cron `schedule:run` não existia pra este projeto no
       VPS, adicionado junto (ver hetzner-infra). 116/116 backend, 13/13
       mobile
-- [ ] **Etapa 5 — UI do cuidador**: tela mostrando os perfis
-      compartilhados com o usuário (não só os próprios), com indicação
-      visual de "última dose tomada"/"perdeu dose hoje" por paciente
+- [x] **Etapa 5 — UI do cuidador** (2026-08-09, escopo revisado): o
+      essencial pra fechar o ciclo — sem isso, Etapas 1-4 ficavam
+      inacessíveis pelo app. Tela Perfil (decisão confirmada: misturar,
+      não aba separada) agora lista perfis próprios + compartilhados
+      juntos, com etiqueta "Cuidando de" nos que não são seus
+      (`ProfileController::index` retorna `is_owner` por perfil). Botão
+      de convidar (só em perfil próprio) gera código e abre o Share
+      nativo do celular; botão "Tenho um código" resgata. Testado
+      (`__tests__/profile-collaborators.test.tsx`, `ProfileTest.php`).
+      **Ficou de fora, considerar depois**: indicador visual de "perdeu
+      dose hoje" por paciente na lista (a notificação push já cobre o
+      alerta em tempo real, isto seria só reforço visual); esconder
+      botões de "adicionar medicamento"/"criar horário" quando o perfil
+      ativo é compartilhado (hoje dá 403 do backend corretamente, mas a
+      UI não esconde o botão antes — funciona, só não é o mais elegante)
 
 ### Fase 2 — Retenção e qualidade (v1.1, após primeiros usuários)
 
