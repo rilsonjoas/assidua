@@ -8,6 +8,7 @@ import ProfileScreen from '../app/(tabs)/profile';
 import { useProfileStore } from '../store/profileStore';
 import { useAuthStore } from '../store/authStore';
 import { useFontScaleStore } from '../store/fontScaleStore';
+import { useLanguageStore } from '../store/languageStore';
 import { api } from '../services/api';
 import { logout, deleteAccount } from '../services/auth';
 import * as collaboratorsService from '../services/collaborators';
@@ -49,6 +50,7 @@ const sharedProfile = {
 
 beforeEach(async () => {
   await i18next.changeLanguage('pt');
+  useLanguageStore.setState({ mode: 'pt' });
 });
 
 function renderProfile() {
