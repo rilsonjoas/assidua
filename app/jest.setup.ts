@@ -88,3 +88,13 @@ jest.mock('@expo/vector-icons', () => {
   };
 });
 
+// Força getDeviceLanguage a retornar sempre português nos testes para evitar discrepâncias entre SOs locais e o runner do Actions
+jest.mock('./services/device', () => {
+  const actual = jest.requireActual('./services/device') as any;
+  return {
+    ...actual,
+    getDeviceLanguage: () => 'pt',
+  };
+});
+
+
