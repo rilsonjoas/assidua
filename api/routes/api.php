@@ -11,8 +11,10 @@ use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
+    Route::post('/magic-link', [AuthController::class, 'requestMagicLink'])->middleware('throttle:magic-link');
+    // Sem throttle nomeado: token de 64 bytes já é inadivinhável, isto é
+    // só uma trava genérica contra automação/probing na rota.
+    Route::get('/magic-link/redirect', [AuthController::class, 'magicLinkRedirect'])->middleware('throttle:60,1');
     Route::get('/google', [AuthController::class, 'googleRedirect']);
     Route::get('/google/callback', [AuthController::class, 'googleCallback']);
 });

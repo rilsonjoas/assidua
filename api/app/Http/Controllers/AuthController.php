@@ -2,60 +2,107 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\MagicLinkMail;
+use App\Models\LoginLink;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
 {
-    public function register(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
-
-        // Achado real (2026-08-14): sem isto, toda conta nova cai na tela
-        // "Nenhum perfil criado" — mesmo sendo o caso normal (a pessoa
-        // gerenciando o próprio tratamento). Perfil compartilhado com
-        // outra pessoa continua existindo (Fase 1.5), isto só cobre o
-        // primeiro perfil óbvio: o do próprio dono da conta.
-        $this->createDefaultProfile($user);
-
-        $token = $user->createToken('mobile')->plainTextToken;
-
-        return response()->json(['user' => $user, 'token' => $token], 201);
-    }
-
-    public function login(Request $request): JsonResponse
+    // Login sem senha (2026-08-14) — decisão do Rilson: conta local fica
+    // (junto com Google, nunca só um — ver README), mas sem senha pra
+    // esquecer/vazar/reutilizar. Um endpoint só serve login E cadastro:
+    // e-mail de conta existente manda link de acesso; e-mail novo exige
+    // `name` e cria a conta na hora (fica pendente até o link ser
+    // clicado no sentido prático — a conta já existe, só não tem sessão
+    // ainda). E-mail já cadastrado ignora `name` enviado e manda link
+    // pra conta existente — evita o clássico erro confuso de "e-mail já
+    // cadastrado" quando a pessoa só queria voltar a entrar.
+    public function requestMagicLink(Request $request): JsonResponse
     {
         $data = $request->validate([
             'email' => 'required|email',
-            'password' => 'required|string',
+            'name' => 'nullable|string|max:255',
         ]);
 
         $user = User::where('email', $data['email'])->first();
 
-        if (! $user || ! Hash::check($data['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Credenciais inválidas.'],
+        if (! $user) {
+            if (empty($data['name'])) {
+                throw ValidationException::withMessages([
+                    'email' => ['Não encontramos uma conta com esse e-mail.'],
+                ]);
+            }
+
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => null,
             ]);
+
+            // Achado real (2026-08-14): sem isto, toda conta nova cai na
+            // tela "Nenhum perfil criado" — mesmo sendo o caso normal (a
+            // pessoa gerenciando o próprio tratamento). Perfil
+            // compartilhado com outra pessoa continua existindo (Fase
+            // 1.5), isto só cobre o primeiro perfil óbvio: o do próprio
+            // dono da conta.
+            $this->createDefaultProfile($user);
         }
+
+        // Só um link ativo por vez — pedir de novo invalida o anterior,
+        // evita confusão de "qual link eu uso" se a pessoa tocar em
+        // pedir 2x (ex.: e-mail demorou, achou que não funcionou).
+        LoginLink::where('user_id', $user->id)->whereNull('used_at')->delete();
+
+        $plainToken = Str::random(64);
+        LoginLink::create([
+            'user_id' => $user->id,
+            'token_hash' => hash('sha256', $plainToken),
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        Mail::to($user->email)->send(new MagicLinkMail($user, $plainToken));
+
+        return response()->json(['message' => 'Link de acesso enviado pro seu e-mail.']);
+    }
+
+    // GET porque é o destino de um clique em link de e-mail, não de uma
+    // chamada de API do app. Mesmo formato de redirect de deep link que
+    // googleCallback() já usa — o app não precisa saber a diferença
+    // entre "voltou do Google" e "voltou do link de e-mail", chega tudo
+    // pela mesma tela (auth-callback.tsx).
+    public function magicLinkRedirect(Request $request): mixed
+    {
+        $data = $request->validate(['token' => 'required|string']);
+
+        $link = LoginLink::where('token_hash', hash('sha256', $data['token']))
+            ->whereNull('used_at')
+            ->where('expires_at', '>=', now())
+            ->first();
+
+        if (! $link) {
+            return response()->view('auth.magic-link-invalid', [], 410);
+        }
+
+        $link->update(['used_at' => now()]);
+        $user = $link->user;
 
         $user->tokens()->delete();
         $token = $user->createToken('mobile')->plainTextToken;
 
-        return response()->json(['user' => $user, 'token' => $token]);
+        return redirect('meusremedios://auth-callback?'.http_build_query([
+            'token' => $token,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'subscription_tier' => $user->subscription_tier ?? 'free',
+        ]));
     }
 
     public function logout(Request $request): JsonResponse

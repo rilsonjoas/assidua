@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Mail\MagicLinkMail;
+use App\Models\LoginLink;
 use App\Models\Medication;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -17,121 +20,129 @@ class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registra_usuario_com_sucesso(): void
+    // Login sem senha (2026-08-14) — helper: pede o link, captura o
+    // token de verdade (não sai no JSON de propósito, só por e-mail) via
+    // Mail::fake(), pra poder simular o clique no link nos testes.
+    private function requestMagicLinkAndCaptureToken(string $email, ?string $name = null): string
     {
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Rilson',
-            'email' => 'rilson@example.com',
-            'password' => 'senha1234',
-            'password_confirmation' => 'senha1234',
-        ]);
+        Mail::fake();
 
-        $response->assertCreated()->assertJsonStructure(['user', 'token']);
-        $this->assertDatabaseHas('users', ['email' => 'rilson@example.com']);
+        $payload = ['email' => $email];
+        if ($name !== null) {
+            $payload['name'] = $name;
+        }
 
-        $user = User::where('email', 'rilson@example.com')->first();
-        $this->assertTrue(Hash::check('senha1234', $user->password));
+        $this->postJson('/api/auth/magic-link', $payload)->assertOk();
+
+        $captured = null;
+        Mail::assertSent(MagicLinkMail::class, function (MagicLinkMail $mail) use (&$captured) {
+            $captured = $mail->plainToken;
+
+            return true;
+        });
+
+        $this->assertNotNull($captured, 'MagicLinkMail não foi enviado.');
+
+        return $captured;
     }
 
-    // Achado real (2026-08-14): sem perfil automático, toda conta nova
-    // caía direto na tela "Nenhum perfil criado" — mesmo sendo o caso
-    // mais comum (a pessoa cuidando do próprio tratamento).
-    public function test_registro_cria_perfil_padrao_automaticamente(): void
+    public function test_pede_link_para_email_novo_cria_conta_com_perfil_padrao(): void
     {
-        $this->postJson('/api/auth/register', [
-            'name' => 'Rilson',
-            'email' => 'rilson@example.com',
-            'password' => 'senha1234',
-            'password_confirmation' => 'senha1234',
-        ])->assertCreated();
+        $this->requestMagicLinkAndCaptureToken('rilson@example.com', 'Rilson');
 
+        $this->assertDatabaseHas('users', ['email' => 'rilson@example.com']);
         $user = User::where('email', 'rilson@example.com')->first();
+        $this->assertNull($user->password);
+        // Achado real (2026-08-14): sem perfil automático, toda conta
+        // nova caía direto na tela "Nenhum perfil criado" — mesmo sendo
+        // o caso mais comum (a pessoa cuidando do próprio tratamento).
         $this->assertSame(1, $user->profiles()->count());
         $this->assertDatabaseHas('profiles', ['user_id' => $user->id, 'name' => 'Rilson']);
     }
 
-    public function test_nao_permite_registrar_email_duplicado(): void
+    public function test_pede_link_para_email_novo_sem_nome_e_rejeitado(): void
     {
-        User::factory()->create(['email' => 'duplicado@example.com']);
-
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Outro',
-            'email' => 'duplicado@example.com',
-            'password' => 'senha1234',
-            'password_confirmation' => 'senha1234',
-        ]);
+        $response = $this->postJson('/api/auth/magic-link', ['email' => 'rilson@example.com']);
 
         $response->assertUnprocessable();
-        $this->assertSame(1, User::where('email', 'duplicado@example.com')->count());
+        $this->assertDatabaseMissing('users', ['email' => 'rilson@example.com']);
     }
 
-    public function test_rejeita_senha_curta(): void
+    // "E-mail já cadastrado" nunca deveria ser um erro pra quem só quer
+    // voltar a entrar — pedir o link de novo (mesmo mandando um `name`
+    // diferente sem querer) manda o link pra conta existente, não cria
+    // outra nem troca o nome.
+    public function test_pede_link_para_email_existente_nao_duplica_conta_nem_perfil(): void
     {
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Rilson',
-            'email' => 'rilson@example.com',
-            'password' => '123',
-            'password_confirmation' => '123',
+        $existing = User::factory()->create(['email' => 'rilson@example.com', 'name' => 'Rilson Original']);
+        $existing->profiles()->create(['name' => 'Rilson Original']);
+
+        $this->requestMagicLinkAndCaptureToken('rilson@example.com', 'Nome Diferente');
+
+        $this->assertSame(1, User::where('email', 'rilson@example.com')->count());
+        $existing->refresh();
+        $this->assertSame('Rilson Original', $existing->name);
+        $this->assertSame(1, $existing->profiles()->count());
+    }
+
+    public function test_pedir_novo_link_invalida_o_anterior(): void
+    {
+        $tokenAntigo = $this->requestMagicLinkAndCaptureToken('rilson@example.com', 'Rilson');
+        $tokenNovo = $this->requestMagicLinkAndCaptureToken('rilson@example.com');
+
+        $this->assertNotSame($tokenAntigo, $tokenNovo);
+        $this->get('/api/auth/magic-link/redirect?token='.$tokenAntigo)->assertStatus(410);
+        $this->get('/api/auth/magic-link/redirect?token='.$tokenNovo)->assertRedirect();
+    }
+
+    public function test_link_valido_redireciona_e_autentica(): void
+    {
+        $token = $this->requestMagicLinkAndCaptureToken('rilson@example.com', 'Rilson');
+        $user = User::where('email', 'rilson@example.com')->first();
+
+        $response = $this->get('/api/auth/magic-link/redirect?token='.$token);
+
+        $response->assertRedirect();
+        $location = $response->headers->get('Location');
+        $this->assertStringStartsWith('meusremedios://auth-callback?', $location);
+        parse_str(parse_url($location, PHP_URL_QUERY), $params);
+        $this->assertSame((string) $user->id, $params['id']);
+        $this->assertSame($user->email, $params['email']);
+        $this->assertSame(1, PersonalAccessToken::where('tokenable_id', $user->id)->count());
+    }
+
+    public function test_link_ja_usado_nao_funciona_de_novo(): void
+    {
+        $token = $this->requestMagicLinkAndCaptureToken('rilson@example.com', 'Rilson');
+
+        $this->get('/api/auth/magic-link/redirect?token='.$token)->assertRedirect();
+        $this->get('/api/auth/magic-link/redirect?token='.$token)->assertStatus(410);
+    }
+
+    public function test_link_expirado_retorna_erro(): void
+    {
+        $user = User::factory()->create();
+        LoginLink::create([
+            'user_id' => $user->id,
+            'token_hash' => hash('sha256', 'token-expirado'),
+            'expires_at' => now()->subMinute(),
         ]);
 
-        $response->assertUnprocessable();
+        $this->get('/api/auth/magic-link/redirect?token=token-expirado')->assertStatus(410);
     }
 
-    public function test_rejeita_senha_sem_confirmacao(): void
+    public function test_token_inexistente_retorna_erro(): void
     {
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Rilson',
-            'email' => 'rilson@example.com',
-            'password' => 'senha1234',
-        ]);
-
-        $response->assertUnprocessable();
+        $this->get('/api/auth/magic-link/redirect?token=qualquer-coisa-invalida')->assertStatus(410);
     }
 
-    public function test_login_com_sucesso(): void
+    public function test_link_revoga_tokens_anteriores(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('senha1234')]);
-
-        $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'senha1234',
-        ]);
-
-        $response->assertOk()->assertJsonStructure(['user', 'token']);
-    }
-
-    public function test_login_com_senha_errada_retorna_erro_generico(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('senha1234')]);
-
-        $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'senha-errada',
-        ]);
-
-        $response->assertUnprocessable();
-        $response->assertJsonFragment(['email' => ['Credenciais inválidas.']]);
-    }
-
-    public function test_login_com_email_inexistente(): void
-    {
-        $response = $this->postJson('/api/auth/login', [
-            'email' => 'ninguem@example.com',
-            'password' => 'qualquer123',
-        ]);
-
-        $response->assertUnprocessable();
-    }
-
-    public function test_login_revoga_tokens_anteriores(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('senha1234')]);
+        $user = User::factory()->create();
         $user->createToken('token-antigo');
 
-        $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'senha1234',
-        ])->assertOk();
+        $token = $this->requestMagicLinkAndCaptureToken($user->email);
+        $this->get('/api/auth/magic-link/redirect?token='.$token)->assertRedirect();
 
         $this->assertSame(1, PersonalAccessToken::where('tokenable_id', $user->id)->count());
     }
@@ -213,40 +224,16 @@ class AuthTest extends TestCase
         $this->deleteJson('/api/auth/account')->assertUnauthorized();
     }
 
-    public function test_login_e_bloqueado_por_rate_limit_apos_5_tentativas(): void
+    public function test_pedido_de_link_e_bloqueado_por_rate_limit_apos_3_tentativas(): void
     {
-        $user = User::factory()->create(['password' => Hash::make('senha1234')]);
+        Mail::fake();
+        $user = User::factory()->create();
 
-        for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/api/auth/login', [
-                'email' => $user->email,
-                'password' => 'senha-errada',
-            ])->assertUnprocessable();
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/api/auth/magic-link', ['email' => $user->email])->assertOk();
         }
 
-        $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'senha-errada',
-        ])->assertStatus(429);
-    }
-
-    public function test_register_e_bloqueado_por_rate_limit_apos_5_tentativas(): void
-    {
-        for ($i = 0; $i < 5; $i++) {
-            $this->postJson('/api/auth/register', [
-                'name' => "Usuário {$i}",
-                'email' => "usuario{$i}@example.com",
-                'password' => 'senha1234',
-                'password_confirmation' => 'senha1234',
-            ])->assertCreated();
-        }
-
-        $this->postJson('/api/auth/register', [
-            'name' => 'Sexto usuário',
-            'email' => 'sexto@example.com',
-            'password' => 'senha1234',
-            'password_confirmation' => 'senha1234',
-        ])->assertStatus(429);
+        $this->postJson('/api/auth/magic-link', ['email' => $user->email])->assertStatus(429);
     }
 
     private function mockGoogleUser(string $googleId, string $name, string $email): void

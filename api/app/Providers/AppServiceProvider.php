@@ -26,22 +26,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Por (email normalizado + IP), não só IP: impede um único atacante
-        // de tentar senha infinitamente contra uma conta, sem travar um
-        // usuário legítimo se outra pessoa na mesma rede (NAT/wifi
-        // compartilhado) errar a senha algumas vezes. Mesmo padrão do
-        // Laravel Fortify.
-        RateLimiter::for('login', function (Request $request) {
+        // Login sem senha (2026-08-14) — substituiu os limiters `login` e
+        // `register` (senha não existe mais no fluxo local). Por (email
+        // normalizado + IP), não só IP: impede spam de e-mail de link de
+        // acesso contra uma conta específica, sem travar um usuário
+        // legítimo se outra pessoa na mesma rede (NAT/wifi compartilhado)
+        // pedir também. Mais generoso que o antigo `login` (5/min) porque
+        // aqui cada tentativa manda um e-mail de verdade, não só falha
+        // local — 3/min já é mais que suficiente pro caso legítimo
+        // (pediu, não chegou rápido, pediu de novo).
+        RateLimiter::for('magic-link', function (Request $request) {
             $key = Str::transliterate(Str::lower((string) $request->input('email'))).'|'.$request->ip();
 
-            return Limit::perMinute(5)->by($key);
-        });
-
-        // Registro: sem email de conta existente pra combinar, então
-        // limita por IP — o suficiente pra travar automação/spam de
-        // criação de conta.
-        RateLimiter::for('register', function (Request $request) {
-            return Limit::perMinute(5)->by($request->ip());
+            return Limit::perMinute(3)->by($key);
         });
 
         // P2 — Saúde & Resiliência (2026-08-09). `/up` sozinho só

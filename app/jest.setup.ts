@@ -73,3 +73,18 @@ jest.mock('expo-router', () => {
     useLocalSearchParams: jest.fn(() => ({})),
   };
 });
+
+// Mock de fontes e ícones para evitar chamadas assíncronas em background e warnings de act(...)
+jest.mock('expo-font', () => ({
+  isLoaded: () => true,
+  loadAsync: () => Promise.resolve(),
+}));
+
+jest.mock('@expo/vector-icons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    MaterialCommunityIcons: (props: any) => React.createElement(Text, props, props.name),
+  };
+});
+

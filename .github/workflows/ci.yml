@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   api:
     name: API (Testes, Composer Audit)
@@ -96,7 +100,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/remedios-api
+          images: ghcr.io/${{ github.repository_owner }}/remedios-api
           tags: |
             type=edge,branch=main
             type=semver,pattern={{version}}
