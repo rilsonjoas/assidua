@@ -19,6 +19,12 @@ class DoseLogTodayTest extends TestCase
         parent::setUp();
 
         // Congela em uma quarta-feira (dayOfWeek = 3) para os testes de days_of_week serem determinísticos.
+        // Carbon::parse sem tz explícito usa o default da app (UTC) — por
+        // isso todo perfil aqui é criado com timezone 'UTC' (2026-08-10):
+        // esta suíte testa a lógica de status de dose, não fuso horário
+        // (isso tem teste dedicado em ProfileTimezoneTest), então trava o
+        // perfil em UTC pra manter "hora congelada" == "hora local" como
+        // o resto do arquivo sempre assumiu.
         Carbon::setTestNow(Carbon::parse('2026-07-15 00:00:00'));
     }
 
@@ -31,7 +37,7 @@ class DoseLogTodayTest extends TestCase
     public function test_lista_dose_pendente_para_schedule_sem_restricao_de_dias(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create([
             'time' => '08:00:00',
@@ -44,14 +50,16 @@ class DoseLogTodayTest extends TestCase
         $response->assertJsonFragment([
             'status' => 'pending',
             'dose_schedule_id' => $schedule->id,
-            'id' => "pending_{$schedule->id}",
+            // Sufixo HHmm (2026-08-14) — evita colisão de id entre
+            // ocorrências do mesmo schedule no dia (frequência de horário).
+            'id' => "pending_{$schedule->id}_0800",
         ]);
     }
 
     public function test_exclui_schedule_cujo_dia_da_semana_nao_e_hoje(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         // hoje é quarta (3); agenda só para segunda (1)
         $medication->schedules()->create([
@@ -67,7 +75,7 @@ class DoseLogTodayTest extends TestCase
     public function test_inclui_schedule_cujo_dia_da_semana_e_hoje(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create([
             'time' => '08:00:00',
@@ -83,7 +91,7 @@ class DoseLogTodayTest extends TestCase
     public function test_reflete_log_ja_registrado_para_hoje(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create([
             'time' => '08:00:00',
@@ -111,7 +119,7 @@ class DoseLogTodayTest extends TestCase
     public function test_ignora_medicamento_inativo(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id, 'is_active' => false]);
         $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
@@ -123,7 +131,7 @@ class DoseLogTodayTest extends TestCase
     public function test_ignora_schedule_inativo(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'is_active' => false]);
 
@@ -136,7 +144,7 @@ class DoseLogTodayTest extends TestCase
     {
         $owner = User::factory()->create();
         $intruder = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $owner->id]);
+        $profile = Profile::factory()->create(['user_id' => $owner->id, 'timezone' => 'UTC']);
 
         $response = $this->actingAs($intruder)->getJson("/api/profiles/{$profile->id}/doses/today");
 
@@ -148,7 +156,7 @@ class DoseLogTodayTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create([
             'time' => '08:00:00', // já passou às 10h
@@ -170,7 +178,7 @@ class DoseLogTodayTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $medication->schedules()->create([
             'time' => '20:00:00', // ainda não chegou às 10h
@@ -188,7 +196,7 @@ class DoseLogTodayTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
@@ -214,7 +222,7 @@ class DoseLogTodayTest extends TestCase
     public function test_ordena_doses_por_horario(): void
     {
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $medication->schedules()->create(['time' => '20:00:00', 'days_of_week' => null]);
         $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
@@ -224,5 +232,51 @@ class DoseLogTodayTest extends TestCase
         $response->assertOk();
         $times = collect($response->json())->pluck('scheduled_at');
         $this->assertTrue($times->first() < $times->last());
+    }
+
+    // "Frequência de horário" (2026-08-14) — decisão de produto confirmada:
+    // vale o esforço de um intervalo de verdade em vez de só sugerir
+    // cadastrar 3 horários fixos manualmente.
+    public function test_schedule_de_intervalo_gera_uma_dose_por_ocorrencia_do_dia(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        // "hoje" congelado em 00:00 no setUp — 07h/15h/23h ficam todas no
+        // futuro, então as 3 continuam pendentes (sem viraram "perdida").
+        $medication->schedules()->create([
+            'time' => '07:00:00',
+            'days_of_week' => null,
+            'interval_hours' => 8,
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(3);
+        $times = collect($response->json())->pluck('scheduled_at')->map(fn ($t) => substr($t, 11, 5));
+        $this->assertSame(['07:00', '15:00', '23:00'], $times->all());
+    }
+
+    public function test_schedule_de_intervalo_marca_ocorrencias_passadas_como_perdidas_individualmente(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 16:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $medication->schedules()->create([
+            'time' => '07:00:00',
+            'days_of_week' => null,
+            'interval_hours' => 8,
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(3);
+        $byTime = collect($response->json())->keyBy(fn ($d) => substr($d['scheduled_at'], 11, 5));
+        // 07h e 15h já passaram das 16h "agora" -> perdidas. 23h ainda não -> pendente.
+        $this->assertSame('missed', $byTime['07:00']['status']);
+        $this->assertSame('missed', $byTime['15:00']['status']);
+        $this->assertSame('pending', $byTime['23:00']['status']);
     }
 }

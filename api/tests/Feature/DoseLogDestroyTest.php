@@ -64,7 +64,9 @@ class DoseLogDestroyTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonFragment([
-            'id' => 'pending_' . $schedule->id,
+            // Sufixo HHmm (2026-08-14) — evita colisão de id entre
+            // ocorrências do mesmo schedule no dia (frequência de horário).
+            'id' => 'pending_' . $schedule->id . '_0800',
             'status' => 'pending',
         ]);
 

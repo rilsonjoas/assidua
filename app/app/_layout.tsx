@@ -1,13 +1,17 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
+import { useTranslation } from 'react-i18next';
+import '../i18n';
 import { useAuthStore } from '../store/authStore';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
 import { registerPushToken } from '../services/notifications';
 import { useTheme } from '../hooks/useTheme';
+import { useLanguage } from '../hooks/useLanguage';
 
 const queryClient = new QueryClient();
 
@@ -22,9 +26,20 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-function AuthGuard() {
+// Exportado só pra ser testável em isolamento (`__tests__/auth-guard.test.tsx`)
+// sem precisar montar o <Stack> inteiro do RootLayout — AuthGuard não
+// renderiza nada visível, só efeitos de navegação.
+export function AuthGuard() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
   const hasCompletedOnboarding = useOnboardingStore((s) => s.hasCompletedOnboarding);
+  // Achado real de uso (2026-08-14): onboarding aparecia em *toda*
+  // abertura do app, não só na primeira. `setCompleted()` já era
+  // chamado certinho — o bug era ler `hasCompletedOnboarding` antes do
+  // zustand-persist terminar de reidratar do AsyncStorage (assíncrono,
+  // corrida com o boot do app); nesse intervalo o valor em memória
+  // ainda é o `false` padrão. `hasHydrated` deixa esperar a
+  // reidratação de verdade acabar antes de decidir navegar.
+  const hasOnboardingHydrated = useOnboardingStore((s) => s.hasHydrated);
   const segments = useSegments();
   const router = useRouter();
 
@@ -36,7 +51,7 @@ function AuthGuard() {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !hasOnboardingHydrated) return;
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
 
@@ -48,19 +63,47 @@ function AuthGuard() {
       router.replace('/(onboarding)');
       return;
     }
+    // Rede de segurança: se por algum outro caminho a pessoa chegou no
+    // onboarding já tendo completado antes (ex.: outra corrida que a
+    // gente não previu), volta sozinho em vez de prender ali.
+    if (user && hasCompletedOnboarding && inOnboarding) {
+      router.replace('/(tabs)/');
+      return;
+    }
     if (user && inAuth) router.replace('/(tabs)/');
 
     // Fase 1.5 — refresca o token a cada abertura pra quem já passou
     // pelo onboarding (token do Expo pode mudar entre instalações).
     // Quem está indo pro onboarding agora já registra lá dentro.
     if (user && hasCompletedOnboarding) registerPushToken();
-  }, [user, isLoading, hasCompletedOnboarding, segments]);
+  }, [user, isLoading, hasCompletedOnboarding, hasOnboardingHydrated, segments]);
 
   return null;
 }
 
 function ThemedLayout() {
   const { isDark, colors } = useTheme();
+  const { t } = useTranslation();
+  useLanguage(); // mantém i18next sincronizado com languageStore/idioma do aparelho
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const hasOnboardingHydrated = useOnboardingStore((s) => s.hasHydrated);
+
+  // Achado real de uso (2026-08-14): mesmo com o fix de `hasHydrated`
+  // no AuthGuard, a tela de onboarding ainda "piscava" por meio segundo
+  // toda abertura, mesmo pra quem já tinha completado antes. Causa:
+  // `AuthGuard` decide pra onde navegar dentro de um `useEffect`, que
+  // só roda *depois* da primeira renderização — o `<Stack>` sempre
+  // montava a tela padrão (a primeira registrada) antes da decisão
+  // correta acontecer. Não renderiza o `<Stack>` até auth + reidratação
+  // do onboarding estarem prontos; mostra só a cor de fundo do tema
+  // nesse intervalo curto, nunca uma tela real errada.
+  if (isLoading || !hasOnboardingHydrated) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </View>
+    );
+  }
 
   return (
     <>
@@ -69,11 +112,36 @@ function ThemedLayout() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(onboarding)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth-callback" />
         <Stack.Screen
           name="medication/[id]"
           options={{
             headerShown: true,
-            title: 'Medicamento',
+            title: t('medicationModal.title'),
+            presentation: 'modal',
+            headerStyle: { backgroundColor: colors.surface },
+            headerTitleStyle: { color: colors.text, fontWeight: '700' },
+            headerTintColor: colors.text,
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="pro"
+          options={{
+            headerShown: true,
+            title: t('pro.headerTitle'),
+            presentation: 'modal',
+            headerStyle: { backgroundColor: colors.surface },
+            headerTitleStyle: { color: colors.text, fontWeight: '700' },
+            headerTintColor: colors.text,
+            headerShadowVisible: false,
+          }}
+        />
+        <Stack.Screen
+          name="help"
+          options={{
+            headerShown: true,
+            title: t('help.headerTitle'),
             presentation: 'modal',
             headerStyle: { backgroundColor: colors.surface },
             headerTitleStyle: { color: colors.text, fontWeight: '700' },

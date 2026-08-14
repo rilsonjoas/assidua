@@ -25,6 +25,13 @@ class AuthController extends Controller
             'password' => Hash::make($data['password']),
         ]);
 
+        // Achado real (2026-08-14): sem isto, toda conta nova cai na tela
+        // "Nenhum perfil criado" — mesmo sendo o caso normal (a pessoa
+        // gerenciando o próprio tratamento). Perfil compartilhado com
+        // outra pessoa continua existindo (Fase 1.5), isto só cobre o
+        // primeiro perfil óbvio: o do próprio dono da conta.
+        $this->createDefaultProfile($user);
+
         $token = $user->createToken('mobile')->plainTextToken;
 
         return response()->json(['user' => $user, 'token' => $token], 201);
@@ -108,6 +115,12 @@ class AuthController extends Controller
             ]
         );
 
+        // wasRecentlyCreated só é true na mesma requisição que inseriu a
+        // linha — próximos logins do mesmo google_id não recriam o perfil.
+        if ($user->wasRecentlyCreated) {
+            $this->createDefaultProfile($user);
+        }
+
         $user->tokens()->delete();
         $token = $user->createToken('mobile')->plainTextToken;
 
@@ -124,5 +137,16 @@ class AuthController extends Controller
         }
 
         return response()->json(['user' => $user, 'token' => $token]);
+    }
+
+    // 'account' é o mesmo ícone que o formulário de criação de perfil no
+    // mobile já usa como padrão (`useState(...'account')` em profile.tsx)
+    // — mantém consistência com o que a pessoa veria se criasse na mão.
+    private function createDefaultProfile(User $user): void
+    {
+        $user->profiles()->create([
+            'name' => $user->name,
+            'avatar_emoji' => 'account',
+        ]);
     }
 }

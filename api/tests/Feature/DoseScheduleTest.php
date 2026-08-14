@@ -73,6 +73,60 @@ class DoseScheduleTest extends TestCase
         $response->assertUnprocessable();
     }
 
+    // "Frequência de horário" (2026-08-14) — decisão de produto confirmada
+    // com o Rilson. `interval_hours` já existia na validação/coluna
+    // (achado ao investigar — nunca tinha sido ligado em lugar nenhum
+    // que gera dose de verdade); estes testes cobrem só a criação/
+    // validação — o efeito real (quantas doses gera) é coberto em
+    // GenerateScheduleOccurrencesTest e nos testes de today()/streak/adesão.
+    public function test_cria_schedule_de_intervalo(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+
+        $response = $this->actingAs($user)->postJson("/api/medications/{$medication->id}/schedules", [
+            'time' => '07:00',
+            'interval_hours' => 8,
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('dose_schedules', [
+            'medication_id' => $medication->id,
+            'interval_hours' => 8,
+        ]);
+    }
+
+    public function test_rejeita_intervalo_menor_que_1_hora(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+
+        $response = $this->actingAs($user)->postJson("/api/medications/{$medication->id}/schedules", [
+            'time' => '07:00',
+            'interval_hours' => 0,
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_atualiza_schedule_fixo_para_intervalo(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => [1, 3, 5]]);
+
+        $response = $this->actingAs($user)->putJson("/api/schedules/{$schedule->id}", [
+            'interval_hours' => 6,
+        ]);
+
+        $response->assertOk();
+        $schedule->refresh();
+        $this->assertSame(6, $schedule->interval_hours);
+    }
+
     public function test_atualiza_horario_e_dias_de_schedule_existente(): void
     {
         $user = User::factory()->create();

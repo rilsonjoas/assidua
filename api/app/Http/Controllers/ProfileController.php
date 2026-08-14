@@ -38,7 +38,18 @@ class ProfileController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:100',
             'color' => 'sometimes|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'avatar_emoji' => 'sometimes|string|max:10',
+            // Achado real (2026-08-14): campo se chama "emoji" mas guarda
+            // nome de ícone do MaterialCommunityIcons (ex.: 17 caracteres
+            // em `baby-face-outline`) — max:10 rejeitava a maioria dos
+            // ícones da própria lista de seleção do app. Ver migration
+            // `widen_avatar_emoji_on_profiles_table` pro mesmo ajuste na
+            // coluna.
+            'avatar_emoji' => 'sometimes|string|max:40',
+            // Achado 2026-08-10: sem isto, todo perfil calculava "hoje" em
+            // UTC. Mandado pelo app a partir do dispositivo; se o cliente
+            // não mandar (versão antiga do app), fica no default da
+            // coluna (America/Sao_Paulo) — não quebra, só não corrige.
+            'timezone' => 'sometimes|timezone',
         ]);
 
         $profile = $user->profiles()->create($data);
@@ -60,8 +71,15 @@ class ProfileController extends Controller
         $data = $request->validate([
             'name' => 'sometimes|string|max:100',
             'color' => 'sometimes|string|regex:/^#[0-9A-Fa-f]{6}$/',
-            'avatar_emoji' => 'sometimes|string|max:10',
+            // Achado real (2026-08-14): campo se chama "emoji" mas guarda
+            // nome de ícone do MaterialCommunityIcons (ex.: 17 caracteres
+            // em `baby-face-outline`) — max:10 rejeitava a maioria dos
+            // ícones da própria lista de seleção do app. Ver migration
+            // `widen_avatar_emoji_on_profiles_table` pro mesmo ajuste na
+            // coluna.
+            'avatar_emoji' => 'sometimes|string|max:40',
             'is_active' => 'sometimes|boolean',
+            'timezone' => 'sometimes|timezone',
         ]);
 
         $profile->update($data);

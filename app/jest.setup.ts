@@ -6,6 +6,35 @@
 // namespace `jest` como valor nesse modo (TS2708), import direto resolve.
 import { jest } from '@jest/globals';
 
+// Inicializa o i18next uma vez pra toda a suíte — sem isso, useTranslation()
+// nos componentes testados isoladamente (sem passar pelo _layout.tsx real)
+// não tem nenhuma instância pra usar e t() devolve a chave crua em vez do
+// texto.
+//
+// Importante: inicializa direto aqui, SEM importar `i18n/index.ts` (que
+// puxa `services/device` → `services/api`). Achado real (2026-08-10):
+// importar esse caminho no setup fazia `services/api` ser carregado e
+// cacheado ANTES do `jest.mock('../services/api', ...)` de cada teste
+// rodar — testes que mockam `services/api` (ex: device-timezone.test.ts)
+// passavam a bater na instância axios de verdade por trás do mock,
+// silenciosamente. i18next é um singleton do pacote `i18next`, então
+// inicializar com os mesmos recursos aqui é suficiente pra todo
+// `useTranslation()` do app funcionar nos testes, sem esse acoplamento.
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import pt from './i18n/locales/pt.json';
+import en from './i18n/locales/en.json';
+import es from './i18n/locales/es.json';
+i18next.use(initReactI18next).init({
+  // As 3 traduções carregadas (não só pt) — __tests__/i18n.test.tsx testa
+  // troca de idioma de verdade, não só que o default funciona.
+  resources: { pt: { translation: pt }, en: { translation: en }, es: { translation: es } },
+  lng: 'pt',
+  fallbackLng: 'pt',
+  interpolation: { escapeValue: false },
+  compatibilityJSON: 'v4',
+});
+
 // AsyncStorage real bate em disco nativo — themeStore usa como storage do
 // zustand/persist, precisa do mock oficial pra não quebrar em teste.
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -41,5 +70,6 @@ jest.mock('expo-router', () => {
     router,
     useRouter: () => router,
     useSegments: jest.fn(() => []),
+    useLocalSearchParams: jest.fn(() => ({})),
   };
 });

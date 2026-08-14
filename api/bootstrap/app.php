@@ -32,6 +32,18 @@ return Application::configure(basePath: dirname(__DIR__))
         // cron do container/VPS pra funcionar de verdade; sem isso o
         // schedule fica só declarado, nunca dispara.
         $schedule->command('doses:check-missed')->everyFifteenMinutes();
+
+        // "Resumo semanal" (Fase 2, 2026-08-13) — hourly() é resolução
+        // suficiente pra pegar a janela de 1h (domingo 20h-20:59) de
+        // qualquer fuso com offset em hora cheia; o comando decide por
+        // perfil se é a hora certa, isto só garante que ele roda.
+        $schedule->command('adherence:send-weekly-summary')->hourly();
+
+        // "Duração do tratamento" (2026-08-14) — evento único por
+        // medicamento (dedupe via treatment_end_notified_at nulo, não
+        // janela de tempo), hourly() dá resolução de sobra sem
+        // sobrecarregar à toa.
+        $schedule->command('medications:notify-treatment-ending')->hourly();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

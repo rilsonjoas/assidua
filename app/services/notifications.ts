@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { api } from './api';
+import { formatDosageUnit } from './medications';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -33,16 +34,57 @@ export async function scheduleScheduleNotifications(params: {
   scheduleId: number;
   time: string; // "HH:mm"
   days_of_week: number[] | null; // null = todos os dias; 0=Dom, 6=Sáb
+  interval_hours?: number | null;
   medicationName: string;
-  dosage: string;
+  dosage: string | null;
   unit: string;
 }): Promise<void> {
-  const { scheduleId, time, days_of_week, medicationName, dosage, unit } = params;
+  const { scheduleId, time, days_of_week, interval_hours, medicationName, dosage, unit } = params;
   const [hour, minute] = time.split(':').map(Number);
-  const body = `${dosage} ${unit}`;
+  const body = formatDosageUnit(dosage, unit);
 
   // Remove notificações antigas deste schedule antes de recriar
   await cancelScheduleNotifications(scheduleId);
+
+  // Achado real de uso (2026-08-14), corrigido no mesmo dia: schedule de
+  // intervalo (ex.: de 8 em 8h) gera mais de uma dose por dia — sem isto,
+  // o lembrete local era agendado só no horário-âncora, 1x/dia, deixando
+  // o remédio "sem aviso" nos horários seguintes mesmo com o backend
+  // computando as ocorrências certinho. Espelha GenerateScheduleOccurrences
+  // (api/app/Actions/GenerateScheduleOccurrences.php): começa no
+  // horário-âncora e repete de X em X horas até (sem ultrapassar) a
+  // meia-noite do mesmo dia. O Expo não tem trigger nativo de "intervalo
+  // dentro do dia", então isso vira N lembretes DAILY fixos, um por
+  // ocorrência.
+  if (interval_hours != null) {
+    const occurrences: { hour: number; minute: number }[] = [];
+    let totalMinutes = hour * 60 + minute;
+    const endOfDayMinutes = 23 * 60 + 59; // mesmo corte de "endOfDay" do backend
+    while (totalMinutes <= endOfDayMinutes) {
+      occurrences.push({ hour: Math.floor(totalMinutes / 60), minute: totalMinutes % 60 });
+      totalMinutes += interval_hours * 60;
+    }
+
+    await Promise.all(
+      occurrences.map((occ, index) =>
+        Notifications.scheduleNotificationAsync({
+          identifier: `schedule_${scheduleId}_interval_${index}`,
+          content: {
+            title: `Hora de tomar ${medicationName}`,
+            body,
+            sound: true,
+            data: { scheduleId },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DAILY,
+            hour: occ.hour,
+            minute: occ.minute,
+          },
+        }),
+      ),
+    );
+    return;
+  }
 
   const everyDay = !days_of_week || days_of_week.length === 7;
 

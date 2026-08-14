@@ -17,12 +17,15 @@ class Profile extends Model
         'color',
         'avatar_emoji',
         'is_active',
+        'timezone',
+        'last_weekly_summary_sent_at',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'last_weekly_summary_sent_at' => 'datetime',
         ];
     }
 

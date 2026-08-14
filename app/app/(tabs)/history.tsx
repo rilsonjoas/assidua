@@ -1,46 +1,45 @@
 import { useState, useMemo } from 'react';
 import {
   View,
-  Text,
   SectionList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS, es } from 'date-fns/locale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
-import { getDoseHistory, DoseLog, HistoryFilters } from '../../services/doses';
+import { getDoseHistory, getWeeklyAdherence, DoseLog, HistoryFilters } from '../../services/doses';
+import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+import { SkeletonList } from '../../components/Skeleton';
+import { AppText as Text } from '../../components/AppText';
+import { AdherenceChart } from '../../components/AdherenceChart';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
 
-const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
-  { key: 'all', label: 'Todos' },
-  { key: 'taken', label: 'Tomado' },
-  { key: 'skipped', label: 'Pulado' },
-  { key: 'missed', label: 'Perdido' },
-];
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }> = {
-  taken: { label: 'Tomado', color: '#22c55e', icon: 'check-circle' },
-  skipped: { label: 'Pulado', color: '#f59e0b', icon: 'minus-circle' },
-  missed: { label: 'Perdido', color: '#ef4444', icon: 'close-circle' },
-  pending: { label: 'Pendente', color: '#94a3b8', icon: 'clock-outline' },
+// date-fns não tem locale pt/en/es "genérico" — usa a variante regional
+// mais comum pra cada idioma suportado pelo app.
+const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
+const DATE_FORMAT: Record<string, string> = {
+  pt: "EEEE, d 'de' MMMM",
+  es: "EEEE, d 'de' MMMM",
+  en: 'EEEE, MMMM d',
 };
 
-function sectionTitle(dateStr: string): string {
+function sectionTitle(dateStr: string, lang: string, t: (key: string) => string): string {
   const date = parseISO(dateStr);
-  if (isToday(date)) return 'Hoje';
-  if (isYesterday(date)) return 'Ontem';
-  return format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
+  if (isToday(date)) return t('history.today');
+  if (isYesterday(date)) return t('history.yesterday');
+  const locale = DATE_FNS_LOCALES[lang as keyof typeof DATE_FNS_LOCALES] ?? ptBR;
+  return format(date, DATE_FORMAT[lang] ?? DATE_FORMAT.pt, { locale });
 }
 
-function groupByDate(logs: DoseLog[]): { title: string; data: DoseLog[] }[] {
+function groupByDate(logs: DoseLog[], lang: string, t: (key: string) => string): { title: string; data: DoseLog[] }[] {
   const map = new Map<string, DoseLog[]>();
   for (const log of logs) {
     const key = log.scheduled_at.slice(0, 10); // YYYY-MM-DD
@@ -48,19 +47,53 @@ function groupByDate(logs: DoseLog[]): { title: string; data: DoseLog[] }[] {
     map.get(key)!.push(log);
   }
   return Array.from(map.entries()).map(([date, data]) => ({
-    title: sectionTitle(date + 'T00:00:00'),
+    title: sectionTitle(date + 'T00:00:00', lang, t),
     data,
   }));
 }
 
 export default function HistoryScreen() {
+  const { t, i18n } = useTranslation();
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  // Filtro por medicamento (Fase 2, 2026-08-12) — backend já suportava
+  // `medication_id` desde sempre (getDoseHistory/HistoryFilters), só
+  // faltava a UI pra usar.
+  const [medicationFilter, setMedicationFilter] = useState<number | 'all'>('all');
+
+  const { data: medications = [] } = useQuery({
+    queryKey: ['medications', activeProfile?.id],
+    queryFn: () => getMedications(activeProfile!.id),
+    enabled: !!activeProfile,
+  });
+
+  // "Gráfico de adesão" (Fase 2, 2026-08-13).
+  const { data: weeklyAdherence = [] } = useQuery({
+    queryKey: ['weekly-adherence', activeProfile?.id],
+    queryFn: () => getWeeklyAdherence(activeProfile!.id),
+    enabled: !!activeProfile,
+  });
+
+  const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+    { key: 'all', label: t('history.filterAll') },
+    { key: 'taken', label: t('history.filterTaken') },
+    { key: 'skipped', label: t('history.filterSkipped') },
+    { key: 'missed', label: t('history.filterMissed') },
+  ];
+
+  const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }> = {
+    taken: { label: t('history.filterTaken'), color: '#22c55e', icon: 'check-circle' },
+    skipped: { label: t('history.filterSkipped'), color: '#f59e0b', icon: 'minus-circle' },
+    missed: { label: t('history.filterMissed'), color: '#ef4444', icon: 'close-circle' },
+    pending: { label: t('history.filterPending'), color: '#94a3b8', icon: 'clock-outline' },
+  };
 
   const filters: HistoryFilters = {};
   if (statusFilter !== 'all') filters.status = statusFilter;
+  if (medicationFilter !== 'all') filters.medication_id = medicationFilter;
+  const hasActiveFilter = statusFilter !== 'all' || medicationFilter !== 'all';
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['history', activeProfile?.id, filters],
@@ -69,7 +102,7 @@ export default function HistoryScreen() {
   });
 
   const logs: DoseLog[] = data?.data ?? [];
-  const sections = useMemo(() => groupByDate(logs), [logs]);
+  const sections = useMemo(() => groupByDate(logs, i18n.language, t), [logs, i18n.language]);
 
   const takenCount = logs.filter((l) => l.status === 'taken').length;
   const totalCount = logs.length;
@@ -82,22 +115,24 @@ export default function HistoryScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{takenCount}</Text>
-            <Text style={styles.summaryLabel}>Tomadas</Text>
+            <Text style={styles.summaryLabel}>{t('history.summaryTaken')}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{totalCount - takenCount}</Text>
-            <Text style={styles.summaryLabel}>Perdidas</Text>
+            <Text style={styles.summaryLabel}>{t('history.summaryMissed')}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}>
               {adherence}%
             </Text>
-            <Text style={styles.summaryLabel}>Adesão</Text>
+            <Text style={styles.summaryLabel}>{t('history.summaryAdherence')}</Text>
           </View>
         </View>
       )}
+
+      <AdherenceChart data={weeklyAdherence} />
 
       {/* Filtros de status */}
       <ScrollView
@@ -112,7 +147,7 @@ export default function HistoryScreen() {
             style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
             onPress={() => setStatusFilter(f.key)}
             accessibilityRole="button"
-            accessibilityLabel={`Filtrar por ${f.label}`}
+            accessibilityLabel={t('history.filterLabel', { label: f.label })}
             accessibilityState={{ selected: statusFilter === f.key }}
           >
             <Text style={[styles.filterChipText, statusFilter === f.key && styles.filterChipTextActive]}>
@@ -122,16 +157,51 @@ export default function HistoryScreen() {
         ))}
       </ScrollView>
 
+      {/* Filtro por medicamento */}
+      {medications.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterRow}
+        >
+          <TouchableOpacity
+            style={[styles.filterChip, medicationFilter === 'all' && styles.filterChipActive]}
+            onPress={() => setMedicationFilter('all')}
+            accessibilityRole="button"
+            accessibilityLabel={t('history.filterLabel', { label: t('history.filterAllMedications') })}
+            accessibilityState={{ selected: medicationFilter === 'all' }}
+          >
+            <Text style={[styles.filterChipText, medicationFilter === 'all' && styles.filterChipTextActive]}>
+              {t('history.filterAllMedications')}
+            </Text>
+          </TouchableOpacity>
+          {medications.map((m) => (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
+              onPress={() => setMedicationFilter(m.id)}
+              accessibilityRole="button"
+              accessibilityLabel={t('history.filterLabel', { label: m.name })}
+              accessibilityState={{ selected: medicationFilter === m.id }}
+            >
+              <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
+              <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
+                {m.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.brand} />
+        <SkeletonList lines={2} />
       ) : sections.length === 0 ? (
         <View style={styles.emptyBox}>
           <MaterialCommunityIcons name="clipboard-text-outline" size={52} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>Nenhum registro</Text>
+          <Text style={styles.emptyTitle}>{t('history.emptyTitle')}</Text>
           <Text style={styles.emptyText}>
-            {statusFilter !== 'all'
-              ? 'Nenhuma dose com esse status no período.'
-              : 'Marque doses como tomadas para ver o histórico aqui.'}
+            {hasActiveFilter ? t('history.emptyFiltered') : t('history.emptyGeneric')}
           </Text>
         </View>
       ) : (
@@ -151,7 +221,12 @@ export default function HistoryScreen() {
               <View
                 style={styles.row}
                 accessible
-                accessibilityLabel={`${item.medication.name}, ${item.medication.dosage} ${item.medication.unit}, ${time}, ${cfg.label}`}
+                accessibilityLabel={t('history.rowLabel', {
+                  name: item.medication.name,
+                  dosageUnit: formatDosageUnit(item.medication.dosage, item.medication.unit),
+                  time,
+                  status: cfg.label,
+                })}
               >
                 <View style={styles.timeBox}>
                   <Text style={styles.time}>{time}</Text>
@@ -160,7 +235,7 @@ export default function HistoryScreen() {
                 <View style={styles.rowBody}>
                   <Text style={styles.medName}>{item.medication.name}</Text>
                   <Text style={styles.dosage}>
-                    {item.medication.dosage} {item.medication.unit}
+                    {formatDosageUnit(item.medication.dosage, item.medication.unit)}
                   </Text>
                 </View>
                 <View style={styles.statusBox}>
@@ -209,6 +284,8 @@ function makeStyles(c: ThemeColors) {
     filterChipActive: { backgroundColor: c.brandSubtle, borderColor: c.brand },
     filterChipText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
     filterChipTextActive: { color: c.brand },
+    medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    medicationChipDot: { width: 8, height: 8, borderRadius: 4 },
     list: { padding: 16, paddingTop: 4, gap: 6 },
     sectionHeader: {
       fontSize: 13,

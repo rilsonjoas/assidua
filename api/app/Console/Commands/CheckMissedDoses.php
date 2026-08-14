@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\GenerateScheduleOccurrences;
 use App\Actions\MarkDoseMissedAndNotifyCollaborators;
 use App\Models\DoseLog;
 use App\Models\DoseSchedule;
@@ -21,38 +22,45 @@ use Illuminate\Console\Command;
 #[Description('Marca doses passadas do horário como perdidas e notifica cuidadores (Fase 1.5)')]
 class CheckMissedDoses extends Command
 {
-    public function handle(MarkDoseMissedAndNotifyCollaborators $markMissed): int
+    public function handle(MarkDoseMissedAndNotifyCollaborators $markMissed, GenerateScheduleOccurrences $generateOccurrences): int
     {
-        $today = Carbon::today();
-        $dayOfWeek = (int) $today->dayOfWeek;
+        // Achado 2026-08-10: "hoje" era calculado uma vez, em UTC, pra
+        // todos os perfis de uma vez — cada perfil pode estar em fuso
+        // diferente (Brasil sozinho já tem 4), então precisa recalcular
+        // "hoje" por perfil, não uma vez só no topo.
         $checked = 0;
         $marked = 0;
 
         DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('is_active', true))
+            ->whereHas('medication', fn ($q) => $q->where('is_active', true)->where('is_paused', false))
             ->with(['medication.profile'])
-            ->chunkById(100, function ($schedules) use ($markMissed, $today, $dayOfWeek, &$checked, &$marked) {
+            ->chunkById(100, function ($schedules) use ($markMissed, $generateOccurrences, &$checked, &$marked) {
                 foreach ($schedules as $schedule) {
                     $checked++;
 
-                    if ($schedule->days_of_week !== null && ! in_array($dayOfWeek, $schedule->days_of_week)) {
-                        continue;
-                    }
+                    $profile = $schedule->medication->profile;
+                    $today = Carbon::today($profile->timezone);
 
-                    $scheduledAt = $today->copy()->setTimeFromTimeString($schedule->time);
-                    if (! $scheduledAt->isPast()) {
-                        continue;
-                    }
+                    // "Frequência de horário" (2026-08-14): mesma Action
+                    // usada em DoseLogController::today() — um schedule
+                    // pode gerar mais de uma ocorrência perdível no dia.
+                    $occurrences = $generateOccurrences->handle($schedule, $today);
 
-                    $exists = DoseLog::where('dose_schedule_id', $schedule->id)
-                        ->whereDate('scheduled_at', $today)
-                        ->exists();
-                    if ($exists) {
-                        continue;
-                    }
+                    foreach ($occurrences as $scheduledAt) {
+                        if (! $scheduledAt->isPast()) {
+                            continue;
+                        }
 
-                    $markMissed->handle($schedule, $schedule->medication, $schedule->medication->profile, $scheduledAt);
-                    $marked++;
+                        $exists = DoseLog::where('dose_schedule_id', $schedule->id)
+                            ->where('scheduled_at', $scheduledAt->format('Y-m-d H:i:s'))
+                            ->exists();
+                        if ($exists) {
+                            continue;
+                        }
+
+                        $markMissed->handle($schedule, $schedule->medication, $profile, $scheduledAt);
+                        $marked++;
+                    }
                 }
             });
 

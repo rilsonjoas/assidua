@@ -13,6 +13,11 @@ use Tests\TestCase;
 
 // Fase 1.5, Etapa 4 — o comando é o que garante o alerta mesmo sem
 // ninguém abrir o app (diferente de today(), que só roda sob demanda).
+//
+// Perfis aqui são criados com timezone 'UTC' (2026-08-10): esta suíte
+// testa a lógica do comando (marca/não marca, não duplica), não fuso
+// horário — isso tem teste dedicado em ProfileTimezoneTest. Trava em UTC
+// pra "hora congelada" == "hora local", como o resto do arquivo assume.
 class CheckMissedDosesCommandTest extends TestCase
 {
     use RefreshDatabase;
@@ -23,7 +28,7 @@ class CheckMissedDosesCommandTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
@@ -41,7 +46,7 @@ class CheckMissedDosesCommandTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 06:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $medication->schedules()->create(['time' => '20:00:00', 'days_of_week' => null]);
 
@@ -56,7 +61,7 @@ class CheckMissedDosesCommandTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
         DoseLog::create([
@@ -80,12 +85,36 @@ class CheckMissedDosesCommandTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
 
         $user = User::factory()->create();
-        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id, 'is_active' => false]);
         $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
         $this->artisan('doses:check-missed')->assertSuccessful();
 
         $this->assertSame(0, DoseLog::count());
+    }
+
+    // "Frequência de horário" (2026-08-14) — um schedule de intervalo
+    // pode ter várias ocorrências perdidas no mesmo dia, cada uma precisa
+    // virar um log `missed` separado, não só um por schedule.
+    public function test_marca_cada_ocorrencia_passada_de_schedule_de_intervalo_como_perdida(): void
+    {
+        Http::fake();
+        Carbon::setTestNow(Carbon::parse('2026-07-15 16:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create([
+            'time' => '07:00:00',
+            'days_of_week' => null,
+            'interval_hours' => 8,
+        ]);
+
+        $this->artisan('doses:check-missed')->assertSuccessful();
+
+        // 07h e 15h já passaram das 16h "agora" -> 2 logs perdidos. 23h
+        // ainda não chegou -> sem log nenhum pra essa ocorrência.
+        $this->assertSame(2, DoseLog::where('dose_schedule_id', $schedule->id)->where('status', 'missed')->count());
     }
 }

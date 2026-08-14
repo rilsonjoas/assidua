@@ -12,10 +12,38 @@ export interface DoseLog {
   notes: string | null;
   medication: Medication;
   dose_schedule: DoseSchedule;
+  // Fase 2 (2026-08-11) — só presente na resposta do POST que marcou a
+  // dose como tomada, e só quando essa ação especificamente completou o
+  // dia E o streak resultante bate 7/30/60. null no resto do tempo.
+  streak_milestone?: number | null;
+}
+
+export interface AdherenceStreak {
+  current_streak: number;
+  best_streak: number;
+}
+
+// "Gráfico de adesão" (Fase 2, 2026-08-13).
+export interface WeeklyAdherencePoint {
+  week_start: string;
+  week_end: string;
+  percentage: number | null;
+  taken: number;
+  due: number;
 }
 
 export async function getTodayDoses(profileId: number): Promise<DoseLog[]> {
   const { data } = await api.get(`/profiles/${profileId}/doses/today`);
+  return data;
+}
+
+export async function getAdherenceStreak(profileId: number): Promise<AdherenceStreak> {
+  const { data } = await api.get(`/profiles/${profileId}/streak`);
+  return data;
+}
+
+export async function getWeeklyAdherence(profileId: number): Promise<WeeklyAdherencePoint[]> {
+  const { data } = await api.get(`/profiles/${profileId}/weekly-adherence`);
   return data;
 }
 

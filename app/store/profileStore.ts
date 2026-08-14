@@ -11,6 +11,10 @@ export interface Profile {
   // passaram por ProfileController::index(); tratar como true nesse
   // caso (perfil próprio é o padrão histórico).
   is_owner?: boolean;
+  // Fase de fuso horário (2026-08-10) — usado só pra decidir se precisa
+  // autocorrigir (ver services/device.ts); a exibição em si não depende
+  // disso no cliente, é o backend que usa pra calcular "hoje".
+  timezone?: string;
 }
 
 interface ProfileState {

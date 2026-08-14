@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { ColorValue } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -13,6 +14,7 @@ function TabIcon({ name, color }: { name: IconName; color: ColorValue }) {
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Tabs
@@ -28,7 +30,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Hoje',
+          title: t('tabs.today'),
           headerShown: false,
           tabBarIcon: ({ color }) => <TabIcon name="home-outline" color={color} />,
         }}
@@ -36,28 +38,28 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="medications"
         options={{
-          title: 'Remédios',
+          title: t('tabs.medications'),
           tabBarIcon: ({ color }) => <TabIcon name="pill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Histórico',
+          title: t('tabs.history'),
           tabBarIcon: ({ color }) => <TabIcon name="clipboard-text-outline" color={color} />,
         }}
       />
       <Tabs.Screen
         name="stock"
         options={{
-          title: 'Estoque',
+          title: t('tabs.stock'),
           tabBarIcon: ({ color }) => <TabIcon name="package-variant-closed" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Perfis',
+          title: t('tabs.profiles'),
           tabBarIcon: ({ color }) => <TabIcon name="account-group-outline" color={color} />,
         }}
       />

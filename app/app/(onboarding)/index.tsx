@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { View, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { requestNotificationPermission, registerPushToken } from '../../services/notifications';
+import { AppText as Text } from '../../components/AppText';
 
 // Onboarding guiado (Fase 1 do roadmap) — 3 telas na primeira abertura.
 // Decisão: carrossel explicativo, não formulário embutido. Quem já usa
@@ -15,33 +17,25 @@ import { requestNotificationPermission, registerPushToken } from '../../services
 // chegar lá. O pedido de notificação, que antes disparava sem
 // explicação no boot do app, agora só acontece aqui, no fim do
 // onboarding, com contexto — boa prática (não pedir permissão "a frio").
-const STEPS = [
-  {
-    icon: 'account-group-outline' as const,
-    title: 'Cuide de quem você ama',
-    text: 'Crie um perfil para cada pessoa — você mesmo, um filho, um paciente. Cada um com seus próprios medicamentos e horários.',
-  },
-  {
-    icon: 'pill' as const,
-    title: 'Nunca mais esqueça uma dose',
-    text: 'Adicione os medicamentos e horários de cada perfil. O app monta a lista de doses do dia automaticamente.',
-  },
-  {
-    icon: 'bell-ring-outline' as const,
-    title: 'Lembretes na hora certa',
-    text: 'Ative as notificações para receber um aviso no horário de cada dose. Você pode mudar isso depois, nas configurações do celular.',
-  },
-];
+const STEP_ICONS = ['account-group-outline', 'pill', 'bell-ring-outline'] as const;
 
 export default function OnboardingScreen() {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const router = useRouter();
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const setCompleted = useOnboardingStore((s) => s.setCompleted);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const isLast = step === STEPS.length - 1;
-  const current = STEPS[step];
+  const steps = [
+    { icon: STEP_ICONS[0], title: t('onboarding.step1Title'), text: t('onboarding.step1Text') },
+    { icon: STEP_ICONS[1], title: t('onboarding.step2Title'), text: t('onboarding.step2Text') },
+    { icon: STEP_ICONS[2], title: t('onboarding.step3Title'), text: t('onboarding.step3Text') },
+  ];
+
+  const isLast = step === steps.length - 1;
 
   const finish = async () => {
     await requestNotificationPermission();
@@ -53,33 +47,73 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)/');
   };
 
+  // Achado real testando no dispositivo (2026-08-13): a versão anterior
+  // só avançava pelo botão "Próximo" — não tinha nenhum gesto de swipe
+  // de verdade, mesmo tendo os pontinhos de página sugerindo isso.
+  // ScrollView com paginação nativa cobre swipe nos dois sentidos de
+  // graça; scrollTo sincroniza quando o avanço vem do botão/pontinho.
+  function goToStep(next: number) {
+    setStep(next);
+    scrollRef.current?.scrollTo({ x: next * width, animated: true });
+  }
+
+  function handleScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const next = Math.round(e.nativeEvent.contentOffset.x / width);
+    if (next !== step) setStep(next);
+  }
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.skip} onPress={finish} accessibilityRole="button" accessibilityLabel="Pular introdução">
-        <Text style={styles.skipText}>Pular</Text>
+      <TouchableOpacity style={styles.skip} onPress={finish} accessibilityRole="button" accessibilityLabel={t('onboarding.skipLabel')}>
+        <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </TouchableOpacity>
 
-      <View style={styles.content} accessible accessibilityLabel={`Etapa ${step + 1} de ${STEPS.length}. ${current.title}. ${current.text}`}>
-        <View style={styles.iconCircle}>
-          <MaterialCommunityIcons name={current.icon} size={56} color={colors.brand} />
-        </View>
-        <Text style={styles.title}>{current.title}</Text>
-        <Text style={styles.text}>{current.text}</Text>
-      </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScrollEnd}
+        style={styles.pager}
+      >
+        {steps.map((s, i) => (
+          <View
+            key={i}
+            style={[styles.content, { width }]}
+            accessible
+            accessibilityLabel={t('onboarding.stepLabel', { current: i + 1, total: steps.length, title: s.title, text: s.text })}
+          >
+            <View style={styles.iconCircle}>
+              <MaterialCommunityIcons name={s.icon} size={56} color={colors.brand} />
+            </View>
+            <Text style={styles.title}>{s.title}</Text>
+            <Text style={styles.text}>{s.text}</Text>
+          </View>
+        ))}
+      </ScrollView>
 
-      <View style={styles.dots} importantForAccessibility="no-hide-descendants">
-        {STEPS.map((_, i) => (
-          <View key={i} style={[styles.dot, i === step && styles.dotActive]} />
+      <View style={styles.dots}>
+        {steps.map((_, i) => (
+          <TouchableOpacity
+            key={i}
+            onPress={() => goToStep(i)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t('onboarding.dotLabel', { step: i + 1 })}
+            accessibilityState={{ selected: i === step }}
+          >
+            <View style={[styles.dot, i === step && styles.dotActive]} />
+          </TouchableOpacity>
         ))}
       </View>
 
       <TouchableOpacity
         style={styles.nextBtn}
-        onPress={() => (isLast ? finish() : setStep((s) => s + 1))}
+        onPress={() => (isLast ? finish() : goToStep(step + 1))}
         accessibilityRole="button"
-        accessibilityLabel={isLast ? 'Ativar notificações e começar' : 'Próximo'}
+        accessibilityLabel={isLast ? t('onboarding.finish') : t('onboarding.next')}
       >
-        <Text style={styles.nextBtnText}>{isLast ? 'Ativar notificações e começar' : 'Próximo'}</Text>
+        <Text style={styles.nextBtnText}>{isLast ? t('onboarding.finish') : t('onboarding.next')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -87,20 +121,21 @@ export default function OnboardingScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background, paddingHorizontal: 24, paddingTop: 64, paddingBottom: 40 },
-    skip: { alignSelf: 'flex-end' },
+    container: { flex: 1, backgroundColor: c.background, paddingTop: 64, paddingBottom: 40 },
+    skip: { alignSelf: 'flex-end', marginHorizontal: 24 },
     skipText: { color: c.textMuted, fontSize: 14, fontWeight: '600' },
-    content: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+    pager: { flex: 1 },
+    content: { alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 },
     iconCircle: {
       width: 112, height: 112, borderRadius: 56, backgroundColor: c.brandSubtle,
       alignItems: 'center', justifyContent: 'center', marginBottom: 8,
     },
     title: { fontSize: 22, fontWeight: '700', color: c.text, textAlign: 'center' },
     text: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: 8 },
-    dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 },
+    dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 24 },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
     dotActive: { backgroundColor: c.brand, width: 20 },
-    nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-    nextBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginHorizontal: 24 },
+    nextBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
   });
 }

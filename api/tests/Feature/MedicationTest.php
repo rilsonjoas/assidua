@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Medication;
 use App\Models\Profile;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -27,6 +28,81 @@ class MedicationTest extends TestCase
         $medication = Medication::where('name', 'Losartana')->first();
         $this->assertNotNull($medication);
         $this->assertDatabaseHas('stock_items', ['medication_id' => $medication->id]);
+    }
+
+    // Achado real de uso (2026-08-14): nem todo remédio tem dosagem
+    // numérica que valha a pena cadastrar (pomada, "conforme
+    // orientação médica"). Obrigar sempre foi fricção sem ganho.
+    public function test_cria_medicamento_sem_dosagem(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)->postJson("/api/profiles/{$profile->id}/medications", [
+            'name' => 'Pomada para assadura',
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('medications', ['name' => 'Pomada para assadura', 'dosage' => null]);
+    }
+
+    public function test_limpa_dosagem_de_medicamento_existente(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id, 'dosage' => '50']);
+
+        $response = $this->actingAs($user)->putJson("/api/medications/{$medication->id}", [
+            'dosage' => null,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('medications', ['id' => $medication->id, 'dosage' => null]);
+    }
+
+    // "Duração do tratamento" (2026-08-14) — achado real de uso, anotado
+    // no Obsidian: muitos remédios têm limite de dias pra tomar.
+    public function test_cria_medicamento_com_duracao_de_tratamento(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-10 10:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)->postJson("/api/profiles/{$profile->id}/medications", [
+            'name' => 'Amoxicilina',
+            'treatment_duration_days' => 10,
+        ]);
+
+        $response->assertCreated();
+        $medication = Medication::where('name', 'Amoxicilina')->first();
+        $this->assertSame(10, $medication->treatment_duration_days);
+        // Cadastrado em 10/08, dura 10 dias -> termina em 20/08.
+        $this->assertSame('2026-08-20', $medication->treatment_ends_at);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_medicamento_sem_duracao_nao_tem_treatment_ends_at(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id, 'treatment_duration_days' => null]);
+
+        $this->assertNull($medication->treatment_ends_at);
+    }
+
+    public function test_rejeita_duracao_de_tratamento_menor_que_1_dia(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)->postJson("/api/profiles/{$profile->id}/medications", [
+            'name' => 'Amoxicilina',
+            'treatment_duration_days' => 0,
+        ]);
+
+        $response->assertUnprocessable();
     }
 
     public function test_estoque_usa_unidade_padrao_quando_nao_informada(): void

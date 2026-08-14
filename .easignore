@@ -1,0 +1,5 @@
+# Monorepo: o build EAS é só do app Expo (app/). O backend Laravel (api/)
+# não precisa ir no tarball — nem é usado no build mobile, e tem diretórios
+# de teste do Sail com dono root (storage/framework/testing) que travam o
+# scan do EAS com EACCES.
+api/

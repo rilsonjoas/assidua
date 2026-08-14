@@ -1,21 +1,24 @@
 import { useMemo } from 'react';
 import {
   View,
-  Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
-import { getMedications } from '../../services/medications';
+import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+import { SkeletonList } from '../../components/Skeleton';
+import { AppText as Text } from '../../components/AppText';
 
 export default function MedicationsScreen() {
+  const { t } = useTranslation();
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -29,26 +32,52 @@ export default function MedicationsScreen() {
   return (
     <View style={styles.container}>
       {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.brand} />
+        <SkeletonList lines={3} />
       ) : (
         <FlatList
           data={medications}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>Nenhum medicamento cadastrado.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('medications.empty')}</Text>}
           renderItem={({ item }) => (
             <Link href={`/medication/${item.id}`} asChild>
               <TouchableOpacity
-                style={styles.card}
+                // Achado real testando no dispositivo (2026-08-13):
+                // expo-router's <Slot> (por trás do asChild do Link)
+                // reclama de estilo em array no filho direto — precisa
+                // vir achatado num objeto só, StyleSheet.flatten resolve.
+                style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused])}
                 accessibilityRole="button"
-                accessibilityLabel={`${item.name}, ${item.dosage} ${item.unit}, ${item.schedules.length} horário${item.schedules.length === 1 ? '' : 's'}`}
+                accessibilityLabel={
+                  item.is_paused
+                    ? `${t('medicationForm.pausedNotice')} ${t('medications.cardLabel', { count: item.schedules.length, name: item.name, dosageUnit: formatDosageUnit(item.dosage, item.unit) })}`
+                    : t('medications.cardLabel', { count: item.schedules.length, name: item.name, dosageUnit: formatDosageUnit(item.dosage, item.unit) })
+                }
               >
-                <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                {/* Foto (2026-08-13) — reconhecer visualmente vale mais
+                    que ler o nome pro público idoso/cuidador; sem foto,
+                    cai pra bolinha colorida de sempre. */}
+                {item.photo_url ? (
+                  <Image
+                    source={{ uri: item.photo_url }}
+                    style={[styles.photoThumb, item.is_paused && styles.colorDotPaused]}
+                  />
+                ) : (
+                  <View style={[styles.colorDot, { backgroundColor: item.color }, item.is_paused && styles.colorDotPaused]} />
+                )}
                 <View style={styles.info}>
-                  <Text style={styles.name}>{item.name}</Text>
-                  <Text style={styles.dosage}>{item.dosage} {item.unit}</Text>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.name}>{item.name}</Text>
+                    {item.is_paused && (
+                      <View style={styles.pausedBadge}>
+                        <MaterialCommunityIcons name="pause" size={11} color={colors.textMuted} />
+                        <Text style={styles.pausedBadgeText}>{t('medications.pausedBadge')}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.dosage}>{formatDosageUnit(item.dosage, item.unit)}</Text>
                   <Text style={styles.schedules}>
-                    {item.schedules.length} horário(s) · {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? 'unid'} em estoque
+                    {t('medications.scheduleCount', { count: item.schedules.length })} · {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? t('medications.defaultUnit')} {t('medications.stockCount')}
                   </Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
@@ -59,7 +88,7 @@ export default function MedicationsScreen() {
       )}
 
       <Link href="/medication/new" asChild>
-        <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel="Adicionar medicamento">
+        <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
           <MaterialCommunityIcons name="plus" size={28} color="#fff" />
         </TouchableOpacity>
       </Link>
@@ -77,9 +106,19 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row', alignItems: 'center', padding: 16,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
+    cardPaused: { opacity: 0.6 },
     colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14 },
+    colorDotPaused: { opacity: 0.4 },
+    photoThumb: { width: 40, height: 40, borderRadius: 8, marginRight: 14 },
     info: { flex: 1 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     name: { fontSize: 16, fontWeight: '600', color: c.text },
+    pausedBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 3,
+      backgroundColor: c.surfaceSecondary, borderRadius: 8,
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    pausedBadgeText: { fontSize: 10, fontWeight: '700', color: c.textMuted, textTransform: 'uppercase' },
     dosage: { fontSize: 14, color: c.textSecondary, marginTop: 2 },
     schedules: { fontSize: 13, color: c.textMuted, marginTop: 4 },
     fab: {

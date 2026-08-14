@@ -36,6 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/medications/{medication}', [MedicationController::class, 'show']);
     Route::put('/medications/{medication}', [MedicationController::class, 'update']);
     Route::delete('/medications/{medication}', [MedicationController::class, 'destroy']);
+    Route::post('/medications/{medication}/photo', [MedicationController::class, 'uploadPhoto']);
+    Route::delete('/medications/{medication}/photo', [MedicationController::class, 'deletePhoto']);
 
     Route::get('/medications/{medication}/schedules', [DoseScheduleController::class, 'index']);
     Route::post('/medications/{medication}/schedules', [DoseScheduleController::class, 'store']);
@@ -44,6 +46,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/profiles/{profile}/doses/today', [DoseLogController::class, 'today']);
     Route::get('/profiles/{profile}/doses/history', [DoseLogController::class, 'history']);
+    Route::get('/profiles/{profile}/streak', [DoseLogController::class, 'streak']);
+    Route::get('/profiles/{profile}/weekly-adherence', [DoseLogController::class, 'weeklyAdherence']);
     Route::post('/dose-logs', [DoseLogController::class, 'store']);
     Route::delete('/dose-logs/{doseLog}', [DoseLogController::class, 'destroy']);
 

@@ -56,6 +56,23 @@ class ProfileTest extends TestCase
         $this->assertDatabaseHas('profiles', ['user_id' => $user->id, 'name' => 'Vovó']);
     }
 
+    // Achado real (2026-08-14): campo se chama "avatar_emoji" mas guarda
+    // nome de ícone do MaterialCommunityIcons — `baby-face-outline` tem
+    // 17 caracteres, e é uma das 12 opções reais da tela de criação de
+    // perfil, não um caso extremo inventado.
+    public function test_cria_perfil_com_nome_de_icone_longo(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->postJson('/api/profiles', [
+            'name' => 'Vovó',
+            'avatar_emoji' => 'baby-face-outline',
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('profiles', ['user_id' => $user->id, 'avatar_emoji' => 'baby-face-outline']);
+    }
+
     public function test_bloqueia_criacao_de_quinto_perfil_no_plano_gratuito(): void
     {
         $user = User::factory()->create(['subscription_tier' => 'free']);

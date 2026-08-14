@@ -1,23 +1,27 @@
 import { useState, useMemo } from 'react';
 import {
   View,
-  Text,
   FlatList,
   TouchableOpacity,
   TextInput,
   StyleSheet,
   Alert,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+import { AppText as Text } from '../../components/AppText';
+import { SkeletonList } from '../../components/Skeleton';
 
 export default function StockScreen() {
+  const { t } = useTranslation();
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -56,22 +60,31 @@ export default function StockScreen() {
   function saveQty(med: Medication) {
     const quantity = parseFloat(qty);
     if (isNaN(quantity) || quantity < 0) {
-      Alert.alert('Valor inválido');
+      Alert.alert(t('stock.invalidValue'));
       return;
     }
     mutation.mutate({ id: med.id, quantity });
   }
 
   return (
-    <View style={styles.container}>
+    // Achado real de uso (2026-08-14): editar quantidade de estoque de
+    // um item mais abaixo na lista deixava o campo coberto pelo
+    // teclado — mesmo bug do formulário de medicamento, aqui sem o
+    // tratamento (a linha do item pode estar em qualquer altura da
+    // FlatList, diferente de um formulário curto).
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       {isLoading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={colors.brand} />
+        <SkeletonList lines={2} />
       ) : (
         <FlatList
           data={medications}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>Nenhum medicamento cadastrado.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('stock.empty')}</Text>}
           renderItem={({ item }) => {
             const stock = item.stock;
             const daysRemaining = item.days_remaining;
@@ -88,8 +101,8 @@ export default function StockScreen() {
                       <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
                       <Text style={styles.alertText}>
                         {daysRemaining! <= 0
-                          ? 'Estoque acabou'
-                          : `Acaba em ${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}`}
+                          ? t('stock.stockOut')
+                          : t('stock.endsIn', { count: daysRemaining })}
                       </Text>
                     </View>
                   )}
@@ -100,40 +113,42 @@ export default function StockScreen() {
                         value={qty}
                         onChangeText={setQty}
                         keyboardType="decimal-pad"
-                        placeholder="Qtd"
+                        placeholder={t('stock.quantityPlaceholder')}
                         placeholderTextColor={colors.textMuted}
-                        accessibilityLabel={`Quantidade em estoque de ${item.name}`}
+                        accessibilityLabel={t('stock.quantityLabel', { name: item.name })}
                       />
                       <Text style={styles.unit}>{stock?.unit}</Text>
                       <TouchableOpacity
                         onPress={() => saveQty(item)}
                         style={styles.saveBtn}
                         accessibilityRole="button"
-                        accessibilityLabel="Salvar"
+                        accessibilityLabel={t('stock.save')}
                       >
-                        <Text style={styles.saveBtnText}>Salvar</Text>
+                        <Text style={styles.saveBtnText}>{t('stock.save')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
                     <Text style={styles.qty}>
-                      {stock?.current_quantity ?? 0} {stock?.unit ?? 'unid'}
+                      {stock?.current_quantity ?? 0} {stock?.unit ?? t('stock.defaultUnit')}
                     </Text>
                   )}
                 </View>
                 <TouchableOpacity
                   testID={`edit-stock-${item.id}`}
                   onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
+                  style={styles.editBtn}
                   accessibilityRole="button"
-                  accessibilityLabel={`Editar estoque de ${item.name}`}
+                  accessibilityLabel={t('stock.editLabel', { name: item.name })}
                 >
-                  <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textMuted} />
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textMuted} />
+                  <Text style={styles.editBtnText}>{t('stock.edit')}</Text>
                 </TouchableOpacity>
               </View>
             );
           }}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -148,6 +163,13 @@ function makeStyles(c: ThemeColors) {
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardAlert: { borderWidth: 1.5, borderColor: c.warning },
+    // Achado real (2026-08-14): botão de editar era só ícone de lápis,
+    // sem rótulo visível — tinha `accessibilityLabel` pro leitor de
+    // tela, mas quem enxerga e não é fluente em ícone de app não sabia
+    // o que fazia sem tocar. Cartão tem espaço de sobra pra texto,
+    // diferente da linha apertada de perfil.
+    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+    editBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
     colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14 },
     info: { flex: 1 },
     name: { fontSize: 16, fontWeight: '600', color: c.text },
@@ -162,6 +184,6 @@ function makeStyles(c: ThemeColors) {
     },
     unit: { color: c.textSecondary, fontSize: 14 },
     saveBtn: { backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-    saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+    saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
   });
 }

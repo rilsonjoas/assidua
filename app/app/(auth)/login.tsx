@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -12,12 +11,15 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { login, loginWithGoogle } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+import { AppText as Text } from '../../components/AppText';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,7 @@ export default function LoginScreen() {
       setUser(user);
     } catch (err: any) {
       if (!err.message?.includes('cancelado')) {
-        Alert.alert('Erro', err.message ?? 'Erro ao entrar com Google.');
+        Alert.alert(t('common.error'), err.message ?? t('login.errorGeneric'));
       }
     } finally {
       setGoogleLoading(false);
@@ -47,7 +49,7 @@ export default function LoginScreen() {
       const user = await login(email, password);
       setUser(user);
     } catch {
-      Alert.alert('Erro', 'Email ou senha incorretos.');
+      Alert.alert(t('common.error'), t('login.errorCredentials'));
     } finally {
       setLoading(false);
     }
@@ -59,27 +61,27 @@ export default function LoginScreen() {
         <View style={styles.logoBox}>
           <MaterialCommunityIcons name="pill" size={48} color={colors.brand} />
         </View>
-        <Text style={styles.title}>Meus Remédios</Text>
-        <Text style={styles.subtitle}>Faça login para continuar</Text>
+        <Text style={styles.title}>{t('login.title')}</Text>
+        <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('login.emailPlaceholder')}
           placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          accessibilityLabel="Email"
+          accessibilityLabel={t('login.emailLabel')}
         />
         <TextInput
           style={styles.input}
-          placeholder="Senha"
+          placeholder={t('login.passwordPlaceholder')}
           placeholderTextColor={colors.textMuted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          accessibilityLabel="Senha"
+          accessibilityLabel={t('login.passwordLabel')}
         />
 
         <TouchableOpacity
@@ -87,15 +89,15 @@ export default function LoginScreen() {
           onPress={handleLogin}
           disabled={loading}
           accessibilityRole="button"
-          accessibilityLabel="Entrar"
+          accessibilityLabel={t('login.enter')}
           accessibilityState={{ busy: loading }}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('login.enter')}</Text>}
         </TouchableOpacity>
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
+          <Text style={styles.dividerText}>{t('common.or')}</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -104,20 +106,20 @@ export default function LoginScreen() {
           onPress={handleGoogleLogin}
           disabled={googleLoading}
           accessibilityRole="button"
-          accessibilityLabel="Entrar com Google"
+          accessibilityLabel={t('login.google')}
           accessibilityState={{ busy: googleLoading }}
         >
           {googleLoading
             ? <ActivityIndicator color={colors.text} />
             : <>
                 <MaterialCommunityIcons name="google" size={20} color="#EA4335" />
-                <Text style={styles.googleButtonText}>Entrar com Google</Text>
+                <Text style={styles.googleButtonText}>{t('login.google')}</Text>
               </>
           }
         </TouchableOpacity>
 
         <Link href="/(auth)/register" style={styles.link}>
-          Não tem conta? Cadastre-se
+          {t('login.noAccount')}
         </Link>
       </View>
     </KeyboardAvoidingView>
@@ -139,7 +141,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.brand, borderRadius: 12, padding: 16,
       alignItems: 'center', marginTop: 8, marginBottom: 16,
     },
-    buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    buttonText: { color: c.onBrand, fontSize: 16, fontWeight: '600' },
     dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
     dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
     dividerText: { color: c.textMuted, fontSize: 13 },

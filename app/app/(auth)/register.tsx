@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -14,14 +13,17 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { register, loginWithGoogle } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
+import { AppText as Text } from '../../components/AppText';
 
 const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/privacidade`;
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,7 +41,7 @@ export default function RegisterScreen() {
       setUser(user);
     } catch (err: any) {
       if (!err.message?.includes('cancelado')) {
-        Alert.alert('Erro', err.message ?? 'Erro ao entrar com Google.');
+        Alert.alert(t('common.error'), err.message ?? t('register.errorGoogle'));
       }
     } finally {
       setGoogleLoading(false);
@@ -49,7 +51,7 @@ export default function RegisterScreen() {
   async function handleRegister() {
     if (!name || !email || !password || !passwordConfirmation) return;
     if (password !== passwordConfirmation) {
-      Alert.alert('Erro', 'As senhas não coincidem.');
+      Alert.alert(t('common.error'), t('register.errorMismatch'));
       return;
     }
     setLoading(true);
@@ -57,8 +59,8 @@ export default function RegisterScreen() {
       const user = await register(name, email, password, passwordConfirmation);
       setUser(user);
     } catch (err: any) {
-      const msg = err.response?.data?.message ?? 'Erro ao criar conta.';
-      Alert.alert('Erro', msg);
+      const msg = err.response?.data?.message ?? t('register.errorGeneric');
+      Alert.alert(t('common.error'), msg);
     } finally {
       setLoading(false);
     }
@@ -70,36 +72,36 @@ export default function RegisterScreen() {
         <View style={styles.logoBox}>
           <MaterialCommunityIcons name="pill" size={48} color={colors.brand} />
         </View>
-        <Text style={styles.title}>Criar conta</Text>
+        <Text style={styles.title}>{t('register.title')}</Text>
 
-        <TextInput style={styles.input} placeholder="Nome" placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} accessibilityLabel="Nome" />
+        <TextInput style={styles.input} placeholder={t('register.namePlaceholder')} placeholderTextColor={colors.textMuted} value={name} onChangeText={setName} accessibilityLabel={t('register.nameLabel')} />
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('register.emailPlaceholder')}
           placeholderTextColor={colors.textMuted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          accessibilityLabel="Email"
+          accessibilityLabel={t('register.emailLabel')}
         />
-        <TextInput style={styles.input} placeholder="Senha" placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry accessibilityLabel="Senha" />
-        <TextInput style={styles.input} placeholder="Confirmar senha" placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry accessibilityLabel="Confirmar senha" />
+        <TextInput style={styles.input} placeholder={t('register.passwordPlaceholder')} placeholderTextColor={colors.textMuted} value={password} onChangeText={setPassword} secureTextEntry accessibilityLabel={t('register.passwordLabel')} />
+        <TextInput style={styles.input} placeholder={t('register.confirmPasswordPlaceholder')} placeholderTextColor={colors.textMuted} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry accessibilityLabel={t('register.confirmPasswordLabel')} />
 
         <TouchableOpacity
           style={styles.button}
           onPress={handleRegister}
           disabled={loading}
           accessibilityRole="button"
-          accessibilityLabel="Criar conta"
+          accessibilityLabel={t('register.create')}
           accessibilityState={{ busy: loading }}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Criar conta</Text>}
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('register.create')}</Text>}
         </TouchableOpacity>
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
+          <Text style={styles.dividerText}>{t('common.or')}</Text>
           <View style={styles.dividerLine} />
         </View>
 
@@ -108,26 +110,26 @@ export default function RegisterScreen() {
           onPress={handleGoogleLogin}
           disabled={googleLoading}
           accessibilityRole="button"
-          accessibilityLabel="Continuar com Google"
+          accessibilityLabel={t('register.google')}
           accessibilityState={{ busy: googleLoading }}
         >
           {googleLoading
             ? <ActivityIndicator color={colors.text} />
             : <>
                 <MaterialCommunityIcons name="google" size={20} color="#EA4335" />
-                <Text style={styles.googleButtonText}>Continuar com Google</Text>
+                <Text style={styles.googleButtonText}>{t('register.google')}</Text>
               </>
           }
         </TouchableOpacity>
 
         <Link href="/(auth)/login" style={styles.link}>
-          Já tem conta? Entrar
+          {t('register.haveAccount')}
         </Link>
 
         <Text style={styles.privacyText}>
-          Ao criar uma conta, você concorda com nossa{' '}
+          {t('register.privacyPrefix')}{' '}
           <Text style={styles.privacyLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
-            Política de Privacidade
+            {t('register.privacyLink')}
           </Text>
           .
         </Text>
@@ -150,7 +152,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.brand, borderRadius: 12, padding: 16,
       alignItems: 'center', marginTop: 8, marginBottom: 16,
     },
-    buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    buttonText: { color: c.onBrand, fontSize: 16, fontWeight: '600' },
     dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
     dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
     dividerText: { color: c.textMuted, fontSize: 13 },

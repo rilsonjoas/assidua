@@ -30,7 +30,7 @@
 </head>
 <body>
     <h1>Política de Privacidade</h1>
-    <p class="updated">Meus Remédios · Última atualização: 19 de julho de 2026</p>
+    <p class="updated">Meus Remédios · Última atualização: 14 de agosto de 2026</p>
 
     <p>
         Esta política explica quais dados o aplicativo <strong>Meus Remédios</strong> coleta, como eles são usados
@@ -62,9 +62,13 @@
     <h2>4. Compartilhamento com terceiros</h2>
     <p>
         Seus dados não são vendidos. Compartilhamos dados apenas com provedores estritamente necessários para operar
-        o serviço, como o provedor de hospedagem do servidor e, caso você opte por entrar com Google, o próprio Google
-        (apenas para autenticação — não temos acesso à sua senha do Google).
+        o serviço:
     </p>
+    <ul>
+        <li>O provedor de hospedagem do servidor.</li>
+        <li>Se você optar por entrar com Google, o próprio Google (apenas para autenticação — não temos acesso à sua senha do Google).</li>
+        <li>Sentry (Functional Software, Inc., sediada nos EUA), usado apenas para registrar erros técnicos do app e do servidor e nos ajudar a corrigi-los. Não configuramos o Sentry para coletar dados de saúde — ele recebe informações técnicas do erro (tipo de falha, tela, versão do app), não o conteúdo de medicamentos ou doses.</li>
+    </ul>
 
     <h2>5. Armazenamento e segurança</h2>
     <p>
@@ -78,7 +82,7 @@
         <p>Você pode, a qualquer momento, dentro do app:</p>
         <ul>
             <li>Acessar e corrigir seus dados diretamente nas telas de Perfis, Remédios e Estoque.</li>
-            <li>Exportar ou revisar seu histórico de doses na tela Histórico.</li>
+            <li>Revisar seu histórico de doses na tela Histórico. Exportação em arquivo (ex.: PDF) ainda não existe — é um recurso planejado; até lá, solicitações de cópia dos seus dados podem ser feitas por e-mail (seção 9).</li>
             <li>
                 <strong>Excluir permanentemente sua conta</strong> e todos os dados associados (perfis, medicamentos,
                 horários e histórico de doses), na tela <em>Perfis → Excluir conta</em>. A exclusão é imediata e
@@ -90,9 +94,18 @@
 
     <h2>7. Dados de saúde</h2>
     <p>
-        Entendemos que informações sobre medicamentos e condições de saúde são dados sensíveis. Eles existem no
-        sistema apenas para o funcionamento do app (lembretes, histórico, controle de estoque) e são visíveis
-        apenas para a conta que os cadastrou.
+        Entendemos que informações sobre medicamentos e condições de saúde são dados sensíveis (LGPD, art. 5º, II).
+        Tratamos esses dados com base no seu consentimento, dado ao criar a conta e usar o app (art. 11, I) — você
+        pode retirar esse consentimento a qualquer momento excluindo sua conta.
+    </p>
+    <p>
+        Por padrão, esses dados são visíveis apenas para a conta que os cadastrou. O app tem uma função opcional de
+        <strong>cuidado compartilhado</strong>: o dono de um perfil pode gerar um código de convite (válido por 7
+        dias, uso único) e enviá-lo diretamente pra pessoa que ele escolher (ex.: outro familiar cuidando da mesma
+        pessoa) — quem inserir esse código no app passa a ver e registrar doses daquele perfil também. Isso só
+        acontece se o dono decidir gerar e compartilhar o convite — nunca automaticamente — e o acesso concedido
+        pode ser revogado a qualquer momento removendo o cuidador na tela de Perfis. Como o código funciona pra quem
+        o inserir primeiro, envie-o só pra quem você realmente pretende dar acesso.
     </p>
 
     <h2>8. Alterações nesta política</h2>

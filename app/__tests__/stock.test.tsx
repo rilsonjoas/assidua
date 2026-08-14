@@ -29,9 +29,13 @@ const medication = {
   instructions: null,
   notes: null,
   is_active: true,
+  is_paused: false,
+  photo_url: null,
   schedules: [],
   stock: { id: 1, medication_id: 10, current_quantity: 5, unit: 'mg', min_alert_quantity: 5, last_updated_at: null },
   days_remaining: 5,
+  treatment_duration_days: null,
+  treatment_ends_at: null,
 };
 
 function renderStock() {

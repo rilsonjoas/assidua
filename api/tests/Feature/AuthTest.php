@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\User as SocialiteUser;
+use Mockery;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -28,6 +31,23 @@ class AuthTest extends TestCase
 
         $user = User::where('email', 'rilson@example.com')->first();
         $this->assertTrue(Hash::check('senha1234', $user->password));
+    }
+
+    // Achado real (2026-08-14): sem perfil automático, toda conta nova
+    // caía direto na tela "Nenhum perfil criado" — mesmo sendo o caso
+    // mais comum (a pessoa cuidando do próprio tratamento).
+    public function test_registro_cria_perfil_padrao_automaticamente(): void
+    {
+        $this->postJson('/api/auth/register', [
+            'name' => 'Rilson',
+            'email' => 'rilson@example.com',
+            'password' => 'senha1234',
+            'password_confirmation' => 'senha1234',
+        ])->assertCreated();
+
+        $user = User::where('email', 'rilson@example.com')->first();
+        $this->assertSame(1, $user->profiles()->count());
+        $this->assertDatabaseHas('profiles', ['user_id' => $user->id, 'name' => 'Rilson']);
     }
 
     public function test_nao_permite_registrar_email_duplicado(): void
@@ -227,5 +247,47 @@ class AuthTest extends TestCase
             'password' => 'senha1234',
             'password_confirmation' => 'senha1234',
         ])->assertStatus(429);
+    }
+
+    private function mockGoogleUser(string $googleId, string $name, string $email): void
+    {
+        $socialiteUser = Mockery::mock(SocialiteUser::class);
+        $socialiteUser->shouldReceive('getId')->andReturn($googleId);
+        $socialiteUser->shouldReceive('getName')->andReturn($name);
+        $socialiteUser->shouldReceive('getEmail')->andReturn($email);
+        $socialiteUser->shouldReceive('getAvatar')->andReturn('https://example.com/avatar.jpg');
+
+        $provider = Mockery::mock(\Laravel\Socialite\Contracts\Provider::class);
+        $provider->shouldReceive('stateless')->andReturnSelf();
+        $provider->shouldReceive('user')->andReturn($socialiteUser);
+
+        Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+    }
+
+    // Mesmo achado do registro por email/senha, aplicado ao outro caminho
+    // de criar conta — só que aqui precisa distinguir usuário novo de
+    // usuário voltando a logar (ver `wasRecentlyCreated` no controller).
+    public function test_login_google_de_usuario_novo_cria_perfil_padrao(): void
+    {
+        $this->mockGoogleUser('google-123', 'Rilson Joás', 'rilson@example.com');
+
+        $this->getJson('/api/auth/google/callback')->assertOk();
+
+        $user = User::where('google_id', 'google-123')->first();
+        $this->assertNotNull($user);
+        $this->assertSame(1, $user->profiles()->count());
+        $this->assertDatabaseHas('profiles', ['user_id' => $user->id, 'name' => 'Rilson Joás']);
+    }
+
+    public function test_login_google_de_usuario_existente_nao_duplica_perfil(): void
+    {
+        $existing = User::factory()->create(['google_id' => 'google-456']);
+        $existing->profiles()->create(['name' => 'Perfil já existente']);
+
+        $this->mockGoogleUser('google-456', $existing->name, $existing->email);
+
+        $this->getJson('/api/auth/google/callback')->assertOk();
+
+        $this->assertSame(1, $existing->profiles()->count());
     }
 }

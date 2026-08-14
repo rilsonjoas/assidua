@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -9,7 +10,7 @@ import { api } from '../services/api';
 
 jest.mock('../services/doses');
 jest.mock('../services/api', () => ({
-  api: { get: jest.fn() },
+  api: { get: jest.fn(), put: jest.fn() },
 }));
 
 const mockedDoses = jest.mocked(dosesService);
@@ -34,9 +35,13 @@ const medication = {
   instructions: null,
   notes: null,
   is_active: true,
+  is_paused: false,
+  photo_url: null,
   schedules: [],
   stock: null,
   days_remaining: null,
+  treatment_duration_days: null,
+  treatment_ends_at: null,
 };
 
 const pendingDose = {
@@ -66,6 +71,8 @@ describe('HomeScreen — marcar dose como tomada', () => {
     jest.clearAllMocks();
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
   });
 
   it('lista a dose pendente de hoje e marca como tomada ao tocar em "Tomei"', async () => {
@@ -122,6 +129,8 @@ describe('HomeScreen — corrigir dose (desfazer)', () => {
     jest.clearAllMocks();
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
   });
 
   it('desmarca uma dose "Tomado" ao tocar no badge, feito por engano', async () => {
@@ -151,6 +160,8 @@ describe('HomeScreen — refill alert inteligente', () => {
     jest.clearAllMocks();
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
   });
 
   it('mostra banner de estoque acabando quando days_remaining está no limiar', async () => {
@@ -189,6 +200,8 @@ describe('HomeScreen — status automático "Perdido"', () => {
     jest.clearAllMocks();
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
   });
 
   it('mostra "Atrasado" e ainda permite marcar como tomada mesmo perdida', async () => {
@@ -207,5 +220,84 @@ describe('HomeScreen — status automático "Perdido"', () => {
         expect.objectContaining({ dose_schedule_id: 5, status: 'taken' }),
       );
     });
+  });
+});
+
+describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+  });
+
+  it('mostra o badge de streak quando current_streak > 0', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 5, best_streak: 8 });
+
+    renderHome();
+
+    expect(await screen.findByLabelText('5 dias seguidos de adesão')).toBeTruthy();
+  });
+
+  it('não mostra o badge quando current_streak é 0', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+
+    renderHome();
+
+    await screen.findByText('Doses de hoje'); // espera a tela terminar de carregar
+    expect(screen.queryByLabelText(/dias seguidos/)).toBeNull();
+  });
+
+  it('celebra quando a resposta de logDose traz streak_milestone', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 6, best_streak: 6 });
+    mockedDoses.logDose.mockResolvedValueOnce({ ...pendingDose, status: 'taken', streak_milestone: 7 });
+
+    renderHome();
+
+    fireEvent.press(await screen.findByText('Tomei'));
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith('🎉 Parabéns!', expect.stringContaining('7 dias seguidos'));
+    });
+  });
+
+  it('não celebra quando logDose não traz streak_milestone', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 3, best_streak: 6 });
+    mockedDoses.logDose.mockResolvedValueOnce({ ...pendingDose, status: 'taken' });
+
+    renderHome();
+
+    fireEvent.press(await screen.findByText('Tomei'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalled();
+    });
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+});
+
+// Achado real de uso, anotado no Obsidian (2026-08-14): o botão
+// "Adicionar medicamento" da tela vazia levava pra lista de Remédios
+// em vez de abrir o cadastro direto — um toque a mais que não precisava.
+describe('HomeScreen — botão "Adicionar" abre o cadastro direto (2026-08-14)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+  });
+
+  it('sem dose nenhuma hoje, o botão "Adicionar medicamento" linka pro cadastro (/medication/new)', async () => {
+    renderHome();
+
+    await screen.findByText('Adicionar medicamento');
+    expect(screen.UNSAFE_getByProps({ href: '/medication/new' })).toBeTruthy();
   });
 });

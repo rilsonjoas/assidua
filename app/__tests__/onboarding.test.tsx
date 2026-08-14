@@ -20,13 +20,19 @@ describe('OnboardingScreen', () => {
   it('avança pelas 3 telas e, na última, pede notificação e conclui', async () => {
     render(<OnboardingScreen />);
 
-    expect(screen.getByText('Cuide de quem você ama')).toBeTruthy();
-    fireEvent.press(screen.getByText('Próximo'));
+    // Achado real testando no dispositivo (2026-08-13): virou ScrollView
+    // com paginação (pra dar swipe de verdade), então os 3 textos ficam
+    // todos montados ao mesmo tempo — checar getByText(título) sozinho
+    // não prova mais avanço nenhum. O pontinho marcado como `selected`
+    // é o sinal real de qual etapa está ativa agora.
+    expect(screen.getByLabelText('Ir pra etapa 1').props.accessibilityState.selected).toBe(true);
 
-    expect(screen.getByText('Nunca mais esqueça uma dose')).toBeTruthy();
     fireEvent.press(screen.getByText('Próximo'));
+    expect(screen.getByLabelText('Ir pra etapa 2').props.accessibilityState.selected).toBe(true);
 
-    expect(screen.getByText('Lembretes na hora certa')).toBeTruthy();
+    fireEvent.press(screen.getByText('Próximo'));
+    expect(screen.getByLabelText('Ir pra etapa 3').props.accessibilityState.selected).toBe(true);
+
     fireEvent.press(screen.getByText('Ativar notificações e começar'));
 
     await waitFor(() => {
@@ -34,6 +40,15 @@ describe('OnboardingScreen', () => {
       expect(useOnboardingStore.getState().hasCompletedOnboarding).toBe(true);
       expect(router.replace).toHaveBeenCalledWith('/(tabs)/');
     });
+  });
+
+  it('toque no pontinho pula direto pra etapa correspondente', async () => {
+    render(<OnboardingScreen />);
+
+    fireEvent.press(screen.getByLabelText('Ir pra etapa 3'));
+
+    expect(screen.getByLabelText('Ir pra etapa 3').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByText('Ativar notificações e começar')).toBeTruthy();
   });
 
   it('"Pular" pula direto pro fim sem passar pelas outras telas', async () => {
