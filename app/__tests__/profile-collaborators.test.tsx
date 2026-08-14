@@ -11,6 +11,7 @@ import { useFontScaleStore } from '../store/fontScaleStore';
 import { api } from '../services/api';
 import { logout, deleteAccount } from '../services/auth';
 import * as collaboratorsService from '../services/collaborators';
+import i18next from 'i18next';
 
 jest.mock('../services/api', () => ({
   api: { get: jest.fn(), post: jest.fn() },
@@ -45,6 +46,10 @@ const sharedProfile = {
   is_active: true,
   is_owner: false,
 };
+
+beforeEach(async () => {
+  await i18next.changeLanguage('pt');
+});
 
 function renderProfile() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
