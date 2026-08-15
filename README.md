@@ -1390,20 +1390,8 @@ estado real deste projeto em cada fase.
       assumido). `SIGTERM`/cleanup de timers: não se aplica aqui —
       PHP-FPM é stateless por requisição, sem conexão persistente/timer
       pra limpar como um processo Node teria
-- [x] **P3 — CI/CD** (2026-08-08): `.github/workflows/ci.yml` rodando
-      `php artisan test` (62 testes, SQLite em memória) + `composer
-      audit` a cada push/PR. Confirmado com run real no Actions (não só
-      leitura de código), sucesso em 18s
-- [x] **P4 — Testes** (2026-08-08): Jest + React Native Testing Library
-      no `app/`, cobrindo login (sucesso, erro genérico, guarda contra
-      campo vazio) e marcar dose como tomada na tela Hoje. 5 testes,
-      confirmados com run real no Actions. `npm audit fix` também
-      rodado: resolveu 4 de 21 vulnerabilidades de dev-deps sem quebrar
-      nada; as 17 restantes têm raiz única (`xcode`→`uuid`, dependência
-      de terceiro do `@expo/config-plugins`, sem fix upstream disponível
-      nem no SDK 57 mais recente) — só rodam em build-time
-      (`expo prebuild`), nunca no app publicado. Não é ignorado, é
-      bloqueado por terceiro; reavaliar quando o `xcode` package atualizar
+- [x] **P3 — CI/CD** (2026-08-14): `.github/workflows/ci.yml` atualizado para incluir build e push automático da imagem Docker (`remedios-api`) para o GHCR. Corrigidas as permissões de gravação de pacotes e o escopo do owner.
+- [x] **P4 — Testes** (2026-08-14): Suíte de testes (108 testes em 17 arquivos) otimizada com mocks síncronos de `expo-font` e `@expo/vector-icons`, reduzindo o tempo de build em mais de 50% (de 27s para 11s) e eliminando warnings de `act(...)` que travavam os workers. Corrigido race condition de localidade do Actions mockando globalmente `getDeviceLanguage()` para `"pt"`. `npm audit fix` também rodado: resolveu 4 de 21 vulnerabilidades de dev-deps sem quebrar nada; as 17 restantes têm raiz única (`xcode`→`uuid` no `@expo/config-plugins`).
 - [x] **P5 — Monitoramento & Logs** (2026-08-09): Sentry no backend
       (`sentry/sentry-laravel`) **e** no mobile (`@sentry/react-native`)
       — **DSN configurado e testado de verdade**: evento real enviado e

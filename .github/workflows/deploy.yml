@@ -1,0 +1,36 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-vps
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Deploy no VPS (git pull + rebuild)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/meus-remedios
+            git pull --ff-only origin main
+            cd ~/hetzner-infra
+            make deploy service=meus-remedios
+
+      - name: Smoke test
+        run: |
+          sleep 3
+          curl -sf -o /dev/null https://api-remedios.narniano.com/
