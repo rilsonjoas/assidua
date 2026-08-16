@@ -32,5 +32,11 @@ jobs:
 
       - name: Smoke test
         run: |
-          sleep 3
-          curl -sf -o /dev/null https://api-remedios.narniano.com/
+          # Achado 2026-08-16: "sleep 3" fixo dava falso-negativo (container
+          # às vezes ainda reiniciando) mesmo com o deploy tendo funcionado.
+          # Retry de verdade: até 10 tentativas, 3s entre elas.
+          for i in $(seq 1 10); do
+            curl -sf -o /dev/null https://api-remedios.narniano.com/ && break
+            [ "$i" -eq 10 ] && exit 1
+            sleep 3
+          done
