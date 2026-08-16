@@ -4,6 +4,14 @@ Gestão de medicamentos para pacientes crônicos — controle de doses, alarmes,
 
 ---
 
+## Por que isto existe
+
+Metade da adesão medicamentosa no Brasil falha — gente esquece dose, perde controle de estoque, e quem mais sofre com isso raramente é só quem toma o remédio: é o filho que mora longe e liga toda hora perguntando "você tomou?", constrangendo os dois lados. Os apps grandes (Medisafe, MyTherapy) resolvem lembrete; poucos resolvem essa ponte entre paciente e cuidador de contas separadas, com push real.
+
+Servir aos outros em nome de Cristo não é abstrato aqui — é o cuidador remoto sabendo, sem precisar ligar, que a mãe tomou o remédio. É o alarme certo, no fuso certo, porque errar isso quebra a confiança de quem depende do app pra cuidar de alguém que ama. Cuidar do corpo é mordomia; ajudar quem cuida de outro corpo é amor ao próximo em forma de engenharia.
+
+Hoje: OAuth funcionando, fuso horário corrigido, LGPD com política real e revisada, cuidador remoto implementado — a base técnica que falta pra loja é conta e processo, não mais código. A visão de futuro não é competir em volume com os apps grandes — é ser a opção clara pra quem precisa da ponte cuidador-paciente que os outros não oferecem, mesmo que isso signifique milhares de duplas engajadas em vez de milhões de instalações soltas.
+
 ## Stack
 
 | Camada | Tecnologia |
@@ -1341,6 +1349,18 @@ código — é produto (retenção, L2) e principalmente aquisição (L3), que
 1.5) antes de L1 — sem isso, "milhares de usuários" não tem por que
 escolher este app em vez do Medisafe.
 
+**Estimativa de potencial (2026-08-15, teto plausível, não medição
+real):** hipertensão e diabetes tratados farmacologicamente somam
+dezenas de milhões de pessoas no Brasil (ordem de grandeza de censos de
+saúde pública, não número pesquisado especificamente pra este projeto)
+— mas o recorte relevante pra este app não é esse universo inteiro, é
+quem tem 3+ medicamentos com horário fixo **e** tem um cuidador
+familiar disposto a acompanhar remotamente (o diferencial real). Sucesso
+de nicho aqui não exige competir em volume com Medisafe/MyTherapy —
+alguns milhares de duplas paciente+cuidador engajadas já validam o
+diferencial — e a infra atual (VPS compartilhado, Postgres já
+consolidado) aguenta essa escala sem mudança nenhuma.
+
 ## Roadmap de Engenharia (qualidade/produção)
 
 Complementar ao roadmap de produto acima, não concorrente — essas fases
@@ -1399,7 +1419,9 @@ estado real deste projeto em cada fase.
       (`sentry:test`, IDs `8d7c8f25...` e `c087dff4...`). Rotação de log
       (parte nova desta categoria, do SHIELD-I) ainda não auditada —
       Laravel usa `LOG_CHANNEL=stack` padrão, não confirmado se tem
-      rotação configurada
+      rotação configurada. **Uptime Kuma** monitora `api-remedios.narniano.com`
+      com alerta real em **Telegram e e-mail** (não é só painel visual) —
+      explicitado aqui em 2026-08-14, item já estava concluído.
 - [ ] **P6 — Backups & Recuperação**: não tem backup próprio — depende
       100% do backup do Postgres compartilhado do VPS (`hetzner-infra/
       backup/`, testado ponta a ponta). Categoria nova; vale confirmar
