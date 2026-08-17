@@ -1422,11 +1422,12 @@ estado real deste projeto em cada fase.
       rotação configurada. **Uptime Kuma** monitora `api-remedios.narniano.com`
       com alerta real em **Telegram e e-mail** (não é só painel visual) —
       explicitado aqui em 2026-08-14, item já estava concluído.
-- [ ] **P6 — Backups & Recuperação**: não tem backup próprio — depende
-      100% do backup do Postgres compartilhado do VPS (`hetzner-infra/
-      backup/`, testado ponta a ponta). Categoria nova; vale confirmar
-      que o dump inclui o banco `meus_remedios_db` especificamente, não
-      só assumir que "o backup geral cobre"
+- [x] **P6 — Backups & Recuperação**: depende 100% do backup do
+      Postgres compartilhado do VPS (`hetzner-infra/backup/`), testado
+      ponta a ponta. **Confirmado ao vivo em 2026-08-16** (não assumido
+      — checado direto no `.env` real da VPS): `meus_remedios_db` está
+      no `POSTGRES_DBS`, entra no backup diário junto dos outros 3
+      bancos. Não tem backup *próprio* dedicado, mas está coberto.
 - [x] **P7 — UI/UX, acessibilidade e SEO** (acessibilidade real em
       2026-08-09): achado — zero `accessibilityLabel` no app inteiro até
       então (`grep` confirmou, não suposição). Passada completa nas 9
