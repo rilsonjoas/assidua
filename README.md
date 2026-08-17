@@ -848,13 +848,23 @@ cuidado com ui/ux e tudo, e testes, pra a gente passar via eas update".
       `MedicationTest`. Mobile: describe novo em
       `medication-schedule-edit.test.tsx` (5 casos). 198/198 backend,
       103/103 mobile.
-- [ ] **"Esqueci a senha"** — login por e-mail/senha existe, mas sem
-      recuperação. Precisa de provedor de e-mail de verdade — `.env`
-      de produção hoje só tem `MAIL_MAILER=log`, nunca enviou e-mail
-      de verdade pra ninguém. Rilson também levantou a dúvida inversa
-      (só deixar Google) — já respondida em "Decisão: Google OAuth +
-      conta local" abaixo, então "esqueci senha" continua necessário
-      enquanto o login local existir.
+- [x] **"Esqueci a senha" — resolvido por arquitetura, não por feature
+      nova (2026-08-16)**: achado ao investigar este item — o backend
+      já tinha migrado pra **login sem senha (magic link)** em
+      2026-08-14 (`AuthController::requestMagicLink`, ver "Login sem
+      senha" acima), mas o app mobile nunca foi atualizado — `login.tsx`
+      e `register.tsx` ainda chamavam `/auth/login` e `/auth/register`,
+      rotas que **não existem mais**. Login e cadastro local estavam
+      quebrados de verdade, no meio do teste fechado de 2-3 semanas.
+      Corrigido: as duas telas viram email-only (register pede nome
+      também), chamam `requestMagicLink()`, mostram tela de "link
+      enviado". Sem senha, não tem o que recuperar — o item original
+      deixa de fazer sentido.
+      **E-mail de verdade configurado no mesmo dia**: Resend (SMTP
+      relay), domínio `narniano.com` verificado, `meusremedios@
+      narniano.com` como remetente. Testado ponta a ponta — chamada
+      real à API de produção, e-mail chegou de fato na caixa de entrada
+      (não só "sem erro no log"). `MAIL_MAILER` deixou de ser `log`.
 
 **Fora do código:**
 
@@ -915,8 +925,10 @@ Fora isso: público real do app (idoso, cuidador com baixa familiaridade
 digital) é o perfil que mais estranha "entrar com Google" num app de
 saúde, e a Apple **exige** "Entrar com Apple" se você oferece "Entrar
 com Google" (App Store Guideline 4.8) — "só Google" não é opção viável
-em iOS de qualquer forma. Mantido como está: Google é atalho, e-mail/
-senha é a base que nunca falta.
+em iOS de qualquer forma. Mantido como está: Google é atalho, conta
+local (hoje magic link, não mais senha — ver "Login sem senha" acima
+e o item corrigido em "Esqueci a senha", 2026-08-16) é a base que
+nunca falta.
 **Levantamento nos outros projetos pessoais (mesma pergunta)**: nenhum
 outro projeto no VPS tem OAuth de usuário final — `a-bancada-evangelica`
 não tem auth nenhum (conteúdo público); `biblia-na-arte` teve auth via
