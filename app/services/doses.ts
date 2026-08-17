@@ -16,6 +16,10 @@ export interface DoseLog {
   // dose como tomada, e só quando essa ação especificamente completou o
   // dia E o streak resultante bate 7/30/60. null no resto do tempo.
   streak_milestone?: number | null;
+  // Offline support (2026-08-17) — só existe no cache local otimista,
+  // nunca vem da API. Marca uma dose que foi marcada/desmarcada sem
+  // internet e ainda está na fila esperando sincronizar.
+  _pendingSync?: boolean;
 }
 
 export interface AdherenceStreak {

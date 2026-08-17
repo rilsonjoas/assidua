@@ -20,6 +20,8 @@ import { getTodayDoses, getAdherenceStreak, logDose, undoDose, DoseLog } from '.
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
+import { isNetworkError } from '../../services/sync';
+import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay } from '../../services/offlineQueue';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
@@ -51,7 +53,13 @@ export default function HomeScreen() {
 
   const { data: doses = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['today-doses', activeProfile?.id],
-    queryFn: () => getTodayDoses(activeProfile!.id),
+    queryFn: async () => {
+      const fresh = await getTodayDoses(activeProfile!.id);
+      // Sobrepõe ações ainda na fila local — sem isso, reabrir o app
+      // ainda offline faria uma dose já marcada parecer não-marcada de
+      // novo até a fila drenar (ver offlineQueue.ts).
+      return applyPendingOverlay(fresh);
+    },
     enabled: !!activeProfile,
   });
 
@@ -62,17 +70,39 @@ export default function HomeScreen() {
     enabled: !!activeProfile,
   });
 
+  // Offline support (2026-08-17): as 3 mutações abaixo tentam a API real
+  // primeiro; se falhar por falta de rede (não por erro real do
+  // servidor), a ação vai pra fila local (services/offlineQueue.ts) e a
+  // UI atualiza otimisticamente do mesmo jeito — sem isso, marcar uma
+  // dose sem internet falhava silenciosamente, sem nenhum feedback.
+  // logDose já é seguro de reenviar (updateOrCreate no backend pela
+  // chave schedule+horário, não por id), então a fila não precisa de
+  // nenhuma chave de idempotência própria.
+
   const markDose = useMutation({
-    mutationFn: (dose: DoseLog) =>
-      logDose({
+    mutationFn: async (dose: DoseLog) => {
+      const payload = {
         dose_schedule_id: dose.dose_schedule_id,
         medication_id: dose.medication_id,
         profile_id: dose.profile_id,
         scheduled_at: dose.scheduled_at,
         taken_at: new Date().toISOString(),
-        status: 'taken',
-      }),
-    onSuccess: (log) => {
+        status: 'taken' as const,
+      };
+      try {
+        return { ...(await logDose(payload)), _pendingSync: false };
+      } catch (error) {
+        if (!isNetworkError(error)) throw error;
+        await enqueueLog(payload);
+        return { ...dose, status: 'taken' as const, taken_at: payload.taken_at, streak_milestone: null, _pendingSync: true };
+      }
+    },
+    onSuccess: (log, dose) => {
+      queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
+        old?.map((d) => (d.id === dose.id ? { ...d, ...log } : d)),
+      );
+      if (log._pendingSync) return; // offline — o resto acontece quando a fila drenar
+
       // Haptic feedback (Fase 1) — só no sucesso, não no toque em si:
       // vibrar antes de confirmar que salvou daria falso positivo se a
       // chamada falhar.
@@ -93,15 +123,27 @@ export default function HomeScreen() {
   });
 
   const skipDose = useMutation({
-    mutationFn: (dose: DoseLog) =>
-      logDose({
+    mutationFn: async (dose: DoseLog) => {
+      const payload = {
         dose_schedule_id: dose.dose_schedule_id,
         medication_id: dose.medication_id,
         profile_id: dose.profile_id,
         scheduled_at: dose.scheduled_at,
-        status: 'skipped',
-      }),
-    onSuccess: () => {
+        status: 'skipped' as const,
+      };
+      try {
+        return { ...(await logDose(payload)), _pendingSync: false };
+      } catch (error) {
+        if (!isNetworkError(error)) throw error;
+        await enqueueLog(payload);
+        return { ...dose, status: 'skipped' as const, _pendingSync: true };
+      }
+    },
+    onSuccess: (log, dose) => {
+      queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
+        old?.map((d) => (d.id === dose.id ? { ...d, ...log } : d)),
+      );
+      if (log._pendingSync) return;
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
     },
@@ -109,8 +151,41 @@ export default function HomeScreen() {
 
   // Corrigir dose (Fase 1) — desmarcar "Tomei"/"Pulei" feito por engano.
   const undoMutation = useMutation({
-    mutationFn: (dose: DoseLog) => undoDose(dose.id as number),
-    onSuccess: () => {
+    mutationFn: async (dose: DoseLog) => {
+      // Dose marcada offline e ainda não sincronizada — desfazer não
+      // precisa contatar o servidor, só cancela a ação enfileirada
+      // (senão o servidor chegaria a saber de uma dose que, do ponto de
+      // vista de quem usa, nunca existiu de verdade).
+      if (dose._pendingSync) {
+        await cancelPendingLog(dose.dose_schedule_id, dose.scheduled_at);
+        return { queued: false };
+      }
+      try {
+        await undoDose(dose.id as number);
+        return { queued: false };
+      } catch (error) {
+        if (!isNetworkError(error)) throw error;
+        await enqueueUndo({ dose_log_id: dose.id as number });
+        return { queued: true };
+      }
+    },
+    onSuccess: (result, dose) => {
+      const time = format(parseISO(dose.scheduled_at), 'HHmm');
+      queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
+        old?.map((d) =>
+          d.id === dose.id
+            ? {
+                ...d,
+                id: `pending_${dose.dose_schedule_id}_${time}`,
+                status: 'pending' as const,
+                taken_at: null,
+                notes: null,
+                _pendingSync: result.queued,
+              }
+            : d,
+        ),
+      );
+      if (result.queued || dose._pendingSync) return; // nada mais a fazer agora
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
     },
@@ -256,6 +331,14 @@ export default function HomeScreen() {
                 <View style={styles.cardBody}>
                   <Text style={styles.medName}>{item.medication.name}</Text>
                   <Text style={styles.medDosage}>{formatDosageUnit(item.medication.dosage, item.medication.unit)}</Text>
+                  {/* Offline support (2026-08-17) — só aparece quando a
+                      ação ainda está na fila local, esperando conexão. */}
+                  {item._pendingSync && (
+                    <View style={styles.pendingSyncRow}>
+                      <MaterialCommunityIcons name="cloud-off-outline" size={12} color={colors.textMuted} />
+                      <Text style={styles.pendingSyncText}>{t('home.pendingSync')}</Text>
+                    </View>
+                  )}
                 </View>
                 {!taken && !skipped && (
                   <View style={styles.actions}>
@@ -374,6 +457,8 @@ function makeStyles(c: ThemeColors) {
     cardBody: { flex: 1, paddingVertical: 16 },
     medName: { fontSize: 15, fontWeight: '600', color: c.text },
     medDosage: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
+    pendingSyncRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    pendingSyncText: { fontSize: 10, color: c.textMuted },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 12 },
     takeButton: {
       flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.brand,

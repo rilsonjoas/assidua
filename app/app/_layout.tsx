@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import { useTranslation } from 'react-i18next';
@@ -10,10 +10,10 @@ import { useAuthStore } from '../store/authStore';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
 import { registerPushToken } from '../services/notifications';
+import { startAutoSync } from '../services/sync';
 import { useTheme } from '../hooks/useTheme';
 import { useLanguage } from '../hooks/useLanguage';
-
-const queryClient = new QueryClient();
+import { queryClient } from '../services/queryClient';
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
@@ -75,7 +75,13 @@ export function AuthGuard() {
     // Fase 1.5 — refresca o token a cada abertura pra quem já passou
     // pelo onboarding (token do Expo pode mudar entre instalações).
     // Quem está indo pro onboarding agora já registra lá dentro.
-    if (user && hasCompletedOnboarding) registerPushToken();
+    if (user && hasCompletedOnboarding) {
+      registerPushToken();
+      // Offline support (2026-08-17) — drena a fila local de doses
+      // marcadas sem internet + fica ouvindo reconexão pro resto da
+      // sessão. Idempotente (startAutoSync já ignora chamada repetida).
+      startAutoSync();
+    }
   }, [user, isLoading, hasCompletedOnboarding, hasOnboardingHydrated, segments]);
 
   return null;

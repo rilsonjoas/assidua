@@ -88,7 +88,8 @@
     "undoHint": "Toca para deshacer, por si lo marcaste por error",
     "streakLabel": "{{count}} días seguidos de adherencia",
     "streakMilestoneTitle": "🎉 ¡Felicidades!",
-    "streakMilestoneText": "{{count}} días seguidos tomando tus dosis. ¡Sigue así!"
+    "streakMilestoneText": "{{count}} días seguidos tomando tus dosis. ¡Sigue así!",
+    "pendingSync": "Esperando conexión"
   },
   "medications": {
     "empty": "Ninguna medicina registrada.",

@@ -97,4 +97,52 @@ jest.mock('./services/device', () => {
   };
 });
 
+// Offline support (2026-08-17) — NetInfo e expo-sqlite não existem no
+// ambiente de teste (não é um device real). Sem mock, qualquer teste
+// que renderize o AuthGuard/_layout.tsx real (que agora chama
+// startAutoSync() no boot) quebrava com erro nativo, mesmo não tendo
+// nada a ver com fila offline.
+jest.mock('@react-native-community/netinfo', () => ({
+  addEventListener: jest.fn(() => jest.fn()), // retorna um "unsubscribe" no-op
+  fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+}));
+
+// Mock em memória simples — suficiente pro que services/offlineQueue.ts
+// faz (INSERT/SELECT/DELETE/COUNT numa tabela só), sem precisar de
+// SQLite nativo de verdade rodando no runner de CI.
+jest.mock('expo-sqlite', () => {
+  let rows: Array<{ local_id: number; type: string; payload: string; created_at: string }> = [];
+  let nextId = 1;
+  const db = {
+    execAsync: jest.fn(async () => {}),
+    runAsync: jest.fn(async (sql: string, ...params: any[]) => {
+      if (sql.startsWith('INSERT')) {
+        const [type, payload, created_at] = params;
+        rows.push({ local_id: nextId++, type, payload, created_at });
+      } else if (sql.startsWith('DELETE')) {
+        const [localId] = params;
+        rows = rows.filter((r) => r.local_id !== localId);
+      }
+    }),
+    getAllAsync: jest.fn(async (sql: string) => {
+      if (sql.includes("type = 'log'")) return rows.filter((r) => r.type === 'log');
+      return rows.map((r) => ({ ...r }));
+    }),
+    getFirstAsync: jest.fn(async (sql: string) => {
+      if (sql.includes('COUNT')) return { count: rows.length };
+      return null;
+    }),
+  };
+  return {
+    openDatabaseAsync: jest.fn(async () => db),
+    // Só pra teste — limpa o "banco" em memória entre casos, já que o
+    // módulo mockado é um singleton compartilhado entre todos os `it()`
+    // do mesmo arquivo.
+    __resetMockDb: () => {
+      rows = [];
+      nextId = 1;
+    },
+  };
+});
+
 

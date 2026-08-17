@@ -557,7 +557,53 @@ estado correto pro usuário Pro), mais 1 caso em
 ### Fase 3 — Infraestrutura (paralela às fases 1 e 2)
 
 - [x] **Google OAuth** (2026-08-08) — credenciais criadas, testado com redirect real em produção
-- [ ] **Offline support** — salvar `dose_logs` localmente (expo-sqlite) quando sem internet, sincronizar ao reconectar
+- [~] **Offline support — implementado, ainda não testado em dispositivo
+      real nem publicado (2026-08-17)**: prioridade 2 pedida pelo
+      Rilson explicitamente ("os usuários são idosos, não sabem o que é
+      sincronizar — tudo tem que acontecer em segundo plano"), depois
+      de resolver o login quebrado (prioridade 1, ver "Esqueci a
+      senha" acima).
+
+      **Achado que simplificou tudo**: o backend já faz
+      `updateOrCreate` pela chave (dose_schedule_id + scheduled_at),
+      não pelo id do log — reenviar a mesma ação 2x nunca duplica, só
+      sobrescreve. Não precisou de nenhuma mudança no backend nem
+      chave de idempotência nova.
+
+      O que foi feito:
+      - `services/offlineQueue.ts` — fila local em `expo-sqlite`
+        (dependência já existia, nunca tinha sido usada). Enfileira
+        ações de marcar dose; um "desfazer" numa dose que ainda nem
+        sincronizou cancela a ação enfileirada direto, sem nunca
+        contatar o servidor (evita ensinar o servidor sobre uma dose
+        que, pro usuário, nunca existiu de verdade)
+      - `services/sync.ts` — drena a fila quando a conexão volta
+        (`@react-native-community/netinfo`, dependência nova). Erro de
+        rede no meio do drain para e preserva o resto pra próxima
+        tentativa; erro real do servidor descarta só aquela ação
+      - `app/_layout.tsx` — dispara a sincronização automática no boot
+        do app, sem nenhum botão ou tela de "sincronizar" — 100% em
+        segundo plano, como pedido
+      - `app/(tabs)/index.tsx` — as 3 mutações (marcar, pular,
+        desfazer) tentam a API real primeiro; se falhar por rede (não
+        por erro de validação/servidor), enfileira e atualiza a UI
+        otimisticamente do mesmo jeito que já fazia online. Ícone
+        discreto "Aguardando conexão" no item, não é acionável
+      - Doses já marcadas offline continuam aparecendo marcadas se o
+        app fechar e reabrir ainda offline (`applyPendingOverlay`) —
+        sem isso, reabrir o app faria a dose "voltar" a aparecer
+        pendente até a fila drenar
+      - 17 testes novos (`offlineQueue.test.ts`, `sync.test.ts`),
+        cobrindo especificamente o cenário de retry sem duplicar, erro
+        de rede vs. erro real do servidor, e 404 em undo tratado como
+        já resolvido. 129/129 testes passando no total, typecheck
+        limpo
+
+      **Falta antes de publicar**: testar de verdade em dispositivo
+      físico com modo avião (nunca testado fora do simulador/lógica
+      unitária) e rodar um `eas update` pro canal `preview` — não fiz
+      isso ainda de propósito, o Rilson pediu pra pausar aqui e
+      continuar depois de revisar
 - [x] **Deploy do backend** (2026-08-08) — VPS Hetzner próprio, `api-remedios.narniano.com`, Postgres (não MySQL — ver `hetzner-infra/MIGRATION.md` Fase 4.2)
 - [x] **Redeploy da Fase 2 completa + APK standalone pro teste manual** (2026-08-14) —
       motivação: teste manual de 2 semanas não devia depender de

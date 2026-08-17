@@ -88,7 +88,8 @@
     "undoHint": "Tap to undo, in case you marked it by mistake",
     "streakLabel": "{{count}} day adherence streak",
     "streakMilestoneTitle": "🎉 Congratulations!",
-    "streakMilestoneText": "{{count}} days in a row taking your doses. Keep it up!"
+    "streakMilestoneText": "{{count}} days in a row taking your doses. Keep it up!",
+    "pendingSync": "Waiting for connection"
   },
   "medications": {
     "empty": "No medicines added yet.",
