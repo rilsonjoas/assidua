@@ -19,7 +19,7 @@ describe('i18n — troca de idioma (2026-08-10)', () => {
   it('renderiza em português por padrão no ambiente de teste', () => {
     render(<LoginScreen />);
     expect(screen.getByText('Meus Remédios')).toBeTruthy();
-    expect(screen.getByText('Entrar')).toBeTruthy();
+    expect(screen.getByText('Enviar link de acesso')).toBeTruthy();
   });
 
   it('troca pra inglês e re-renderiza com os textos certos', async () => {
@@ -27,7 +27,7 @@ describe('i18n — troca de idioma (2026-08-10)', () => {
     render(<LoginScreen />);
 
     expect(screen.getByText('My Medicines')).toBeTruthy();
-    expect(screen.getByText('Sign in')).toBeTruthy();
+    expect(screen.getByText('Send sign-in link')).toBeTruthy();
     expect(screen.getByText("Don't have an account? Sign up")).toBeTruthy();
   });
 

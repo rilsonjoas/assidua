@@ -11,16 +11,15 @@ export interface User {
   has_password: boolean;
 }
 
-export async function register(name: string, email: string, password: string, password_confirmation: string) {
-  const { data } = await api.post('/auth/register', { name, email, password, password_confirmation });
-  await SecureStore.setItemAsync('auth_token', data.token);
-  return data.user as User;
-}
-
-export async function login(email: string, password: string) {
-  const { data } = await api.post('/auth/login', { email, password });
-  await SecureStore.setItemAsync('auth_token', data.token);
-  return data.user as User;
+// Login sem senha (2026-08-14) — o backend não tem mais /auth/login nem
+// /auth/register (ver AuthController::requestMagicLink). Um endpoint só:
+// e-mail de conta existente recebe link de acesso; e-mail novo exige
+// `name` e cria a conta na hora. Não retorna token — o token só chega
+// depois, quando a pessoa toca o link recebido por e-mail, que abre o
+// app via deep link direto em auth-callback.tsx (mesmo caminho que o
+// login com Google já usa).
+export async function requestMagicLink(email: string, name?: string): Promise<void> {
+  await api.post('/auth/magic-link', name ? { email, name } : { email });
 }
 
 export async function logout() {

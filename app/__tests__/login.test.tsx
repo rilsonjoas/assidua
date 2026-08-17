@@ -16,50 +16,57 @@ describe('LoginScreen', () => {
     useAuthStore.setState({ user: null, isLoading: false });
   });
 
-  it('faz login com sucesso e guarda o usuário no store', async () => {
-    const user = {
-      id: 1,
-      name: 'Rilson',
-      email: 'rilson@example.com',
-      avatar_url: null,
-      subscription_tier: 'free' as const,
-      has_password: true,
-    };
-    mockedAuth.login.mockResolvedValueOnce(user);
+  it('pede o link de acesso e mostra a tela de confirmação', async () => {
+    mockedAuth.requestMagicLink.mockResolvedValueOnce(undefined);
 
     render(<LoginScreen />);
 
     fireEvent.changeText(screen.getByPlaceholderText('Email'), 'rilson@example.com');
-    fireEvent.changeText(screen.getByPlaceholderText('Senha'), 'senha1234');
-    fireEvent.press(screen.getByText('Entrar'));
+    fireEvent.press(screen.getByText('Enviar link de acesso'));
 
     await waitFor(() => {
-      expect(mockedAuth.login).toHaveBeenCalledWith('rilson@example.com', 'senha1234');
+      expect(mockedAuth.requestMagicLink).toHaveBeenCalledWith('rilson@example.com');
     });
-    expect(useAuthStore.getState().user).toEqual(user);
+    expect(await screen.findByText('Link enviado!')).toBeTruthy();
+    // Sem token ainda — o login só se completa quando a pessoa toca o
+    // link recebido por e-mail (auth-callback.tsx), não nesta tela.
+    expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('mostra alerta genérico quando o login falha, sem vazar o motivo real', async () => {
+  it('mostra alerta genérico quando o envio falha', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    mockedAuth.login.mockRejectedValueOnce(new Error('401 Unauthorized'));
+    mockedAuth.requestMagicLink.mockRejectedValueOnce(new Error('erro de rede'));
 
     render(<LoginScreen />);
 
     fireEvent.changeText(screen.getByPlaceholderText('Email'), 'rilson@example.com');
-    fireEvent.changeText(screen.getByPlaceholderText('Senha'), 'senha-errada');
-    fireEvent.press(screen.getByText('Entrar'));
+    fireEvent.press(screen.getByText('Enviar link de acesso'));
 
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Erro', 'Email ou senha incorretos.');
+      expect(alertSpy).toHaveBeenCalledWith('Erro', 'Não conseguimos enviar o link. Verifique o e-mail e tente de novo.');
     });
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('não chama o serviço de login se email ou senha estiverem vazios', () => {
+  it('não chama o serviço se o email estiver vazio', () => {
     render(<LoginScreen />);
 
-    fireEvent.press(screen.getByText('Entrar'));
+    fireEvent.press(screen.getByText('Enviar link de acesso'));
 
-    expect(mockedAuth.login).not.toHaveBeenCalled();
+    expect(mockedAuth.requestMagicLink).not.toHaveBeenCalled();
+  });
+
+  it('permite voltar da tela de confirmação pra tentar outro e-mail', async () => {
+    mockedAuth.requestMagicLink.mockResolvedValueOnce(undefined);
+
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Email'), 'rilson@example.com');
+    fireEvent.press(screen.getByText('Enviar link de acesso'));
+
+    await screen.findByText('Link enviado!');
+    fireEvent.press(screen.getByText('Usar outro e-mail'));
+
+    expect(await screen.findByPlaceholderText('Email')).toBeTruthy();
   });
 });

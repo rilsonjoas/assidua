@@ -12,7 +12,7 @@ import {
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { login, loginWithGoogle } from '../../services/auth';
+import { requestMagicLink, loginWithGoogle } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
@@ -21,9 +21,9 @@ import { AppText as Text } from '../../components/AppText';
 export default function LoginScreen() {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [sent, setSent] = useState(false);
   const setUser = useAuthStore((s) => s.setUser);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -42,17 +42,38 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleLogin() {
-    if (!email || !password) return;
+  async function handleSendLink() {
+    if (!email) return;
     setLoading(true);
     try {
-      const user = await login(email, password);
-      setUser(user);
+      await requestMagicLink(email);
+      setSent(true);
     } catch {
-      Alert.alert(t('common.error'), t('login.errorCredentials'));
+      Alert.alert(t('common.error'), t('login.errorSend'));
     } finally {
       setLoading(false);
     }
+  }
+
+  if (sent) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.inner}>
+          <View style={styles.logoBox}>
+            <MaterialCommunityIcons name="email-check-outline" size={48} color={colors.brand} />
+          </View>
+          <Text style={styles.title}>{t('login.sentTitle')}</Text>
+          <Text style={styles.subtitle}>{t('login.sentSubtitle')}</Text>
+          <TouchableOpacity
+            style={styles.link}
+            onPress={() => setSent(false)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.linkText}>{t('login.sentBack')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -74,19 +95,10 @@ export default function LoginScreen() {
           keyboardType="email-address"
           accessibilityLabel={t('login.emailLabel')}
         />
-        <TextInput
-          style={styles.input}
-          placeholder={t('login.passwordPlaceholder')}
-          placeholderTextColor={colors.textMuted}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          accessibilityLabel={t('login.passwordLabel')}
-        />
 
         <TouchableOpacity
           style={styles.button}
-          onPress={handleLogin}
+          onPress={handleSendLink}
           disabled={loading}
           accessibilityRole="button"
           accessibilityLabel={t('login.enter')}
@@ -119,7 +131,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <Link href="/(auth)/register" style={styles.link}>
-          {t('login.noAccount')}
+          <Text style={styles.linkText}>{t('login.noAccount')}</Text>
         </Link>
       </View>
     </KeyboardAvoidingView>
@@ -151,6 +163,7 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12, padding: 14, marginBottom: 16,
     },
     googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
-    link: { textAlign: 'center', color: c.brand, fontSize: 15 },
+    link: { alignItems: 'center', marginTop: 20 },
+    linkText: { textAlign: 'center', color: c.brand, fontSize: 15 },
   });
 }
