@@ -40,7 +40,7 @@
     <h2>1. Quem é o responsável pelos dados</h2>
     <p>
         O Meus Remédios é desenvolvido e operado por Rilson Joás. Dúvidas sobre privacidade podem ser enviadas para
-        <a href="mailto:rilsonjoas10@gmail.com">rilsonjoas10@gmail.com</a>.
+        <a href="mailto:meusremedios@narniano.com">meusremedios@narniano.com</a>.
     </p>
 
     <h2>2. Quais dados coletamos</h2>
@@ -117,7 +117,7 @@
     <h2>9. Contato</h2>
     <p>
         Para dúvidas, solicitações de acesso, correção ou exclusão de dados, entre em contato:
-        <a href="mailto:rilsonjoas10@gmail.com">rilsonjoas10@gmail.com</a>.
+        <a href="mailto:meusremedios@narniano.com">meusremedios@narniano.com</a>.
     </p>
 </body>
 </html>
