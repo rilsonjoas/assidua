@@ -599,11 +599,15 @@ estado correto pro usuário Pro), mais 1 caso em
         já resolvido. 129/129 testes passando no total, typecheck
         limpo
 
-      **Falta antes de publicar**: testar de verdade em dispositivo
-      físico com modo avião (nunca testado fora do simulador/lógica
-      unitária) e rodar um `eas update` pro canal `preview` — não fiz
-      isso ainda de propósito, o Rilson pediu pra pausar aqui e
-      continuar depois de revisar
+      **Publicado via `eas update` (canal `preview`) em 2026-08-17**,
+      decisão consciente do Rilson depois de eu recomendar esperar um
+      teste manual em dispositivo real primeiro (nunca tinha sido
+      testado fora de simulador/lógica unitária) — ele preferiu seguir
+      mesmo assim. Update group `189c7ba5-d59d-4aba-903a-b03d48303b78`.
+      **Ainda pendente**: o teste manual real em dispositivo com modo
+      avião continua não feito — vale rodar quando der, mesmo já
+      publicado, pra confirmar que o comportamento bate com o esperado
+      na prática, não só nos testes automatizados.
 - [x] **Deploy do backend** (2026-08-08) — VPS Hetzner próprio, `api-remedios.narniano.com`, Postgres (não MySQL — ver `hetzner-infra/MIGRATION.md` Fase 4.2)
 - [x] **Redeploy da Fase 2 completa + APK standalone pro teste manual** (2026-08-14) —
       motivação: teste manual de 2 semanas não devia depender de
