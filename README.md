@@ -1,6 +1,6 @@
 # Meus Remédios
 
-Gestão de medicamentos para pacientes crônicos — controle de doses, alarmes, histórico de adesão e estoque. Produto de massa (freemium), com AdMob + assinatura Pro via RevenueCat planejados para pós-MVP.
+Gestão de medicamentos para pacientes crônicos — controle de doses, alarmes, histórico de adesão e estoque. Produto de massa (freemium), com assinatura Pro via RevenueCat como prioridade de monetização (decisão 2026-08-21). AdMob fica adiado pra uma revisão futura, não descartado — mas nenhuma tela de dose/alarme recebe anúncio, decisão essa sim permanente.
 
 ---
 
@@ -28,7 +28,7 @@ Hoje: OAuth funcionando, fuso horário corrigido, LGPD com política real e revi
 | Ícones | @expo/vector-icons (MaterialCommunityIcons) |
 | Tema | Hook `useTheme` + tokens light/dark, persistido em AsyncStorage |
 | Build | EAS Build (cloud) |
-| Anúncios | AdMob — pendente |
+| Anúncios | AdMob adiado pro futuro (2026-08-21) — RevenueCat é a prioridade agora |
 | Assinaturas | RevenueCat — pendente |
 
 ---
@@ -553,6 +553,18 @@ Testado: `pro.test.tsx` (2/2 — números certos pro usuário grátis,
 estado correto pro usuário Pro), mais 1 caso em
 `profile-collaborators.test.tsx` (toque na etiqueta navega pra `/pro`).
 167/167 backend (sem mudança), 62/62 mobile.
+
+- [ ] **Widget de tela inicial Android (registrado 2026-08-21, não
+      começado)** — "próxima dose" (horário, remédio, ação de
+      confirmar direto do widget) sem precisar abrir o app. Reforça
+      exatamente o que já é a proposta de valor do produto (o alarme
+      certo, na hora certa, sem fricção) e é retenção pura — não tem
+      relação com monetização (RevenueCat é a prioridade ali, AdMob
+      adiado — ver decisão em Fase 4). `expo-android-widgets` (ou módulo nativo
+      equivalente) é o caminho técnico mais direto no stack atual
+      (Expo). Escopo pra decidir quando começar: widget read-only
+      (mostra a próxima dose) vs. com ação (confirmar do próprio
+      widget, exige write de volta pro app/API).
 
 ### Fase 3 — Infraestrutura (paralela às fases 1 e 2)
 
@@ -1289,9 +1301,16 @@ definitiva".
 ### Fase 4 — Monetização (pós-lançamento com usuários reais)
 
 - [x] **Limites do plano Free** — 4 perfis, 15 medicamentos por perfil, histórico de 30 dias — já implementado e testado (ver `tests/Feature/ProfileTest.php`, `MedicationTest.php`, `DoseLogHistoryTest.php`). Falta a parte de cobrança em si (Fase L1 abaixo)
-- [ ] **Tier Pro** — perfis ilimitados, medicamentos ilimitados, histórico completo, sem anúncios; via RevenueCat
-- [ ] **AdMob** — banners e/ou interstitials para usuários Free
+- [ ] **Tier Pro** — perfis ilimitados, medicamentos ilimitados, histórico completo; via RevenueCat (**prioridade**, decisão 2026-08-21)
+- [ ] **AdMob — adiado pro futuro (2026-08-21), não descartado.** Não é
+      prioridade de L1 (RevenueCat vem primeiro). Se/quando for
+      revisitado, restrição permanece de pé: nenhuma tela de dose ou
+      alarme recebe anúncio — é justo onde toque errado tem
+      consequência real (medicação, idoso, cuidador remoto). Se cabe
+      em algum lugar, é fora do fluxo de tomar remédio (ex.: tela de
+      Histórico/Adesão), nunca nele.
 - [ ] **Exportar histórico em PDF** — funcionalidade Pro: gerar relatório para levar ao médico
+- [ ] **Widget de tela inicial Android** — ver item em Fase 2 acima (retenção, não monetização)
 - [ ] **Publicar na Play Store e App Store**
 
 ---
@@ -1337,9 +1356,8 @@ real (decisão de 2026-08-09, ver Fase 1.5 acima).
       (`react-native-purchases`), tela de paywall
 - [ ] **Decisão de preço**: pesquisar concorrência direta antes de
       chutar número — Medisafe e MyTherapy são a referência do nicho
-- [ ] **AdMob**: conta, unidades de anúncio, SDK, posicionamento que não
-      atrapalhe a experiência de quem toma remédio (nada de interstitial
-      na hora de marcar "Tomei")
+- [ ] **AdMob** — adiado pro futuro, RevenueCat é a prioridade de L1
+      (ver Fase 4 acima)
 - [ ] Exportar histórico em PDF (Pro) — já mapeado acima
 
 ### L2 — Retenção (Fase 2 acima, sem mudança — só reforçando a ordem)
