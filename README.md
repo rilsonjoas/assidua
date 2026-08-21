@@ -1351,14 +1351,86 @@ real (decisão de 2026-08-09, ver Fase 1.5 acima).
 > realmente diferencia. Ver decisão completa na Fase 1.5.
 
 - [x] Limites do plano Free já codados e testados (ver Fase 4 acima)
-- [ ] **RevenueCat**: criar conta, configurar produto de assinatura
-      (mensal + anual, com desconto no anual), integrar SDK
-      (`react-native-purchases`), tela de paywall
+- [x] **RevenueCat — conta criada, SDK integrado, webhook funcionando (2026-08-21)**
+      — falta só produto real na loja (ver pendências abaixo, é a
+      única coisa que depende de L0/conta Google Play). Detalhe completo
+      logo abaixo.
 - [ ] **Decisão de preço**: pesquisar concorrência direta antes de
-      chutar número — Medisafe e MyTherapy são a referência do nicho
+      chutar número — Medisafe e MyTherapy são a referência do nicho.
+      Não bloqueia o código (preço não fica hardcoded no app, é
+      configurado no RevenueCat/loja) — só falta decidir o número
 - [ ] **AdMob** — adiado pro futuro, RevenueCat é a prioridade de L1
       (ver Fase 4 acima)
 - [ ] Exportar histórico em PDF (Pro) — já mapeado acima
+
+#### RevenueCat — integração de código (2026-08-21)
+
+Feito **antes** de existir a conta Google Play — nada aqui dependia
+disso. O único bloqueio real que sobrou é sincronizar produto de
+verdade com a loja, que sim depende de L0.
+
+- [x] **Backend (Laravel)** — `RevenueCatWebhookController` novo,
+      rota `POST /webhooks/revenuecat` fora do grupo `auth:sanctum`
+      (quem chama é o RevenueCat, não um usuário logado). Autenticação
+      própria: compara o header `Authorization` contra
+      `REVENUECAT_WEBHOOK_SECRET` (`config/services.php` →
+      `services.revenuecat.webhook_secret`) — **não é a secret key da
+      API REST do RevenueCat**, é um valor à parte que se define ao
+      criar o webhook no dashboard deles, colado dos dois lados.
+      `app_user_id` do evento é o id numérico do usuário Laravel
+      (nunca um id gerado pelo RevenueCat) — combinado no client via
+      `Purchases.logIn(String(user.id))`. Eventos que concedem Pro:
+      `INITIAL_PURCHASE`/`RENEWAL`/`PRODUCT_CHANGE`/`UNCANCELLATION`/
+      `NON_RENEWING_PURCHASE` (sem `expiration_at_ms` = Pro vitalício,
+      já compatível com `User::isPro()`, que já tratava
+      `subscription_expires_at` nulo como acesso permanente). Só
+      `EXPIRATION` revoga — `CANCELLATION` não tira acesso na hora
+      (usuário cancelou a renovação futura, mas o período já pago
+      continua valendo). Testado: `RevenueCatWebhookTest.php`, 9 casos
+      novos (autorização, cada tipo de evento, `app_user_id` sem
+      usuário correspondente ou não-numérico não quebra). **206/206
+      backend** no total.
+- [x] **App (Expo)** — `react-native-purchases` instalado.
+      `services/purchases.ts` novo: `initPurchases()` fica no-op sem
+      `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`/`_IOS_KEY` configurada
+      (mesmo padrão do Sentry em `_layout.tsx` — roda sem erro, sem
+      oferecer Pro nenhum, até a chave existir de verdade).
+      `authStore.setUser` virou o ponto único de sincronia do
+      `Purchases.logIn`/`logOut` com o login/logout do app — não
+      precisou tocar nas 4 telas que já chamavam `setUser`
+      (`auth-callback.tsx`, `register.tsx`, `login.tsx`,
+      `profile.tsx`). `pro.tsx` busca a oferta real
+      (`getCurrentOffering()`) e mostra botão de assinar com o preço
+      de verdade quando existe produto cadastrado; sem produto (a
+      realidade hoje, pré-L0), continua mostrando o aviso "em breve"
+      de antes — nada quebrou pra quem já via essa tela. Compra
+      concluída re-busca `/auth/me` pra refletir o novo tier — quem
+      decide "é Pro?" continua sendo só o backend. Cancelamento pelo
+      próprio usuário (`error.userCancelled`) não mostra alerta de
+      erro; erro de verdade sim. Botão de restaurar compra incluído.
+      Testado: `pro.test.tsx` reescrito, 8 casos (usuário grátis sem
+      oferta, usuário Pro nem busca oferta, SDK configurado sem
+      pacote ainda mostra "em breve", oferta real mostra botão com
+      preço, compra bem-sucedida atualiza o usuário, cancelamento
+      silencioso, erro real mostra alerta, restaurar sem assinatura
+      mostra alerta). Mock de `react-native-purchases` novo em
+      `jest.setup.ts` (módulo nativo, não existe no ambiente de
+      teste — mesmo padrão já usado pra NetInfo/expo-sqlite).
+      **135/135 mobile** no total, `tsc --noEmit` limpo.
+- [x] Chave pública do RevenueCat (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`)
+      salva em `app/.env` (gitignorado) + Bitwarden. Ainda não
+      confirmado se é a chave do Test Store (prefixo `test_`, permite
+      simular compra sem produto real na Play Store) ou já a de
+      Google Play — o próprio prefixo sugere Test Store, o que seria
+      ótimo pra testar o fluxo inteiro (client → RevenueCat → webhook
+      → Laravel) antes mesmo de L0 terminar.
+- [ ] **Pendência real, depende de L0**: produto de assinatura
+      cadastrado na Play Console + sincronizado no RevenueCat. Sem
+      isso, `getCurrentOffering()` continua retornando sem pacote e a
+      tela mostra "em breve", mesmo com todo o resto pronto.
+- [ ] Módulo nativo novo (`react-native-purchases`) — a próxima build
+      precisa ser `eas build` de verdade, não dá pra entrar via
+      `eas update`/OTA (só manda JS/assets, não código nativo novo).
 
 ### L2 — Retenção (Fase 2 acima, sem mudança — só reforçando a ordem)
 

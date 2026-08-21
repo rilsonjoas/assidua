@@ -7,8 +7,17 @@ use App\Http\Controllers\MedicationController;
 use App\Http\Controllers\ProfileCollaboratorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushTokenController;
+use App\Http\Controllers\RevenueCatWebhookController;
 use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
+
+// Fora do auth:sanctum de propósito — quem chama é o RevenueCat, não um
+// usuário logado do app. Autenticação própria dentro do controller
+// (header Authorization contra REVENUECAT_WEBHOOK_SECRET), não Sanctum.
+// Throttle nomeado só pra ter alguma trava contra abuso do endpoint
+// público — RevenueCat não manda volume alto o bastante pra precisar de
+// mais que isso.
+Route::post('/webhooks/revenuecat', [RevenueCatWebhookController::class, 'handle'])->middleware('throttle:60,1');
 
 Route::prefix('auth')->group(function () {
     Route::post('/magic-link', [AuthController::class, 'requestMagicLink'])->middleware('throttle:magic-link');

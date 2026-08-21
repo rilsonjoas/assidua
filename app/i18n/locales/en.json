@@ -228,7 +228,13 @@
       "chart": "8 weeks"
     },
     "comingSoon": "Subscription coming soon — this screen is just to show you the benefits for now.",
-    "comingSoonLabel": "Pro plan subscription coming soon"
+    "comingSoonLabel": "Pro plan subscription coming soon",
+    "subscribeButton": "Subscribe for {{price}}",
+    "subscribeLabel": "Subscribe to the Pro plan for {{price}}",
+    "restore": "Already subscribed — restore purchase",
+    "restoring": "Restoring...",
+    "purchaseError": "Couldn't complete the subscription. Please try again.",
+    "restoreError": "We couldn't find a subscription to restore."
   },
   "medicationForm": {
     "sectionData": "Medicine details",

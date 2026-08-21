@@ -228,7 +228,13 @@
       "chart": "8 semanas"
     },
     "comingSoon": "Suscripción próximamente — esta pantalla es solo para que conozcas los beneficios por ahora.",
-    "comingSoonLabel": "Suscripción del plan Pro próximamente"
+    "comingSoonLabel": "Suscripción del plan Pro próximamente",
+    "subscribeButton": "Suscribirse por {{price}}",
+    "subscribeLabel": "Suscribirse al plan Pro por {{price}}",
+    "restore": "Ya me suscribí — restaurar compra",
+    "restoring": "Restaurando...",
+    "purchaseError": "No se pudo completar la suscripción. Inténtalo de nuevo.",
+    "restoreError": "No encontramos ninguna suscripción para restaurar."
   },
   "medicationForm": {
     "sectionData": "Datos de la medicina",

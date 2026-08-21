@@ -1,19 +1,19 @@
-import { useMemo } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, ScrollView, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from '../components/AppText';
+import { getCurrentOffering, isPurchasesConfigured, purchasePackage, restorePurchases } from '../services/purchases';
+import { getMe } from '../services/auth';
 
-// "Plano Pro" (2026-08-13) — decisão real registrada: L1 (cobrança de
-// verdade) continua deliberadamente não implementado, é decisão de
-// 2026-08-09 (apostar na diferenciação do cuidador remoto antes de
-// monetizar). Mas mostrar "Plano Gratuito" sem contexto nenhum também é
-// ruim — parece feature quebrada, não "ainda não lançamos". Esta tela
-// só *explica* a diferença, sem processar pagamento nenhum — o botão é
-// "Em breve", não um checkout. Os limites abaixo são reais, batem
+// "Plano Pro" (2026-08-13, fluxo de compra real ligado em 2026-08-21) —
+// decisão registrada: L1 (cobrança de verdade) continua sendo tratado
+// com cautela — apostar na diferenciação do cuidador remoto veio antes
+// de monetizar (2026-08-09). Os limites abaixo são reais, batem
 // exatamente com o que o backend já aplica hoje (não são number
 // arredondado/inventado):
 // - MedicationController::store — 15 medicamentos/perfil grátis, sem limite Pro
@@ -29,10 +29,61 @@ const BENEFITS: { icon: React.ComponentProps<typeof MaterialCommunityIcons>['nam
 
 export default function ProScreen() {
   const { t } = useTranslation();
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isPro = user?.subscription_tier === 'pro';
+
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+  const [loadingOffering, setLoadingOffering] = useState(true);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  useEffect(() => {
+    if (isPro) {
+      setLoadingOffering(false);
+      return;
+    }
+    getCurrentOffering()
+      .then(setOffering)
+      .finally(() => setLoadingOffering(false));
+  }, [isPro]);
+
+  async function refreshUser() {
+    const me = await getMe();
+    setUser(me);
+  }
+
+  async function handlePurchase(pkg: PurchasesPackage) {
+    setPurchasingId(pkg.identifier);
+    try {
+      await purchasePackage(pkg);
+      await refreshUser();
+    } catch (error: any) {
+      // userCancelled: a pessoa fechou a tela nativa de compra sozinha —
+      // não é erro, não mostra alerta nenhum.
+      if (!error?.userCancelled) {
+        Alert.alert(t('common.error'), t('pro.purchaseError'));
+      }
+    } finally {
+      setPurchasingId(null);
+    }
+  }
+
+  async function handleRestore() {
+    setRestoring(true);
+    try {
+      await restorePurchases();
+      await refreshUser();
+    } catch {
+      Alert.alert(t('common.error'), t('pro.restoreError'));
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  const showPurchaseFlow = !isPro && isPurchasesConfigured() && !loadingOffering && !!offering?.availablePackages.length;
+  const showComingSoon = !isPro && (!isPurchasesConfigured() || (!loadingOffering && !offering?.availablePackages.length));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
@@ -62,7 +113,40 @@ export default function ProScreen() {
         ))}
       </View>
 
-      {!isPro && (
+      {!isPro && loadingOffering && (
+        <ActivityIndicator style={styles.loading} color={colors.brand} />
+      )}
+
+      {showPurchaseFlow && (
+        <View style={styles.packages}>
+          {offering!.availablePackages.map((pkg) => (
+            <TouchableOpacity
+              key={pkg.identifier}
+              style={styles.subscribeButton}
+              onPress={() => handlePurchase(pkg)}
+              disabled={purchasingId !== null}
+              accessibilityRole="button"
+              accessibilityLabel={t('pro.subscribeLabel', { price: pkg.product.priceString })}
+              accessibilityState={{ busy: purchasingId === pkg.identifier, disabled: purchasingId !== null }}
+            >
+              {purchasingId === pkg.identifier
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.subscribeButtonText}>{t('pro.subscribeButton', { price: pkg.product.priceString })}</Text>
+              }
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            onPress={handleRestore}
+            disabled={restoring}
+            accessibilityRole="button"
+            accessibilityState={{ busy: restoring, disabled: restoring }}
+          >
+            <Text style={styles.restoreLink}>{restoring ? t('pro.restoring') : t('pro.restore')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {showComingSoon && (
         <View style={styles.comingSoonBox} accessible accessibilityLabel={t('pro.comingSoonLabel')}>
           <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
           <Text style={styles.comingSoonText}>{t('pro.comingSoon')}</Text>
@@ -95,6 +179,14 @@ function makeStyles(c: ThemeColors) {
     tableLabel: { fontSize: 13, color: c.text, fontWeight: '500', flexShrink: 1 },
     tableValue: { flex: 1, fontSize: 13, color: c.textMuted, textAlign: 'center' },
     tableValuePro: { color: c.brand, fontWeight: '700' },
+    loading: { marginTop: 20 },
+    packages: { width: '100%', marginTop: 20, gap: 12 },
+    subscribeButton: {
+      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    subscribeButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    restoreLink: { textAlign: 'center', fontSize: 13, color: c.textMuted, fontWeight: '600', marginTop: 4, padding: 8 },
     comingSoonBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20,
       backgroundColor: c.surfaceSecondary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16,

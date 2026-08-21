@@ -228,7 +228,13 @@
       "chart": "8 semanas"
     },
     "comingSoon": "Assinatura em breve — essa tela é só pra você conhecer os benefícios por enquanto.",
-    "comingSoonLabel": "Assinatura do plano Pro em breve"
+    "comingSoonLabel": "Assinatura do plano Pro em breve",
+    "subscribeButton": "Assinar por {{price}}",
+    "subscribeLabel": "Assinar o plano Pro por {{price}}",
+    "restore": "Já assinei — restaurar compra",
+    "restoring": "Restaurando...",
+    "purchaseError": "Não foi possível concluir a assinatura. Tente novamente.",
+    "restoreError": "Não encontramos nenhuma assinatura pra restaurar."
   },
   "medicationForm": {
     "sectionData": "Dados do medicamento",

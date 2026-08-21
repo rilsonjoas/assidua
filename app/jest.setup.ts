@@ -107,6 +107,21 @@ jest.mock('@react-native-community/netinfo', () => ({
   fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
 }));
 
+// L1 — monetização (2026-08-21). Módulo nativo, não existe no ambiente
+// de teste. Mock simples o bastante pra services/purchases.ts e
+// app/pro.tsx serem testáveis sem SDK real nem loja de verdade.
+jest.mock('react-native-purchases', () => ({
+  __esModule: true,
+  default: {
+    configure: jest.fn(),
+    logIn: jest.fn(async () => ({})),
+    logOut: jest.fn(async () => ({})),
+    getOfferings: jest.fn(async () => ({ current: null })),
+    purchasePackage: jest.fn(async () => ({ customerInfo: {} })),
+    restorePurchases: jest.fn(async () => ({})),
+  },
+}));
+
 // Mock em memória simples — suficiente pro que services/offlineQueue.ts
 // faz (INSERT/SELECT/DELETE/COUNT numa tabela só), sem precisar de
 // SQLite nativo de verdade rodando no runner de CI.

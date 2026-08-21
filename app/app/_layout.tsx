@@ -11,6 +11,7 @@ import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
 import { registerPushToken } from '../services/notifications';
 import { startAutoSync } from '../services/sync';
+import { initPurchases } from '../services/purchases';
 import { useTheme } from '../hooks/useTheme';
 import { useLanguage } from '../hooks/useLanguage';
 import { queryClient } from '../services/queryClient';
@@ -25,6 +26,12 @@ Sentry.init({
   enabled: !!sentryDsn,
   tracesSampleRate: 1.0,
 });
+
+// L1 — monetização (2026-08-21). Mesmo padrão do Sentry acima: sem
+// EXPO_PUBLIC_REVENUECAT_ANDROID_KEY configurada (realidade hoje, antes
+// da conta/produto existirem), initPurchases() é no-op — não precisa de
+// flag extra pra "desligar" isso depois.
+initPurchases();
 
 // Exportado só pra ser testável em isolamento (`__tests__/auth-guard.test.tsx`)
 // sem precisar montar o <Stack> inteiro do RootLayout — AuthGuard não

@@ -41,4 +41,13 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/api/auth/google/callback'),
     ],
 
+    'revenuecat' => [
+        // Valor definido em Project Settings → Integrations → Webhooks no
+        // dashboard do RevenueCat, enviado de volta como header
+        // Authorization em toda chamada — é o jeito deles de autenticar o
+        // webhook (não é a secret key da API REST). Vazio = webhook
+        // recusa tudo (RevenueCatWebhookController::handle).
+        'webhook_secret' => env('REVENUECAT_WEBHOOK_SECRET'),
+    ],
+
 ];
