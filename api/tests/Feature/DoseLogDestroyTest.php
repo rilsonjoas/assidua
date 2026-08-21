@@ -95,4 +95,30 @@ class DoseLogDestroyTest extends TestCase
         $response->assertForbidden();
         $this->assertDatabaseHas('dose_logs', ['id' => $log->id]);
     }
+
+    public function test_apagar_dose_tomada_estorna_estoque(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $stock = $medication->stock()->create(['current_quantity' => 10, 'min_alert_quantity' => 2]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $log = DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00'),
+            'taken_at' => now(),
+            'status' => 'taken',
+        ]);
+
+        // Mock do decremento ocorrido ao criar (já que testamos isso em DoseLogStoreTest,
+        // aqui forçamos o valor inicial do estoque antes de apagar)
+        $stock->update(['current_quantity' => 9]);
+
+        $this->actingAs($user)->deleteJson("/api/dose-logs/{$log->id}")->assertNoContent();
+
+        $this->assertEquals(10, $stock->fresh()->current_quantity);
+    }
 }

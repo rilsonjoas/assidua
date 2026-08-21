@@ -105,4 +105,92 @@ class DoseLogStoreTest extends TestCase
 
         $response->assertUnprocessable();
     }
+
+    public function test_registra_dose_tomada_decrementa_estoque(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $stock = $medication->stock()->create(['current_quantity' => 10, 'min_alert_quantity' => 2]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $this->actingAs($user)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'taken',
+        ])->assertCreated();
+
+        $this->assertEquals(9, $stock->fresh()->current_quantity);
+    }
+
+    public function test_registra_dose_pulada_nao_altera_estoque(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $stock = $medication->stock()->create(['current_quantity' => 10, 'min_alert_quantity' => 2]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $this->actingAs($user)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'skipped',
+        ])->assertCreated();
+
+        $this->assertEquals(10, $stock->fresh()->current_quantity);
+    }
+
+    public function test_alterar_dose_de_tomada_para_pulada_estorna_estoque(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $stock = $medication->stock()->create(['current_quantity' => 10, 'min_alert_quantity' => 2]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $payload = [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'taken',
+        ];
+
+        // 10 -> 9
+        $this->actingAs($user)->postJson('/api/dose-logs', $payload)->assertCreated();
+        $this->assertEquals(9, $stock->fresh()->current_quantity);
+
+        // 9 -> 10 (status alterado para skipped)
+        $this->actingAs($user)->postJson('/api/dose-logs', array_merge($payload, ['status' => 'skipped']))->assertCreated();
+        $this->assertEquals(10, $stock->fresh()->current_quantity);
+    }
+
+    public function test_alterar_dose_de_pulada_para_tomada_decrementa_estoque(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $stock = $medication->stock()->create(['current_quantity' => 10, 'min_alert_quantity' => 2]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $payload = [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'skipped',
+        ];
+
+        // 10 -> 10 (skipped)
+        $this->actingAs($user)->postJson('/api/dose-logs', $payload)->assertCreated();
+        $this->assertEquals(10, $stock->fresh()->current_quantity);
+
+        // 10 -> 9 (status alterado para taken)
+        $this->actingAs($user)->postJson('/api/dose-logs', array_merge($payload, ['status' => 'taken']))->assertCreated();
+        $this->assertEquals(9, $stock->fresh()->current_quantity);
+    }
 }

@@ -28,6 +28,30 @@ class DoseLog extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (DoseLog $log) {
+            $oldStatus = $log->getOriginal('status');
+            $newStatus = $log->status;
+            $medication = $log->medication;
+
+            if ($medication && $medication->stock) {
+                if ($newStatus === 'taken' && $oldStatus !== 'taken') {
+                    $medication->stock()->decrement('current_quantity');
+                } elseif ($newStatus !== 'taken' && $oldStatus === 'taken') {
+                    $medication->stock()->increment('current_quantity');
+                }
+            }
+        });
+
+        static::deleted(function (DoseLog $log) {
+            $medication = $log->medication;
+            if ($medication && $medication->stock && $log->status === 'taken') {
+                $medication->stock()->increment('current_quantity');
+            }
+        });
+    }
+
     public function doseSchedule(): BelongsTo
     {
         return $this->belongsTo(DoseSchedule::class);

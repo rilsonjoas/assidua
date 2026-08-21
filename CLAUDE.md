@@ -35,17 +35,17 @@ App mobile de gestão de medicamentos para pacientes crônicos. Objetivo é vira
 - Cadastro/login email+senha, Google OAuth (frontend implementado, aguarda credenciais GCloud)
 - Perfis de paciente com ícone + cor, modo claro/escuro com seletor em Perfis
 - Tela Hoje: doses calculadas dinamicamente via dose_schedules, Tomei/Pular, chips de perfil
-- Tela Remédios: lista + FAB, formulário completo com gerenciamento de horários (criar/deletar) e picker de dias da semana
+- Tela Remédios: lista + FAB, formulário completo com gerenciamento de horários (criar/deletar/editar) e picker de dias da semana
 - Tela Histórico: filtros por status, agrupado por data, card de adesão com %
-- Tela Estoque: edição inline, alerta de estoque baixo
+- Tela Estoque: edição inline, alerta de estoque baixo, decremento automático ao tomar a dose
 - Notificações locais agendadas ao criar horário, canceladas ao deletar
+- Suporte offline completo (expo-sqlite + sync automático via NetInfo)
+- Deploy completo do backend (api-remedios.narniano.com) com Sentry configurado
+- Integração RevenueCat (Laravel Webhooks + SDK)
 
 ### Pendente
-- Google OAuth: aguarda credenciais no Google Cloud Console
-- Offline support (expo-sqlite)
-- Deploy do backend
-- Editar horários existentes (hora e dias)
-- AdMob + RevenueCat (pós-MVP)
+- Google OAuth: configurar credenciais finais no console de produção
+- AdMob (adiado pós-MVP)
 
 ## Próximo passo ao retomar
 
