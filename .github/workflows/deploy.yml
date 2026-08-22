@@ -36,17 +36,21 @@ jobs:
           npm ci --legacy-peer-deps
           npx expo export --platform web
 
-      - name: Empacotar dist
-        run: tar -czf /tmp/web-dist.tar.gz -C app/dist .
-
+      # Achado 2026-08-22 (deploy #27/#28): drone-scp RE-EMPACOTA tudo
+      # num tar próprio e extrai preservando o caminho de origem — um
+      # tar manual + caminho absoluto em /tmp fez o arquivo ir para
+      # /tmp/tmp/... e o diretório da web ficou VAZIO (nginx 403).
+      # Padrão correto: apontar source pro diretório dentro do workspace,
+      # strip_components pra achatar, target direto no destino final.
       - name: Publicar web no VPS
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: /tmp/web-dist.tar.gz
-          target: /tmp
+          source: "app/dist/"
+          target: /opt/meus-remedios/web
+          strip_components: 2
 
       - name: Deploy no VPS (git pull + rebuild)
         uses: appleboy/ssh-action@v1
@@ -55,11 +59,15 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            # Achado 2026-08-22: sem set -e, o tar que falhava em silêncio
+            # deixava o deploy "verde" com site vazio. Falhar ALTO sempre.
+            set -e
+            test -f /opt/meus-remedios/web/index.html || {
+              echo "ERRO: index.html não chegou ao VPS — scp falhou?" >&2
+              exit 1
+            }
             cd /opt/meus-remedios
             git pull --ff-only origin main
-            mkdir -p /opt/meus-remedios/web
-            rm -rf /opt/meus-remedios/web/*
-            tar xzf /tmp/web-dist.tar.gz -C /opt/meus-remedios/web && rm /tmp/web-dist.tar.gz
             # Achado do primeiro deploy web (2026-08-22): o repo de infra
             # usa branch MASTER (não main) — puxar 'origin main' falhava,
             # o '|| true' engolia, o compose ficava sem o remedios-web e
