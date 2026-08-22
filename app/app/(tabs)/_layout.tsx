@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router';
-import { ColorValue } from 'react-native';
+import { ColorValue, Platform, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
+import WebTopNav from '../../components/WebTopNav';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -15,18 +17,32 @@ function TabIcon({ name, color }: { name: IconName; color: ColorValue }) {
 export default function TabsLayout() {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  // Shell web W1 (2026-08-22): em telas largas o navegador recebe navbar
+  // superior (WebTopNav) e a tab bar inferior some — é a navegação, mais
+  // que a largura, que faz o usuário ler isto como site. Mobile/nativo
+  // continua exatamente como era.
+  const isWide = useIsWideScreen();
+  const showWebShell = Platform.OS === 'web' && isWide;
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder },
-        headerStyle: { backgroundColor: colors.surface },
-        headerTitleStyle: { color: colors.text, fontWeight: '700' },
-        headerShadowVisible: false,
-      }}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {showWebShell && <WebTopNav />}
+      {/* W1 web: o SCROLLER é full-bleed (barra de rolagem encosta na
+          borda da janela, como todo site); quem fica limitado a 960px é
+          o CONTEÚDO, via contentContainerStyle de cada tela. */}
+      <View style={showWebShell ? { flex: 1, width: '100%' } : { flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: colors.brand,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarStyle: showWebShell
+            ? [{ display: 'none' }]
+            : { backgroundColor: colors.tabBar, borderTopColor: colors.tabBarBorder },
+          headerStyle: { backgroundColor: colors.surface },
+          headerTitleStyle: { color: colors.text, fontWeight: '700' },
+          headerShadowVisible: false,
+        }}
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -63,6 +79,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="account-group-outline" color={color} />,
         }}
       />
-    </Tabs>
+      </Tabs>
+      </View>
+    </View>
   );
 }

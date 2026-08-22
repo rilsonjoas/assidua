@@ -22,6 +22,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useFontScaleStore, FontScaleMode } from '../../store/fontScaleStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { useLanguage } from '../../hooks/useLanguage';
 import { ThemeColors } from '../../constants/theme';
 import { logout, deleteAccount } from '../../services/auth';
@@ -59,6 +60,7 @@ export default function ProfileScreen() {
   const { mode: fontScaleMode, setMode: setFontScaleMode } = useFontScaleStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
 
   const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
     { mode: 'system', label: t('profile.themeSystem'), icon: THEME_ICONS.system },
@@ -235,7 +237,7 @@ export default function ProfileScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={[styles.inner, isWide && styles.innerWide]} keyboardShouldPersistTaps="handled">
       {/* Card do usuário */}
       <View style={styles.userCard}>
         {/* Marca (2026-08-21) — feedback do Rilson: "quem não aparece não
@@ -291,26 +293,34 @@ export default function ProfileScreen() {
       )}
 
       {profiles.map((item) => (
-        <TouchableOpacity
+        <View
           key={item.id}
           style={[styles.profileRow, activeProfile?.id === item.id && styles.profileRowActive]}
-          onPress={() => setActiveProfile(item)}
-          accessibilityRole="button"
-          accessibilityLabel={item.is_owner === false ? t('profile.profileLabelShared', { name: item.name }) : t('profile.profileLabel', { name: item.name })}
-          accessibilityState={{ selected: activeProfile?.id === item.id }}
         >
-          <View style={[styles.profileIconBox, { backgroundColor: item.color }]}>
-            <MaterialCommunityIcons name={(item.avatar_emoji as any) ?? 'account'} size={22} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>{item.name}</Text>
-            {item.is_owner === false && (
-              <View style={styles.sharedBadge}>
-                <MaterialCommunityIcons name="account-heart-outline" size={12} color={colors.brand} />
-                <Text style={styles.sharedBadgeText}>{t('profile.sharedBadge')}</Text>
-              </View>
-            )}
-          </View>
+          {/* Web (W1): linha virou container — TouchableOpacity dentro de
+              TouchableOpacity renderiza <button> aninhado no browser
+              (HTML inválido, erro de console). Área principal = botão de
+              seleção; ações ficam IRMÃS, não filhas. Visual idêntico. */}
+          <TouchableOpacity
+            style={styles.profileRowMain}
+            onPress={() => setActiveProfile(item)}
+            accessibilityRole="button"
+            accessibilityLabel={item.is_owner === false ? t('profile.profileLabelShared', { name: item.name }) : t('profile.profileLabel', { name: item.name })}
+            accessibilityState={{ selected: activeProfile?.id === item.id }}
+          >
+            <View style={[styles.profileIconBox, { backgroundColor: item.color }]}>
+              <MaterialCommunityIcons name={(item.avatar_emoji as any) ?? 'account'} size={22} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileName}>{item.name}</Text>
+              {item.is_owner === false && (
+                <View style={styles.sharedBadge}>
+                  <MaterialCommunityIcons name="account-heart-outline" size={12} color={colors.brand} />
+                  <Text style={styles.sharedBadgeText}>{t('profile.sharedBadge')}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
           {item.is_owner !== false && (
             <TouchableOpacity
               testID={`invite-btn-${item.id}`}
@@ -330,7 +340,7 @@ export default function ProfileScreen() {
           {activeProfile?.id === item.id && (
             <MaterialCommunityIcons name="check-circle" size={22} color={colors.brand} />
           )}
-        </TouchableOpacity>
+        </View>
       ))}
 
       {redeeming ? (
@@ -709,6 +719,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     inner: { padding: 16, paddingBottom: 48 },
+    innerWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
     userCard: {
       backgroundColor: c.headerBg, borderRadius: 20, padding: 20,
       flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 28,
@@ -739,6 +750,10 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface,
       borderRadius: 14, padding: 14, marginBottom: 8, gap: 14,
       elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
+    },
+    // Área clicável de seleção dentro da linha (fix botão aninhado web)
+    profileRowMain: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14,
     },
     profileRowActive: { borderWidth: 2, borderColor: c.brand },
     profileIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

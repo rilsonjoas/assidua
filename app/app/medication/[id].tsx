@@ -34,9 +34,11 @@ import {
   cancelScheduleNotifications,
 } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppText as Text } from '../../components/AppText';
+import { showAlert } from '../../lib/alert';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -108,6 +110,7 @@ export default function MedicationFormScreen() {
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
 
   const DAYS = DAY_KEYS.map((k) => t(`medicationForm.daysShort.${k}`));
   const DAYS_FULL = DAY_KEYS.map((k) => t(`medicationForm.days.${k}`));
@@ -207,11 +210,11 @@ export default function MedicationFormScreen() {
     // Achado real de uso (2026-08-14): dosagem deixou de ser
     // obrigatória — nem todo remédio tem uma numérica relevante.
     if (!name.trim()) {
-      Alert.alert(t('medicationForm.errorFillRequired'));
+      showAlert(t('medicationForm.errorFillRequired'));
       return;
     }
     if (!activeProfile) {
-      Alert.alert(t('medicationForm.errorNoProfileTitle'), t('medicationForm.errorNoProfileText'));
+      showAlert(t('medicationForm.errorNoProfileTitle'), t('medicationForm.errorNoProfileText'));
       return;
     }
     // "Duração do tratamento" (2026-08-14) — opcional; se preenchido,
@@ -222,7 +225,7 @@ export default function MedicationFormScreen() {
     if (treatmentDurationDays.trim()) {
       const parsed = parseInt(treatmentDurationDays, 10);
       if (isNaN(parsed) || parsed < 1) {
-        Alert.alert(t('medicationForm.errorInvalidTreatmentDuration'));
+        showAlert(t('medicationForm.errorInvalidTreatmentDuration'));
         return;
       }
       treatmentDurationToSend = parsed;
@@ -232,7 +235,7 @@ export default function MedicationFormScreen() {
     // rascunhos e recebe um aviso claro em vez de um remédio invisível
     // no dashboard.
     if (isNew && draftSchedules.length === 0) {
-      Alert.alert(t('medicationForm.errorNoSchedule'));
+      showAlert(t('medicationForm.errorNoSchedule'));
       return;
     }
     // '' vira null no envio — não salva string vazia como se fosse
@@ -302,7 +305,7 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       router.back();
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSave'));
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSave'));
     } finally {
       setSaving(false);
     }
@@ -342,7 +345,7 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPauseToggle'));
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPauseToggle'));
     } finally {
       setPausing(false);
     }
@@ -354,6 +357,13 @@ export default function MedicationFormScreen() {
   // (sair/excluir/remover horário) que viraram ConfirmDialog temático,
   // aqui o Alert.alert nativo continua um padrão razoável.
   function handlePhotoPress() {
+    // Web (W1, 2026-08-22): ActionSheet nativo não existe no browser —
+    // vai direto pra galeria, que o expo-image-picker resolve com
+    // <input type="file"> (a câmera é que não existe na web).
+    if (Platform.OS === 'web') {
+      pickPhoto('gallery');
+      return;
+    }
     const options: any[] = [
       { text: t('common.cancel'), style: 'cancel' },
       { text: t('medicationForm.photoCamera'), onPress: () => pickPhoto('camera') },
@@ -379,7 +389,7 @@ export default function MedicationFormScreen() {
     try {
       ImagePicker = require('expo-image-picker');
     } catch {
-      Alert.alert(t('medicationForm.photoUnavailableTitle'), t('medicationForm.photoUnavailableText'));
+      showAlert(t('medicationForm.photoUnavailableTitle'), t('medicationForm.photoUnavailableText'));
       return;
     }
 
@@ -400,7 +410,7 @@ export default function MedicationFormScreen() {
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -413,7 +423,7 @@ export default function MedicationFormScreen() {
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
     } finally {
       setUploadingPhoto(false);
     }
@@ -502,17 +512,17 @@ export default function MedicationFormScreen() {
 
   async function saveScheduleForm() {
     if (!newTime.match(/^\d{2}:\d{2}$/)) {
-      Alert.alert(t('medicationForm.errorInvalidFormat'), t('medicationForm.errorInvalidFormatText'));
+      showAlert(t('medicationForm.errorInvalidFormat'), t('medicationForm.errorInvalidFormatText'));
       return;
     }
     const isInterval = scheduleMode === 'interval';
     const intervalHours = isInterval ? parseInt(newIntervalHours, 10) : null;
     if (isInterval && (isNaN(intervalHours!) || intervalHours! < 1 || intervalHours! > 168)) {
-      Alert.alert(t('medicationForm.errorInvalidInterval'));
+      showAlert(t('medicationForm.errorInvalidInterval'));
       return;
     }
     if (!isInterval && newDays.length === 0) {
-      Alert.alert(t('medicationForm.errorSelectDay'));
+      showAlert(t('medicationForm.errorSelectDay'));
       return;
     }
     const days_of_week = isInterval ? null : (newDays.length === 7 ? null : newDays);
@@ -558,7 +568,7 @@ export default function MedicationFormScreen() {
       cancelScheduleForm();
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSaveSchedule'));
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSaveSchedule'));
     } finally {
       setSavingSchedule(false);
     }
@@ -725,7 +735,7 @@ export default function MedicationFormScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={[styles.inner, isWide && styles.innerWide]} keyboardShouldPersistTaps="handled">
 
       {/* Foto (2026-08-13) — só depois de criado, precisa de id pra anexar */}
       {!isNew && (
@@ -1167,6 +1177,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     inner: { padding: 20, paddingBottom: 48 },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 12 },
     photoCircle: {
       width: 96, height: 96, borderRadius: 48, alignSelf: 'center', marginBottom: 20,

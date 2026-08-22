@@ -4,7 +4,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
+import { showAlert } from '../../lib/alert';
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -35,7 +36,7 @@ export default function LoginScreen() {
       setUser(user);
     } catch (err: any) {
       if (!err.message?.includes('cancelado')) {
-        Alert.alert(t('common.error'), err.message ?? t('login.errorGeneric'));
+        showAlert(t('common.error'), err.message ?? t('login.errorGeneric'));
       }
     } finally {
       setGoogleLoading(false);
@@ -48,8 +49,11 @@ export default function LoginScreen() {
     try {
       await requestMagicLink(email);
       setSent(true);
-    } catch {
-      Alert.alert(t('common.error'), t('login.errorSend'));
+    } catch (err: any) {
+      // Mostra a mensagem real do backend (ex.: "Não encontramos uma
+      // conta com esse e-mail") em vez de genérico — era invisível na
+      // web até o fix do Alert no-op.
+      showAlert(t('common.error'), err.response?.data?.message ?? t('login.errorSend'));
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
@@ -14,6 +14,7 @@ import { startAutoSync } from '../services/sync';
 import { initPurchases } from '../services/purchases';
 import { useTheme } from '../hooks/useTheme';
 import { useLanguage } from '../hooks/useLanguage';
+import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { queryClient } from '../services/queryClient';
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -21,11 +22,18 @@ const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 // enabled: false sem DSN — SDK vira no-op, não tenta mandar nada.
 // Mesmo padrão do backend (config/sentry.php lê de env, sem quebrar
 // sem a chave configurada).
-Sentry.init({
-  dsn: sentryDsn,
-  enabled: !!sentryDsn,
-  tracesSampleRate: 1.0,
-});
+// Web (W0, 2026-08-22): @sentry/react-native é nativo — na web o init
+// e o wrap ficam no-op por ora. Sentry web de verdade (@sentry/react)
+// é decisão própria pra depois do spike.
+const isNative = Platform.OS !== 'web';
+
+if (isNative) {
+  Sentry.init({
+    dsn: sentryDsn,
+    enabled: !!sentryDsn,
+    tracesSampleRate: 1.0,
+  });
+}
 
 // L1 — monetização (2026-08-21). Mesmo padrão do Sentry acima: sem
 // EXPO_PUBLIC_REVENUECAT_ANDROID_KEY configurada (realidade hoje, antes
@@ -97,6 +105,14 @@ export function AuthGuard() {
 function ThemedLayout() {
   const { isDark, colors } = useTheme();
   const { t } = useTranslation();
+  const isWide = useIsWideScreen();
+  // Grupo atual decide o frame: tabs montam o próprio shell web
+  // (navbar topo + conteúdo largo até 960, ver (tabs)/_layout.tsx) e
+  // precisam de largura TOTAL aqui pra a navbar poder ser full-bleed.
+  // Rotas fora das tabs (auth, onboarding, modais) ficam na coluna
+  // estreita centralizada — formulário esticado em desktop fica feio.
+  const segments = useSegments();
+  const isNarrowGroup = segments.includes('(auth)') || segments.includes('(onboarding)');
   useLanguage(); // mantém i18next sincronizado com languageStore/idioma do aparelho
   const isLoading = useAuthStore((s) => s.isLoading);
   const hasOnboardingHydrated = useOnboardingStore((s) => s.hasHydrated);
@@ -121,48 +137,58 @@ function ThemedLayout() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="auth-callback" />
-        <Stack.Screen
-          name="medication/[id]"
-          options={{
-            headerShown: true,
-            title: t('medicationModal.title'),
-            presentation: 'modal',
-            headerStyle: { backgroundColor: colors.surface },
-            headerTitleStyle: { color: colors.text, fontWeight: '700' },
-            headerTintColor: colors.text,
-            headerShadowVisible: false,
-          }}
-        />
-        <Stack.Screen
-          name="pro"
-          options={{
-            headerShown: true,
-            title: t('pro.headerTitle'),
-            presentation: 'modal',
-            headerStyle: { backgroundColor: colors.surface },
-            headerTitleStyle: { color: colors.text, fontWeight: '700' },
-            headerTintColor: colors.text,
-            headerShadowVisible: false,
-          }}
-        />
-        <Stack.Screen
-          name="help"
-          options={{
-            headerShown: true,
-            title: t('help.headerTitle'),
-            presentation: 'modal',
-            headerStyle: { backgroundColor: colors.surface },
-            headerTitleStyle: { color: colors.text, fontWeight: '700' },
-            headerTintColor: colors.text,
-            headerShadowVisible: false,
-          }}
-        />
-      </Stack>
+      {/* Frame responsivo: SÓ auth/onboarding ficam na coluna estreita
+          centralizada no desktop (formulário esticado fica feio, e são
+          telas de passagem única). Todo o resto controla a própria
+          largura por dentro — tabs via shell próprio com navbar
+          ((tabs)/_layout.tsx), medication/help/pro via
+          contentContainerStyle wide. */}
+      <View style={{ flex: 1, width: '100%', alignItems: 'center', backgroundColor: colors.background }}>
+        <View style={isWide && isNarrowGroup ? { width: '100%', maxWidth: 520, flex: 1 } : { flex: 1, width: '100%' }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(onboarding)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth-callback" />
+            <Stack.Screen
+              name="medication/[id]"
+              options={{
+                headerShown: true,
+                title: t('medicationModal.title'),
+                presentation: 'modal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { color: colors.text, fontWeight: '700' },
+                headerTintColor: colors.text,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="pro"
+              options={{
+                headerShown: true,
+                title: t('pro.headerTitle'),
+                presentation: 'modal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { color: colors.text, fontWeight: '700' },
+                headerTintColor: colors.text,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="help"
+              options={{
+                headerShown: true,
+                title: t('help.headerTitle'),
+                presentation: 'modal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { color: colors.text, fontWeight: '700' },
+                headerTintColor: colors.text,
+                headerShadowVisible: false,
+              }}
+            />
+          </Stack>
+        </View>
+      </View>
     </>
   );
 }
@@ -176,4 +202,6 @@ function RootLayout() {
   );
 }
 
-export default Sentry.wrap(RootLayout);
+// Sentry.wrap só no nativo — na web o componente sobe puro (init acima
+// é no-op lá, e wrap do SDK nativo não tem razão de rodar no browser).
+export default isNative ? Sentry.wrap(RootLayout) : RootLayout;

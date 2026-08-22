@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Alert,
+
   Image,
 } from 'react-native';
 import { Link } from 'expo-router';
@@ -23,9 +23,11 @@ import { syncOwnedProfileTimezones } from '../../services/device';
 import { isNetworkError } from '../../services/sync';
 import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay } from '../../services/offlineQueue';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
+import { showAlert } from '../../lib/alert';
 
 // Mesmo mapa de locale do date-fns usado no Histórico.
 const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
@@ -40,6 +42,7 @@ export default function HomeScreen() {
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -114,7 +117,7 @@ export default function HomeScreen() {
       // ação específica fechou o dia num número redondo (7/30/60).
       if (log.streak_milestone) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
+        showAlert(
           t('home.streakMilestoneTitle'),
           t('home.streakMilestoneText', { count: log.streak_milestone }),
         );
@@ -324,8 +327,11 @@ export default function HomeScreen() {
       {doses.length > 0 && (
         <FlatList
           data={doses}
+          key={isWide ? 'grid' : 'list'}
+          numColumns={isWide ? 2 : 1}
+          columnWrapperStyle={isWide ? styles.gridRow : undefined}
           keyExtractor={(d) => String(d.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isWide && styles.listWide]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.brand} />}
           renderItem={({ item }) => {
             const taken = item.status === 'taken';
@@ -333,7 +339,7 @@ export default function HomeScreen() {
             const missed = item.status === 'missed';
             const time = format(parseISO(item.scheduled_at), 'HH:mm');
             return (
-              <View style={[styles.card, (taken || skipped) && styles.cardDone]}>
+              <View style={[styles.card, (taken || skipped) && styles.cardDone, isWide && { flex: 1 }]}>
                 <View style={[styles.colorBar, { backgroundColor: missed ? colors.warning : item.medication.color }]} />
                 <View style={styles.timeCol}>
                   <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
@@ -456,6 +462,8 @@ function makeStyles(c: ThemeColors) {
     },
     stockBannerText: { flex: 1, fontSize: 13, color: c.text, fontWeight: '500' },
     list: { padding: 16, gap: 10 },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
+    gridRow: { gap: 12 },
     emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
     emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
     emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },

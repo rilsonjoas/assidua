@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, ScrollView, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
+import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from '../components/AppText';
 import { getCurrentOffering, isPurchasesConfigured, purchasePackage, restorePurchases } from '../services/purchases';
 import { getMe } from '../services/auth';
+import { showAlert } from '../lib/alert';
 
 // "Plano Pro" (2026-08-13, fluxo de compra real ligado em 2026-08-21) —
 // decisão registrada: L1 (cobrança de verdade) continua sendo tratado
@@ -32,6 +34,7 @@ export default function ProScreen() {
   const { user, setUser } = useAuthStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
   const isPro = user?.subscription_tier === 'pro';
 
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
@@ -63,7 +66,7 @@ export default function ProScreen() {
       // userCancelled: a pessoa fechou a tela nativa de compra sozinha —
       // não é erro, não mostra alerta nenhum.
       if (!error?.userCancelled) {
-        Alert.alert(t('common.error'), t('pro.purchaseError'));
+        showAlert(t('common.error'), t('pro.purchaseError'));
       }
     } finally {
       setPurchasingId(null);
@@ -76,7 +79,7 @@ export default function ProScreen() {
       await restorePurchases();
       await refreshUser();
     } catch {
-      Alert.alert(t('common.error'), t('pro.restoreError'));
+      showAlert(t('common.error'), t('pro.restoreError'));
     } finally {
       setRestoring(false);
     }
@@ -86,7 +89,7 @@ export default function ProScreen() {
   const showComingSoon = !isPro && (!isPurchasesConfigured() || (!loadingOffering && !offering?.availablePackages.length));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.inner, isWide && styles.innerWide]}>
       <View style={styles.iconCircle}>
         <MaterialCommunityIcons name="star" size={40} color="#fbbf24" />
       </View>
@@ -160,6 +163,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     inner: { padding: 24, alignItems: 'center', paddingBottom: 48 },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
     iconCircle: {
       width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(251,191,36,0.15)',
       alignItems: 'center', justifyContent: 'center', marginBottom: 16,

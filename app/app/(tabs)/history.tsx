@@ -15,6 +15,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { getDoseHistory, getWeeklyAdherence, DoseLog, HistoryFilters } from '../../services/doses';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
@@ -57,6 +58,7 @@ export default function HistoryScreen() {
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   // Filtro por medicamento (Fase 2, 2026-08-12) — backend já suportava
   // `medication_id` desde sempre (getDoseHistory/HistoryFilters), só
@@ -208,7 +210,7 @@ export default function HistoryScreen() {
         <SectionList
           sections={sections}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isWide && styles.listWide]}
           onRefresh={refetch}
           refreshing={isRefetching}
           renderSectionHeader={({ section }) => (
@@ -287,6 +289,7 @@ function makeStyles(c: ThemeColors) {
     medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     medicationChipDot: { width: 8, height: 8, borderRadius: 4 },
     list: { padding: 16, paddingTop: 4, gap: 6 },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 4 },
     sectionHeader: {
       fontSize: 13,
       fontWeight: '700',

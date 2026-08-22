@@ -4,7 +4,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
+import { showAlert } from '../../lib/alert';
 
 const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/privacidade`;
 const TERMS_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/termos`;
@@ -41,7 +42,7 @@ export default function RegisterScreen() {
       setUser(user);
     } catch (err: any) {
       if (!err.message?.includes('cancelado')) {
-        Alert.alert(t('common.error'), err.message ?? t('register.errorGoogle'));
+        showAlert(t('common.error'), err.message ?? t('register.errorGoogle'));
       }
     } finally {
       setGoogleLoading(false);
@@ -56,7 +57,7 @@ export default function RegisterScreen() {
       setSent(true);
     } catch (err: any) {
       const msg = err.response?.data?.message ?? t('register.errorGeneric');
-      Alert.alert(t('common.error'), msg);
+      showAlert(t('common.error'), msg);
     } finally {
       setLoading(false);
     }

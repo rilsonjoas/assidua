@@ -3,6 +3,7 @@ import { View, ScrollView, StyleSheet, TouchableOpacity, Share } from 'react-nat
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
+import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from '../components/AppText';
 
@@ -28,13 +29,14 @@ export default function HelpScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
 
   async function shareGuide() {
     await Share.share({ message: t('help.shareText') });
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.inner, isWide && styles.innerWide]}>
       <Text style={styles.subtitle}>{t('help.subtitle')}</Text>
 
       {TOPICS.map((topic) => (
@@ -65,6 +67,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     inner: { padding: 20, paddingBottom: 48 },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
     subtitle: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
     card: {
       backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12,

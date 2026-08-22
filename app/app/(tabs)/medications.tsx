@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
@@ -22,6 +23,7 @@ export default function MedicationsScreen() {
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
 
   const { data: medications = [], isLoading } = useQuery({
     queryKey: ['medications', activeProfile?.id],
@@ -36,8 +38,13 @@ export default function MedicationsScreen() {
       ) : (
         <FlatList
           data={medications}
+          // Grid 2 colunas no desktop (W1 web): remount via key é
+          // obrigatório ao mudar numColumns dinamicamente.
+          key={isWide ? 'grid' : 'list'}
+          numColumns={isWide ? 2 : 1}
+          columnWrapperStyle={isWide ? styles.gridRow : undefined}
           keyExtractor={(m) => String(m.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isWide && styles.listWide]}
           ListEmptyComponent={<Text style={styles.empty}>{t('medications.empty')}</Text>}
           renderItem={({ item }) => (
             <Link href={`/medication/${item.id}`} asChild>
@@ -46,7 +53,7 @@ export default function MedicationsScreen() {
                 // expo-router's <Slot> (por trás do asChild do Link)
                 // reclama de estilo em array no filho direto — precisa
                 // vir achatado num objeto só, StyleSheet.flatten resolve.
-                style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused])}
+                style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
                 accessibilityRole="button"
                 accessibilityLabel={
                   item.is_paused
@@ -100,6 +107,8 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     list: { padding: 16, gap: 12 },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
+    gridRow: { gap: 12 },
     empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
     card: {
       backgroundColor: c.surface, borderRadius: 16,

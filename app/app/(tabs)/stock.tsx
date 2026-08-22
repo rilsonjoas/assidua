@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Alert,
+
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -16,15 +16,18 @@ import { useProfileStore } from '../../store/profileStore';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
 import { SkeletonList } from '../../components/Skeleton';
+import { showAlert } from '../../lib/alert';
 
 export default function StockScreen() {
   const { t } = useTranslation();
   const { activeProfile } = useProfileStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const isWide = useIsWideScreen();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<number | null>(null);
   const [qty, setQty] = useState('');
@@ -60,7 +63,7 @@ export default function StockScreen() {
   function saveQty(med: Medication) {
     const quantity = parseFloat(qty);
     if (isNaN(quantity) || quantity < 0) {
-      Alert.alert(t('stock.invalidValue'));
+      showAlert(t('stock.invalidValue'));
       return;
     }
     mutation.mutate({ id: med.id, quantity });
@@ -82,8 +85,11 @@ export default function StockScreen() {
       ) : (
         <FlatList
           data={medications}
+          key={isWide ? 'grid' : 'list'}
+          numColumns={isWide ? 2 : 1}
+          columnWrapperStyle={isWide ? styles.gridRow : undefined}
           keyExtractor={(m) => String(m.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isWide && styles.listWide]}
           ListEmptyComponent={<Text style={styles.empty}>{t('stock.empty')}</Text>}
           renderItem={({ item }) => {
             const stock = item.stock;
@@ -92,7 +98,7 @@ export default function StockScreen() {
             // 5 comprimidos é muito diferente entre 1x/dia e 4x/dia.
             const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
             return (
-              <View style={[styles.card, isLow && styles.cardAlert]}>
+              <View style={[styles.card, isLow && styles.cardAlert, isWide && { flex: 1 }]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
                 <View style={styles.info}>
                   <Text style={styles.name}>{item.name}</Text>
@@ -156,6 +162,8 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     list: { padding: 16, gap: 12 },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
+    gridRow: { gap: 12 },
     empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
     card: {
       backgroundColor: c.surface, borderRadius: 16,

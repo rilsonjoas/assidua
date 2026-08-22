@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
 import { User } from '../services/auth';
+import { setAuthToken } from '../services/tokenStorage';
 
 // Achado real (2026-08-14): `WebBrowser.openAuthSessionAsync` (usado em
 // `services/auth.ts`) deveria interceptar o redirect do Google antes dele
@@ -42,7 +42,7 @@ export default function AuthCallback() {
     }
 
     (async () => {
-      await SecureStore.setItemAsync('auth_token', params.token as string);
+      await setAuthToken(params.token as string);
       const user: User = {
         id: Number(params.id),
         name: params.name ?? '',
