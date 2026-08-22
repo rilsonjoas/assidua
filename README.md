@@ -361,8 +361,10 @@ Construindo por etapas, cada uma testada e revisada antes da próxima:
       certo, "Todos" reseta, linha de filtro não aparece pra perfil sem
       medicamento cadastrado. 143/143 backend (sem mudança), 37/37
       mobile
-- [ ] **Acessibilidade de leitura** (registrado 2026-08-10, não
-      implementado) — público do app puxa forte pra idoso/baixa visão
+- [x] **Acessibilidade de leitura — seletor de fonte no app** (registrado
+      2026-08-10, **implementado 2026-08-14**, ver seção "Tamanho da
+      fonte" abaixo; falta só o teste manual real com TalkBack/VoiceOver
+      em aparelho) — público do app puxa forte pra idoso/baixa visão
       (é sobre saúde), e muita gente nessa faixa não sabe achar a
       configuração de fonte grande do sistema operacional, mesmo o app
       já respeitando ela hoje (`allowFontScaling` nunca foi bloqueado,
