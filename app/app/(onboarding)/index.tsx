@@ -89,7 +89,7 @@ export default function OnboardingScreen() {
                 precisa ficar exatamente do tamanho da janela pro paging
                 funcionar, mas o CONTEÚDO não deveria esticar até a borda
                 numa tela larga (achado do Rilson, W2). */}
-            <View style={isWide && styles.contentInnerWide}>
+            <View style={[styles.contentInner, isWide && styles.contentInnerWide]}>
               <View style={styles.iconCircle}>
                 <MaterialCommunityIcons name={s.icon} size={56} color={colors.brand} />
               </View>
@@ -134,7 +134,11 @@ function makeStyles(c: ThemeColors) {
     skipText: { color: c.textMuted, fontSize: 14, fontWeight: '600' },
     pager: { flex: 1 },
     content: { alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 },
-    contentInnerWide: { alignItems: 'center', gap: 16, width: '100%', maxWidth: 480 },
+    // Base sempre aplicada (celular E wide) — sem isso, o ícone (largura
+    // fixa) cola na borda esquerda do wrapper em vez de centralizar
+    // (achado do Rilson, regressão da minha própria edição de wide-mode).
+    contentInner: { alignItems: 'center', gap: 16 },
+    contentInnerWide: { width: '100%', maxWidth: 480 },
     iconCircle: {
       width: 112, height: 112, borderRadius: 56, backgroundColor: c.brandSubtle,
       alignItems: 'center', justifyContent: 'center', marginBottom: 8,

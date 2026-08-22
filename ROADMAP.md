@@ -109,6 +109,25 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 
 - [ ] **Versão Web do Meus Remédios** — plano completo na seção abaixo (2026-08-21).
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
+- [ ] **`EXPO_PUBLIC_API_URL` não existe no ambiente `production` do EAS**
+      (achado 2026-08-22, `eas env:list production`) — só tem a chave
+      do RevenueCat. Adicionar ANTES do primeiro `eas build --profile
+      production`, senão repete o mesmo bug do ambiente `preview`
+      (login quebrado por apontar pro domínio errado/vazio).
+
+> [!WARNING] Variáveis do EAS não são tocadas por `git`/find-replace —
+> achado 2026-08-22 durante a renomeação. `eas.json` e `.env` do
+> código foram corrigidos, mas `EXPO_PUBLIC_API_URL` do ambiente
+> `preview` no **painel do EAS** (`eas env:list preview`) continuava
+> `api-remedios.narniano.com` — só é usado por `eas update` (OTA), não
+> por `eas build` (que lê o `env` do `eas.json`). Corrigido com
+> `eas env:update preview --variable-name EXPO_PUBLIC_API_URL --value
+> ...` + novo `eas update` pra recompilar o bundle com o valor certo.
+> Mesma categoria dos achados no `.env` da VPS (`WEB_AUTH_ORIGINS`,
+> `APP_URL`, `GOOGLE_REDIRECT_URI`, `APP_NAME`, `MAIL_FROM_ADDRESS`) —
+> **toda renomeação de projeto precisa varrer configuração fora do
+> git**: `.env` de servidor E variáveis de ambiente do EAS/CI, não só
+> o código.
 
 #### Rascunho do formulário "Data Safety" (pré-preenchido 2026-08-22, sem depender da conta paga)
 
@@ -484,6 +503,13 @@ porta de entrada.
       2026-08-22: causa era `width: '48%'` fixo (pensado pra grade 2x2
       do celular) nunca liberado em wide; `languageBtnWide` troca pra
       `flex: 1` como os outros seletores quando `isWide`.
+- [ ] **Alert de erro feio, não combina com o resto do design** (achado
+      do Rilson, 2026-08-22, testando envio de link/login) — `showAlert`
+      usa `window.alert()` cru na web (`Alert.alert` nativo no mobile),
+      sem nenhum estilo do app. Já existe `ConfirmDialog` estilizado e
+      cross-platform pra confirmações sim/não; vale estender esse mesmo
+      padrão pra alertas simples de erro/info em vez do alert do
+      navegador/SO.
 - [ ] **Botão "Baixar o app" no site** — só DEPOIS da publicação na Play
       Store (L0): badge/link do Google Play no rodapé e/ou navbar web.
       Antes disso seria botão morto. Pedir pro Rilson lembrar ao fechar
