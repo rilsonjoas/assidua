@@ -41,6 +41,11 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/api/auth/google/callback'),
     ],
 
+    // Web (W1, 2026-08-22) — origens autorizadas a receber redirect com
+    // token no browser, separadas por vírgula. Produção:
+    // https://meusremedios.narniano.com
+    'web_auth_origins' => env('WEB_AUTH_ORIGINS', ''),
+
     'revenuecat' => [
         // Valor definido em Project Settings → Integrations → Webhooks no
         // dashboard do RevenueCat, enviado de volta como header

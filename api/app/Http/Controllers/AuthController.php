@@ -29,6 +29,16 @@ class AuthController extends Controller
         $data = $request->validate([
             'email' => 'required|email',
             'name' => 'nullable|string|max:255',
+            // Web (W1, 2026-08-22): origem do SPA pra o link de e-mail
+            // voltar pra /auth-callback no browser em vez do scheme
+            // nativo. Validado contra allowlist AQUI e DE NOVO no
+            // redirect — sem isso, quem pede um link pro e-mail de
+            // outra pessoa escolheria pra onde o token dela vai.
+            'redirect_origin' => ['nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! in_array($value, self::allowedWebOrigins(), true)) {
+                    $fail('Origem de redirect não autorizada.');
+                }
+            }],
         ]);
 
         $user = User::where('email', $data['email'])->first();
@@ -67,9 +77,20 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(15),
         ]);
 
-        Mail::to($user->email)->send(new MagicLinkMail($user, $plainToken));
+        Mail::to($user->email)->send(new MagicLinkMail($user, $plainToken, $data['redirect_origin'] ?? null));
 
         return response()->json(['message' => 'Link de acesso enviado pro seu e-mail.']);
+    }
+
+    // Allowlist de origens web autorizadas a receber o redirect do link
+    // de acesso (e futuramente outros fluxos que devolvem token pro
+    // browser). Config em WEB_AUTH_ORIGINS, separada por vírgula.
+    public static function allowedWebOrigins(): array
+    {
+        return array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) config('services.web_auth_origins')),
+        )));
     }
 
     // GET porque é o destino de um clique em link de e-mail, não de uma
@@ -79,7 +100,14 @@ class AuthController extends Controller
     // pela mesma tela (auth-callback.tsx).
     public function magicLinkRedirect(Request $request): mixed
     {
-        $data = $request->validate(['token' => 'required|string']);
+        $data = $request->validate([
+            'token' => 'required|string',
+            'origin' => ['nullable', 'string', function (string $attribute, mixed $value, \Closure $fail) {
+                if (! in_array($value, self::allowedWebOrigins(), true)) {
+                    $fail('Origem de redirect não autorizada.');
+                }
+            }],
+        ]);
 
         $link = LoginLink::where('token_hash', hash('sha256', $data['token']))
             ->whereNull('used_at')
@@ -96,13 +124,23 @@ class AuthController extends Controller
         $user->tokens()->delete();
         $token = $user->createToken('mobile')->plainTextToken;
 
-        return redirect('meusremedios://auth-callback?'.http_build_query([
+        // Mesmo contrato de params do deep link nativo — a rota
+        // /auth-callback do SPA (e a tela nativa) consomem os dois iguais.
+        $query = http_build_query([
             'token' => $token,
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'subscription_tier' => $user->subscription_tier ?? 'free',
-        ]));
+        ]);
+
+        // Web: origem veio no link do e-mail (validada na criação E aqui,
+        // contra a mesma allowlist). Nativo: scheme do app, como sempre.
+        if (! empty($data['origin'])) {
+            return redirect(rtrim($data['origin'], '/').'/auth-callback?'.$query);
+        }
+
+        return redirect('meusremedios://auth-callback?'.$query);
     }
 
     public function logout(Request $request): JsonResponse
