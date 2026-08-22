@@ -105,15 +105,20 @@ chaves pública e privada geradas. Estado verificado no código:
       canal preview logo em seguida (update group
       `2e4c2b2d-edfa-45cf-9c60-c7f409179bc3`) — sem isso o bundle não
       embute a chave.
-- [ ] **Webhook ainda não configurado de verdade**: falta criar o
-      webhook no dashboard RevenueCat (Integrations → Webhooks)
-      apontando pra `https://api-remedios.narniano.com/webhooks/revenuecat`,
-      copiar o valor do header `Authorization` que o RC gera e setar o
-      MESMO valor em `REVENUECAT_WEBHOOK_SECRET` no `.env` do VPS.
-      ⚠️ No VPS, depois de editar o `.env`: `docker compose up -d
-      --force-recreate` (restart simples NÃO recarrega env_file —
-      lição já registrada no hetzner-infra/README.md). Validar com o
-      "send test event" do dashboard.
+- [ ] **Webhook ainda não configurado de verdade**: criar o webhook no
+      dashboard RevenueCat (Integrations → Webhooks) apontando pra
+      `https://api-remedios.narniano.com/webhooks/revenuecat`.
+      ⚠️ O campo "Authorization header value" NÃO é gerado pelo RC —
+      quem cria o segredo é VOCÊ (`openssl rand -hex 32`), colado cru
+      (sem "Bearer") nos DOIS lados: no campo do RC e em
+      `REVENUECAT_WEBHOOK_SECRET` no `.env` do VPS. O backend compara o
+      header exato, sem strip de prefixo
+      (RevenueCatWebhookController.php). ⚠️ No VPS, depois de editar o
+      `.env`: `docker compose up -d --force-recreate` (restart simples
+      NÃO recarrega env_file — lição já registrada no
+      hetzner-infra/README.md). Validar com o "send test event" do
+      dashboard. HMAC fica desabilitado (o backend autentica pelo
+      header; HMAC seria melhoria futura).
 - [ ] **Estrutura de entitlement/produto**: criar entitlement `pro` +
       convenção de IDs (`meus_remedios_pro_mensal` / `_anual`) no
       dashboard AGORA; os produtos reais da Play só nascem pós-L0, mas
