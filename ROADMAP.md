@@ -139,7 +139,7 @@ chaves pública e privada geradas. Estado verificado no código:
 - [ ] **Compra sandbox real** — bloqueada pela L0 (produto na Play +
       teste interno). Último passo do fluxo.
 
-### ⚖️ Conformidade — Políticas da Play Store + LGPD (registrado 2026-08-21)
+### ⚖️ Conformidade — Políticas da Play Store + LGPD (auditada 2026-08-22)
 
 > Pedido do Rilson: "nem sei se o app está de acordo com as políticas
 > de uso e LGPD". Auditoria dedicada ANTES de submeter à Play (L0),
@@ -151,39 +151,51 @@ chaves pública e privada geradas. Estado verificado no código:
 transacionais) usa **meusremedios@narniano.com** — nunca e-mail
 pessoal.
 
-- [ ] **Permissões Android declaradas vs. justificáveis** — `app.json`
-      declara `RECORD_AUDIO` (microfone!) num app de lembrete de
-      remédio: ou tem uso real documentável ou REMOVER (provavelmente
-      sobrou de algum módulo). Revisar também NOTIFICATIONS,
-      RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM (esses três têm
-      justificativa clara: lembretes). Permissão injustificada é motivo
-      clássico de rejeição.
-- [ ] **Formulário Data Safety da Play** — já listado no L0; preencher
-      com o que a política de privacidade REALMENTE diz (nome, e-mail,
-      dados de tratamento, foto opcional; backend próprio, não
-      terceiros além Sentry/RevenueCat/Resend).
-- [ ] **Política Health Apps da Play** — apps de medicação caem sob
-      política específica de saúde do Google Play: checar exigências de
-      disclosure na primeira abertura e restrições de publicidade
-      (relevante pro AdMob futuro: anúncio em tela de dose é
-      permanentemente vetado por decisão própria, mas a política
-      reforça).
-- [ ] **LGPD art. 11 — base legal do dado sensível**: política atual
-      fala em consentimento; conferir se o texto cobre explicitamente
-      dado de saúde (tratamento/horários) e a hipótese de tutela da
-      saúde. Ajustar texto se preciso.
-- [ ] **LGPD portabilidade (art. 18, V)** — hoje não há exportação de
-      dados pelo usuário (só exclusão). Item já mapeado como feature
-      Pro (PDF); avaliar exportação simples em JSON independente de
-      pagamento — barato e elimina risco reputacional.
-- [ ] **Transferência internacional** — VPS Hetzner fica na UE: dados
-      de brasileiros saem do país. LGPD permite, mas exige garantias
-      (art. 33); conferir se a política menciona isso e se o contrato
-      Hetzner/SCC cobre. Documentar decisão.
-- [x] **Canal de contato único** — política de privacidade e remetente
-      do magic link já usam `meusremedios@narniano.com` (commit
-      `d1d28cb`). Regra permanente registrada no CLAUDE.md: TODO lugar
-      que citar contato usa esse endereço.
+- [x] **Permissões Android** — achado real: `RECORD_AUDIO` (microfone!)
+      declarado num app de lembrete de remédio, zero uso no código,
+      zero pacote de áudio instalado. Removida de `app.json`
+      (commit `9e4ec81` era a política; remoção da permissão no commit
+      seguinte). Vale lembrar: permissão sai do APK só no PRÓXIMO BUILD
+      (eas update não muda manifest) — como não existe build de
+      produção ainda, o primeiro AAB já nasce limpo. As 3 restantes
+      têm justificativa direta (NOTIFICATIONS/RECEIVE_BOOT_COMPLETED/
+      SCHEDULE_EXACT_ALARM = lembretes).
+- [x] **Política de privacidade auditada e corrigida ao vivo**
+      (`9e4ec81`, deploy confirmado): faltavam disclosure de 4
+      processadores reais (Resend/e-mail, Expo/push, RevenueCat/
+      assinaturas, Hetzner por nome) + transferência internacional
+      (servidor na UE → art. 33 LGPD) + retenção honesta dos backups
+      ("exclusão definitiva" convivia com dumps diários de 14 dias sem
+      dizer isso). Tudo escrito; página servindo a versão nova.
+- [x] **Base legal do dado sensível (art. 11)** — já correta desde
+      antes: consentimento explícito na criação da conta, retirável
+      excluindo a conta (seção 7 da política).
+- [x] **Portabilidade de dados (art. 18, V) — IMPLEMENTADA** (era
+      "só por e-mail"): `POST /me/export-link` gera URL assinada de
+      10 min; download JSON completo (conta, perfis próprios,
+      medicamentos, horários, estoque, histórico de doses; perfis
+      compartilhados só como referência). Botão "Exportar meus dados"
+      em Perfis. 5 testes novos no backend (auth obrigatória, id
+      trocado → 403, sem assinatura → 403, isolamento entre usuários).
+- [x] **Termos de Uso** — página `/termos` no backend + link no
+      cadastro ("Política de Privacidade e Termos de Uso"). Com o
+      disclaimer de saúde exigido pela política Health Apps da Play:
+      app é organizador, NÃO dispositivo médico, não substitui
+      orientação profissional, nunca decidir medicação pelo app.
+      Checagem: nenhum claim médico nos textos do app (grep i18n).
+- [x] **Data safety form pré-mapeado** — tabela pronta no README (L0)
+      pra colar na Play Console quando chegar a hora.
+- [ ] **Revisão manual TalkBack/VoiceOver** em aparelho físico (P7) —
+      único item de acessibilidade que não dá pra automatizar.
+- [ ] **Teste fechado L0**: 12 testadores / 14 dias (bloqueado pela
+      conta Google Play).
+
+> ⚠️ Nota de ambiente (2026-08-22): rodar a suíte backend no container
+> avulso `laravelsail/php84-composer` falha em 6 casos do
+> MedicationPhotoTest com "GD extension is not installed" — a imagem
+> não tem GD, exigida por `UploadedFile::fake()->image()`. NÃO é
+> regressão (nenhum código de foto tocado); rodar os testes pelo Sail,
+> que tem GD.
 
 ---
 

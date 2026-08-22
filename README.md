@@ -1424,7 +1424,28 @@ real (decisão de 2026-08-09, ver Fase 1.5 acima).
       por 14 dias** antes de liberar produção pra conta de desenvolvedor
       nova — não dá pra pular, planejar esse tempo
 - [ ] **Formulário "Data safety"** no Play Console — declarar coleta de
-      dado de saúde, passa por revisão mais rigorosa que app comum
+      dado de saúde, passa por revisão mais rigorosa que app comum.
+      **Mapeamento pronto abaixo** (auditoria 2026-08-22) — copiar ao
+      preencher:
+
+      | Pergunta do formulário | Resposta |
+      |---|---|
+      | O app coleta ou compartilha algum dado? | **Sim** |
+      | Nome e e-mail (dados de conta) | Coletados · não compartilhados · opcional |
+      | Info de saúde (medicamentos, doses, horários) | **Coletados** · não compartilhados · opcional (usuário digita) |
+      | Foto do medicamento | Coletada · não compartilhada · opcional |
+      | Dados de assinatura (status Pro) | Coletados via RevenueCat · não compartilhados com terceiros fora a loja |
+      | Identificador de dispositivo (push token) | Coletado · não compartilhado · necessário p/ lembretes |
+      | Senha | Nunca em texto puro (bcrypt); Google OAuth quando aplicável |
+      | Os dados são criptografados em trânsito? | **Sim** (HTTPS/TLS obrigatório) |
+      | Existe forma de o usuário pedir exclusão? | **Sim**, dentro do app (Perfis → Excluir conta) + exportação JSON (LGPD art. 18) |
+      | URL da política de privacidade | https://api-remedios.narniano.com/privacidade |
+      | Termos de uso | https://api-remedios.narniano.com/termos |
+
+      ⚠️ Declarar info de saúde ativa a **revisão de saúde do Google**
+      adicional: responder que o app é ferramenta de organização
+      pessoal, SEM diagnóstico/tratamento/prescrição (disclaimer
+      permanente no primeiro uso já previsto nos Termos, seção ⚠️).
 - [ ] `eas build --profile production` + `eas submit` — nunca rodado
 - [x] **Fase 1 completa** (2026-08-09) — os 7 itens que, segundo o
       próprio roadmap, "se faltarem, o usuário desinstala" (corrigir
