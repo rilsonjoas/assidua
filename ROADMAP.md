@@ -118,10 +118,24 @@ chaves pública e privada geradas. Estado verificado no código:
       (rota mora em routes/api.php; sem o prefixo dá 404 silencioso).
       HMAC fica desabilitado (o backend autentica pelo header; HMAC
       seria melhoria futura).
-- [ ] **Estrutura de entitlement/produto**: criar entitlement `pro` +
-      convenção de IDs (`meus_remedios_pro_mensal` / `_anual`) no
-      dashboard AGORA; os produtos reais da Play só nascem pós-L0, mas
-      os IDs têm que bater exato — decidir antes de criar lá.
+- [x] **Entitlement criado** (2026-08-22): `pro` ("Meus Remédios Pro") é
+      o identifier oficial pra produtos reais pós-L0. DECISÃO: o antigo
+      `meus_remédios_pro` (com acento, criado antes) fica como está,
+      preso aos 3 produtos da Test Store — não afeta produção porque o
+      backend concede Pro pelo TIPO do evento, nunca pelo entitlement_id
+      (conferido no código e nos 9 testes), e o client só usa offerings.
+      Deletar exigiria desanexar produto a produto; custo > benefício.
+      Post-L0: produtos reais (`meus_remedios_pro_mensal` / `_anual`)
+      nascem anexados ao `pro`.
+- [x] **Webhook ENTREGA CONFIRMADA pelo RC** (2026-08-21/22): primeiro
+      test event deu 404 — o Rilson tinha colocado o `/api` NO FIM da
+      URL (`/webhooks/revenuecat/api`, visto no access log); corrigido
+      pra `/api/webhooks/revenuecat` → 200 com `{"status":"ignored"}`
+      (evento TEST + UUID ignorado com graça = comportamento correto).
+      Validado dos dois lados: curl manual E delivery real do RC
+      (`"POST /api/webhooks/revenuecat" 200 "-" "RevenueCat"` no access
+      log do container). Secret idêntico nos dois lados, HMAC
+      desabilitado de propósito.
 - [ ] **Compra sandbox real** — bloqueada pela L0 (produto na Play +
       teste interno). Último passo do fluxo.
 
