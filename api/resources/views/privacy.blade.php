@@ -30,7 +30,7 @@
 </head>
 <body>
     <h1>Política de Privacidade</h1>
-    <p class="updated">Meus Remédios · Última atualização: 14 de agosto de 2026</p>
+    <p class="updated">Meus Remédios · Última atualização: 22 de agosto de 2026</p>
 
     <p>
         Esta política explica quais dados o aplicativo <strong>Meus Remédios</strong> coleta, como eles são usados
@@ -48,14 +48,16 @@
         <li><strong>Dados de conta:</strong> nome, e-mail e senha (armazenada com hash, nunca em texto puro) ou, se você entrar com Google, seu identificador e avatar do Google.</li>
         <li><strong>Dados de saúde inseridos por você:</strong> nomes de medicamentos, dosagens, horários e histórico de doses tomadas, puladas ou perdidas. Esses dados são sensíveis e tratados com cuidado adicional — veja a seção 6.</li>
         <li><strong>Dados técnicos:</strong> token de notificação do dispositivo, usado apenas para enviar lembretes de doses.</li>
+        <li><strong>Dados de assinatura (se você assinar o plano Pro):</strong> status e validade da assinatura, processados pelo Google Play e pelo RevenueCat. Não recebemos dados de pagamento — quem processa o pagamento é a loja.</li>
     </ul>
 
     <h2>3. Para que usamos esses dados</h2>
     <ul>
         <li>Calcular e exibir as doses do dia de cada perfil de paciente cadastrado.</li>
-        <li>Enviar notificações locais de lembrete de horário de medicação.</li>
+        <li>Enviar notificações locais e push de lembrete de horário de medicação.</li>
         <li>Calcular estatísticas de adesão ao tratamento e manter o histórico.</li>
         <li>Autenticar seu acesso à conta.</li>
+        <li>Controlar os benefícios da assinatura Pro, quando existente.</li>
     </ul>
     <p>Não usamos seus dados de saúde para publicidade, treinamento de modelos de IA, nem os vendemos a terceiros.</p>
 
@@ -65,9 +67,12 @@
         o serviço:
     </p>
     <ul>
-        <li>O provedor de hospedagem do servidor.</li>
-        <li>Se você optar por entrar com Google, o próprio Google (apenas para autenticação — não temos acesso à sua senha do Google).</li>
-        <li>Sentry (Functional Software, Inc., sediada nos EUA), usado apenas para registrar erros técnicos do app e do servidor e nos ajudar a corrigi-los. Não configuramos o Sentry para coletar dados de saúde — ele recebe informações técnicas do erro (tipo de falha, tela, versão do app), não o conteúdo de medicamentos ou doses.</li>
+        <li><strong>Hetzner</strong> (provedor de hospedagem do servidor, com data centers na Alemanha/União Europeia). Como o servidor fica fora do Brasil, seus dados estão sujeitos também às proteções do GDPR europeu — a transferência internacional é feita nos termos permitidos pela LGPD (art. 33).</li>
+        <li><strong>Google</strong>, se você optar por entrar com Google (apenas para autenticação — não temos acesso à sua senha do Google).</li>
+        <li><strong>Sentry</strong> (Functional Software, Inc., sediada nos EUA), usado apenas para registrar erros técnicos do app e do servidor e nos ajudar a corrigi-los. Não configuramos o Sentry para coletar dados de saúde — ele recebe informações técnicas do erro (tipo de falha, tela, versão do app), não o conteúdo de medicamentos ou doses.</li>
+        <li><strong>Resend</strong> (provedor de envio de e-mail), usado apenas para enviar e-mails transacionais nossos para você — como o link de acesso à conta. Não usamos seu e-mail para marketing.</li>
+        <li><strong>Expo</strong> (serviço de entrega das notificações push), usado apenas para entregar os lembretes de doses no seu dispositivo.</li>
+        <li><strong>RevenueCat</strong>, caso você assine o plano Pro: recebe o status das compras feitas via Google Play para mantermos seus benefícios ativos. Não recebe o conteúdo dos seus dados de saúde.</li>
     </ul>
 
     <h2>5. Armazenamento e segurança</h2>
@@ -75,6 +80,11 @@
         Os dados ficam armazenados em banco de dados protegido, acessível apenas pela aplicação. Senhas são
         armazenadas com hash (bcrypt) e o acesso à API é feito por token de autenticação pessoal, que pode ser
         revogado a qualquer momento ao sair da conta.
+    </p>
+    <p>
+        Mantemos cópias de segurança automáticas do banco de dados por um período limitado (até 14 dias). Isso
+        significa que, após você excluir sua conta, resíduos dos seus dados podem permanecer nessas cópias até elas
+        serem substituídas automaticamente ao fim desse período — sem que ninguém os acesse nesse intervalo.
     </p>
 
     <div class="box">
@@ -86,8 +96,8 @@
             <li>
                 <strong>Excluir permanentemente sua conta</strong> e todos os dados associados (perfis, medicamentos,
                 horários e histórico de doses), na tela <em>Perfis → Excluir conta</em>. A exclusão é imediata e
-                definitiva — não guardamos cópia dos dados depois de excluídos, exceto quando a lei exigir retenção
-                por período determinado.
+                definitiva no banco de dados ativo; resíduos em cópias de segurança são eliminados automaticamente
+                quando as cópias expiram (seção 5).
             </li>
         </ul>
     </div>
@@ -105,7 +115,9 @@
         pessoa) — quem inserir esse código no app passa a ver e registrar doses daquele perfil também. Isso só
         acontece se o dono decidir gerar e compartilhar o convite — nunca automaticamente — e o acesso concedido
         pode ser revogado a qualquer momento removendo o cuidador na tela de Perfis. Como o código funciona pra quem
-        o inserir primeiro, envie-o só pra quem você realmente pretende dar acesso.
+        o inserir primeiro, envie-o só pra quem você realmente pretende dar acesso. Perfis de crianças ou pessoas
+        sob seus cuidados devem ser criados por pais, mães ou responsáveis legais, que respondem pelo uso do app em
+        nome delas.
     </p>
 
     <h2>8. Alterações nesta política</h2>
