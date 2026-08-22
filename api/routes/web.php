@@ -7,3 +7,4 @@ Route::get('/', function () {
 });
 
 Route::view('/privacidade', 'privacy');
+Route::view('/termos', 'terms');

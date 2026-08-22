@@ -49,7 +49,9 @@
     "errorGoogle": "Erro ao entrar com Google.",
     "sentTitle": "Quase lá!",
     "sentSubtitle": "Enviamos um link de acesso pro seu e-mail. Toque nele para confirmar sua conta.",
-    "sentBack": "Usar outro e-mail"
+    "sentBack": "Usar outro e-mail",
+    "termsJoin": "e nossos",
+    "termsLink": "Termos de Uso"
   },
   "onboarding": {
     "skip": "Pular",
@@ -202,7 +204,11 @@
     "deletePermanently": "Excluir permanentemente",
     "deleting": "Excluindo...",
     "errorDelete": "Não foi possível excluir a conta.",
-    "version": "Versão {{version}}"
+    "version": "Versão {{version}}",
+    "exportData": "Exportar meus dados",
+    "exportHint": "Baixa uma cópia em JSON de tudo que você cadastrou",
+    "exportLoading": "Gerando arquivo...",
+    "exportError": "Não foi possível gerar a exportação. Tente de novo."
   },
   "pro": {
     "headerTitle": "Plano Pro",

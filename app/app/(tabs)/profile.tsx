@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Linking,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
@@ -109,6 +110,23 @@ export default function ProfileScreen() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeemingLoading, setRedeemingLoading] = useState(false);
+
+  // LGPD art. 18 (portabilidade, 2026-08-22) — pede ao backend uma URL
+  // assinada de curta duração e abre no navegador do dispositivo, que
+  // baixa o JSON como anexo. Sem módulos nativos novos (Linking já vem
+  // com o RN): instalar expo-file-system/Sharing exigiria build novo.
+  const [exporting, setExporting] = useState(false);
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const { data } = await api.post('/me/export-link');
+      await Linking.openURL(data.url);
+    } catch (err: any) {
+      showAlert(t('common.error'), t('profile.exportError'));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function refetchProfiles() {
     api.get('/profiles').then(({ data }) => setProfiles(data));
@@ -550,6 +568,31 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
+      {/* Exportar meus dados (LGPD art. 18, 2026-08-22) — portabilidade
+          de verdade, independente de plano pago. Mesma UI do botão de
+          Ajuda; hint explica o que sai no arquivo. */}
+      <TouchableOpacity
+        style={styles.helpBtn}
+        onPress={handleExport}
+        disabled={exporting}
+        accessibilityRole="button"
+        accessibilityLabel={`${t('profile.exportData')}. ${t('profile.exportHint')}`}
+        accessibilityState={{ busy: exporting }}
+      >
+        <MaterialCommunityIcons
+          name={exporting ? 'loading' : 'download-outline'}
+          size={20}
+          color={colors.textSecondary}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.helpBtnText}>
+            {exporting ? t('profile.exportLoading') : t('profile.exportData')}
+          </Text>
+          {!exporting && <Text style={styles.exportHint}>{t('profile.exportHint')}</Text>}
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+      </TouchableOpacity>
+
       {/* Logout */}
       <TouchableOpacity
         style={styles.logoutBtn}
@@ -750,6 +793,7 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1, borderColor: c.border,
     },
     helpBtnText: { flex: 1, color: c.text, fontWeight: '600', fontSize: 15 },
+    exportHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     logoutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
       gap: 6, padding: 14, marginTop: 8,

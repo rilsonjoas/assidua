@@ -49,7 +49,9 @@
     "errorGoogle": "Error al entrar con Google.",
     "sentTitle": "¡Casi listo!",
     "sentSubtitle": "Enviamos un enlace de acceso a tu correo. Tócalo para confirmar tu cuenta.",
-    "sentBack": "Usar otro correo"
+    "sentBack": "Usar otro correo",
+    "termsJoin": "y nuestros",
+    "termsLink": "Términos de Uso"
   },
   "onboarding": {
     "skip": "Saltar",
@@ -202,7 +204,11 @@
     "deletePermanently": "Eliminar permanentemente",
     "deleting": "Eliminando...",
     "errorDelete": "No se pudo eliminar la cuenta.",
-    "version": "Versión {{version}}"
+    "version": "Versión {{version}}",
+    "exportData": "Exportar mis datos",
+    "exportHint": "Descarga una copia en JSON de todo lo que registraste",
+    "exportLoading": "Generando archivo...",
+    "exportError": "No se pudo generar la exportación. Inténtalo de nuevo."
   },
   "pro": {
     "headerTitle": "Plan Pro",

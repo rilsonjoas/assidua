@@ -21,6 +21,7 @@ import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
 
 const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/privacidade`;
+const TERMS_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/termos`;
 
 export default function RegisterScreen() {
   const { t } = useTranslation();
@@ -145,6 +146,10 @@ export default function RegisterScreen() {
           {t('register.privacyPrefix')}{' '}
           <Text style={styles.privacyLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
             {t('register.privacyLink')}
+          </Text>{' '}
+          {t('register.termsJoin')}{' '}
+          <Text style={styles.privacyLink} onPress={() => Linking.openURL(TERMS_URL)}>
+            {t('register.termsLink')}
           </Text>
           .
         </Text>

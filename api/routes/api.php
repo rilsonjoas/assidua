@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DataExportController;
 use App\Http\Controllers\DoseLogController;
 use App\Http\Controllers\DoseScheduleController;
 use App\Http\Controllers\MedicationController;
@@ -19,6 +20,14 @@ use Illuminate\Support\Facades\Route;
 // mais que isso.
 Route::post('/webhooks/revenuecat', [RevenueCatWebhookController::class, 'handle'])->middleware('throttle:60,1');
 
+// LGPD art. 18 (portabilidade) — download em si é público MAS protegido
+// por URL assinada de curta duração gerada pelo endpoint autenticado
+// abaixo. O id do usuário faz parte da assinatura: alterá-lo na query
+// invalida a URL (403). Ver DataExportController.
+Route::get('/me/export', [DataExportController::class, 'download'])
+    ->name('me.export')
+    ->middleware('signed');
+
 Route::prefix('auth')->group(function () {
     Route::post('/magic-link', [AuthController::class, 'requestMagicLink'])->middleware('throttle:magic-link');
     // Sem throttle nomeado: token de 64 bytes já é inadivinhável, isto é
@@ -32,6 +41,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::delete('/auth/account', [AuthController::class, 'destroyAccount']);
+
+    // LGPD art. 18 (portabilidade) — gera a URL assinada de download.
+    Route::post('/me/export-link', [DataExportController::class, 'link']);
 
     Route::apiResource('profiles', ProfileController::class);
 
