@@ -18,6 +18,36 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # ── Web (W1, 2026-08-22): build da SPA no runner + publicação no
+      # VPS antes do rebuild dos containers. API_URL de produção é
+      # embutida aqui via env — NUNCA confiar no .env local.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build web (expo export)
+        working-directory: app
+        env:
+          EXPO_PUBLIC_API_URL: https://api-remedios.narniano.com/api
+        run: |
+          npm ci --legacy-peer-deps
+          npx expo export --platform web
+
+      - name: Empacotar dist
+        run: tar -czf /tmp/web-dist.tar.gz -C app/dist .
+
+      - name: Publicar web no VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: /tmp/web-dist.tar.gz
+          target: /tmp
+
       - name: Deploy no VPS (git pull + rebuild)
         uses: appleboy/ssh-action@v1
         with:
@@ -27,7 +57,11 @@ jobs:
           script: |
             cd /opt/meus-remedios
             git pull --ff-only origin main
+            mkdir -p /opt/meus-remedios/web
+            rm -rf /opt/meus-remedios/web/*
+            tar xzf /tmp/web-dist.tar.gz -C /opt/meus-remedios/web && rm /tmp/web-dist.tar.gz
             cd ~/hetzner-infra
+            git pull --ff-only origin main || true
             make deploy service=meus-remedios
 
       - name: Smoke test
@@ -37,6 +71,11 @@ jobs:
           # Retry de verdade: até 10 tentativas, 3s entre elas.
           for i in $(seq 1 10); do
             curl -sf -o /dev/null https://api-remedios.narniano.com/ && break
+            [ "$i" -eq 10 ] && exit 1
+            sleep 3
+          done
+          for i in $(seq 1 10); do
+            curl -sf -o /dev/null https://meusremedios.narniano.com/ && break
             [ "$i" -eq 10 ] && exit 1
             sleep 3
           done

@@ -263,8 +263,10 @@ negócio de doses/schedules que já mora no backend.
 - **W1 — MVP "companheira do cuidador" (~1 semana):** Hoje (marcar/
   pular/desfazer), Histórico, Estoque, login (Google OAuth com redirect
   URIs web novas no GCloud + magic link), layout responsivo, deploy
-  estático no VPS (`web-remedios.narniano.com`, nginx + Traefik como os
-  outros).
+  estático no VPS (`meusremedios.narniano.com`, nginx + Traefik como os
+  outros). **Domínio decidido pelo Rilson em 2026-08-22**: o produto é
+  standalone e NÃO entra no cluster "A Biblioteca" (nicho diferente) —
+  subdomínio próprio do nome do app.
 - **W2 — Paridade útil:** cadastro/edição completa de medicamento (formulário
   longo rende muito mais no desktop), convite de cuidador por deep link
   (`?code=XXXX`), PWA instalável (manifest + service worker).
@@ -272,9 +274,183 @@ negócio de doses/schedules que já mora no backend.
   push por servidor que já existe (cron Laravel já dispara; adiciona-se
   destino web). Só depois de destravar L0/L1 mobile.
 
+### ✅ W0 executado — GO (2026-08-22)
+
+Spike compilou de primeira. Métrica de decisão (% adaptado vs.
+duplicado): **zero telas duplicadas** — a web reusa as 9 telas, tema
+WCAG-AA, componentes, stores, services e i18n intactos. O custo inteiro
+foi 3 shims + 2 pequenos guards.
+
+- **Deps** (`expo install`, versões do SDK): `react-dom@19.2.3`,
+  `react-native-web@^0.21.2`, `@expo/metro-runtime@~56.0.20`
+- **Mecanismo**: extensões `.web.ts` do Metro — assinaturas idênticas
+  às dos módulos nativos, nenhuma tela importou coisa nova:
+  - `services/offlineQueue.web.ts` — web v1 ONLINE-ONLY: fila sempre
+    vazia, `drainQueue` vira no-op natural e marcar dose offline falha
+    visivelmente (erro de rede na tela) em vez de silenciar
+  - `services/purchases.web.ts` — flag off estrutural:
+    `getCurrentOffering()` null → pro.tsx mostra "em breve" com o ramo
+    de UI que JÁ existe; tipos locais estruturais (pro.tsx só usa tipos,
+    que somem no bundle)
+  - `services/notifications.web.ts` — no-op honesto:
+    `requestNotificationPermission()` false = telas tratam como "sem
+    permissão"; lembretes locais não existem no browser, Web Push é W3
+- **Guards**: `app/_layout.tsx` roda `Sentry.init/wrap` só no nativo
+  (`@sentry/react` web é decisão pós-spike); `app.json` ganhou
+  `web.output: "single"` (SPA atrás do nginx estático)
+- **O que funcionou SEM tocar**: expo-secure-store (web usa localStorage),
+  NetInfo, expo-haptics (no-op embutido), expo-image-picker (vira file
+  picker), expo-auth-session (web é o habitat nativo dele)
+- **Validação**: `expo export --platform web` OK (bundle 4.2MB) ·
+  `tsc --noEmit` limpo · 145/145 testes mobile passando (shims não
+  afetam resolução nativa) · `dist/` servida com HTTP 200
+- **Confirmado FORA do bundle web**: `expo-sqlite` e
+  `react-native-purchases`
+
+### 🔍 Primeiro teste real da web — 3 achados corrigidos (2026-08-22)
+
+Rilson rodou `expo start --web` e testou login de verdade. O que
+quebrou, a causa raiz de cada um e o fix:
+
+1. **"Conexão recusada" ao tocar Google** — não era código: o backend
+   dev (`docker compose`/Sail na :80) estava PARADO. Subido, API
+   respondeu 401 certinho. O `.env` aponta pra
+   `http://100.85.29.100/api` (IP Tailscale da própria máquina).
+2. **Magic link sem reação nenhuma na tela** — causa raiz feia e real:
+   `Alert.alert` é NO-OP no react-native-web. Todo erro capturado do
+   app morria silencioso na web, em TODAS as telas (29 call sites).
+   Fix: `lib/alert.ts` com `showAlert()` (web → `window.alert`, nativo →
+   SDK, mensagem ausente NÃO vira '' — os testes fixam aridade 1).
+   Exceção preservada: ActionSheet de foto no `[id].tsx` continua
+   `Alert.alert` com botões no nativo; na web vai DIRETO pra galeria
+   (`<input type=file>`), porque câmera não existe lá.
+3. **Google OAuth web** — `return_url=meusremedios://auth-callback`
+   (custom scheme) não navega no browser. Fix em
+   `services/auth.ts`: branch web usa redirect completo na mesma aba
+   com `return_url = {origin}/auth-callback` — a rota já lia query
+   params desde o achado de 14/08, então o contrato é idêntico ao deep
+   link nativo.
+
+**CORS**: verificado — sem `config/cors.php`, vale o default do Laravel
+(`allowed_origins: *`) e funciona porque o app usa Bearer token sem
+cookies. Pendência de produção: restringir pra
+`https://meusremedios.narniano.com`.
+
+Validação pós-fix: `tsc --noEmit` limpo · 145/145 testes · export OK.
+
+### 🔍 Segunda rodada de testes reais — 4 achados (2026-08-22, tarde)
+
+1. **🔴 Achado GRAVE, além da web: links de magic-link quebrados em
+   TODOS os ambientes** — `url('/auth/magic-link/redirect')` no e-mail
+   monta pela ROOT DA REQUEST quando roda em contexto HTTP (o APP_URL só
+   vale no console), então o link saía SEM o prefixo `/api` da rota →
+   404 ao clicar. Local confirmado com 404; produção provavelmente idem
+   (a rota `/api/auth/magic-link/redirect` responde lá, mas o link do
+   e-mail apontava pra variante sem `/api`). Fix determinístico no
+   `MagicLinkMail`: origem do `APP_URL` (com ou sem sufixo `/api`) +
+   `/api/auth/magic-link/redirect?token=...` explícito. **Se alguém já
+   reclamou de "link de acesso não funciona", era isso.**
+2. **Migrations locais desatualizadas** — tabela `login_links`
+   (14/08) não existia no MySQL do Sail; POST /magic-link estourava
+   500 (virou issue no Sentry). `php artisan migrate --force` resolveu.
+3. **Magic link na web exigia branch próprio** — o redirect hardcoded
+   `meusremedios://` não navega no browser. Implementado com segurança:
+   `WEB_AUTH_ORIGINS` (allowlist no .env/.env.example), SPA manda
+   `redirect_origin` na criação, o link carrega `&origin=` e o
+   `magicLinkRedirect` valida DUAS vezes contra a allowlist antes de
+   mandar pra `{origin}/auth-callback` — sem isso, pedir link pro
+   e-mail alheio seria vetor de roubo de token. Teste ponta-a-ponta
+   local: 302 → `localhost:8081/auth-callback?token=...` ✓
+4. **Armadilha registrada: NÃO colocar sufixo no APP_URL** — feature
+   tests usam `APP_URL` como baseUrl; com `APP_URL=.../api` toda
+   requisição virava `/api/api/...` → 19+2 testes 404 globalmente
+   (custou um debug desnecessário). APP_URL fica origem pura; o e-mail
+   resolve o prefixo sozinho (item 1).
+
+**Pendente de ação externa (Google dev)**: adicionar
+`http://localhost/api/auth/google/callback` às "Authorized redirect
+URIs" do OAuth client no GCloud pro login social funcionar no ambiente
+local (produção já tem o dele). Erro atual: `400 redirect_uri_mismatch`.
+
+### 🎨 Adaptação UI web completa — aprovada pelo Rilson (2026-08-22, noite)
+
+Da crítica "parece mobile esticado" ao aprovado em 4 iterações de uso
+real. Fundação:
+
+- **Breakpoint único**: `hooks/useBreakpoint.ts` (`useIsWideScreen`,
+  ≥768px). Regra de ouro descoberta no processo: **o que faz algo
+  parecer site é a NAVEGAÇÃO, não a largura**.
+- **Shell web das tabs**: `components/WebTopNav.tsx` (navbar full-bleed
+  com marca + links horizontais, estado ativo) substitui a tab bar
+  inferior em telas largas; `(tabs)/_layout.tsx` esconde a tab bar e
+  monta o shell só em `Platform.OS === 'web' && isWide` (nativo/iPad
+  mantém tabs). `<Link asChild>` exige estilo FILHO achatado
+  (`StyleSheet.flatten`) — array estoura erro do `<Slot>`.
+- **Regra de frame**: `_layout.tsx` global só frameia auth/onboarding
+  (coluna 520). Tabs = largura total (navbar full-bleed); telas fora
+  das tabs controlam a própria largura por dentro.
+- **Scroller nativo de site**: container de scroll SEMPRE full-bleed —
+  barra encosta na borda da janela; limitação de largura mora no
+  `contentContainerStyle` (`listWide`/`innerWide`, max 960/720).
+- **Grids 2 colunas** no desktop: Hoje (doses), Remédios, Estoque
+  (`numColumns={isWide?2:1}` + `key` pra remount obrigatório +
+  `columnWrapperStyle`). Histórico/perfil permanecem coluna única
+  centralizada por decisão de leitura.
+- **Fachadas `.web.ts` novas**: `tokenStorage` (localStorage no browser;
+  SecureStore puro-nativo explodiu em runtime no auth-callback) e
+  `lib/alert.ts` (`showAlert` cross-platform; aridade preservada pros
+  testes). ActionSheet de foto continua nativa; na web vai direto pra
+  galeria.
+
+Validação final da sessão: `tsc` limpo · **145/145 mobile · 216/216
+backend** · export OK · aprovado visualmente pelo Rilso nas 9 telas.
+
+**Deploy W1 acoplado nesta sessão**: serviço `remedios-web`
+(nginx:alpine + `web-nginx.conf` SPA fallback) no compose do
+hetzner-infra; workflow Deploy VPS agora constrói a web no runner
+(`EXPO_PUBLIC_API_URL` de produção embutida via env do step) publica
+em `/opt/meus-remedios/web` e sobe os dois serviços. One-time no VPS:
+`WEB_AUTH_ORIGINS` de produção no `.env` da api + pull do
+hetzner-infra (README do infra documenta).
+
 ### Princípio
 
 Web entra como **segunda frente do mesmo produto**, não como projeto
 paralelo: mesma API, mesmas contas, mesmos perfis compartilhados. O que
 não existir na web (push, foto por câmera) degrada com aviso honesto,
 nunca quebra silenciosamente.
+
+---
+
+## Marketing e Distribuição (2026-08-22)
+
+> Tier 1 de monetização ([[Monetização e Saúde dos Projetos]]) merece plano
+> de distribuição à altura. Código não gera usuário sozinho.
+
+### Pré-requisito inegociável
+
+- [ ] **Só divulgar depois do L0 publicado na Play Store** — tráfego pra app indisponível é desperdiçado e queima a primeira impressão. Bloqueio atual: $25 da conta Google Play
+
+### Alavanca central: loop viral embutido no produto
+
+O cuidador remoto exige convite entre contas separadas — cada usuário ativo tem motivo real pra trazer outra pessoa. Nenhum canal externo supera isso.
+
+- KPI principal: % de usuários que enviam convite de cuidador
+- KPI secundário: conversão free → pro (RevenueCat já integrado, entitlement `pro`)
+- Ação: tela pós-convite precisa vender o valor pro CUIDADOR — quem recebe o link decide instalar
+
+### ASO (Play Store), quando L0 sair
+
+- Termos-alvo: "lembrete de remédio", "horário de medicamentos", "app para idosos tomar remédio", "cuidador de idoso", "controle de cartela"
+- Descrição liderando com diferenciais reais vs Medisafe/MyTherapy: cuidador entre contas + push por servidor + offline
+
+### Canais orgânicos (sem orçamento)
+
+1. Grupos de Facebook/WhatsApp de cuidadores de idosos (nicho Alzheimer é grande e carente) — participar como gente, nunca spam; história pessoal ("fiz esse app pra minha família") é o pitch
+2. TikTok/Reels de rotina de cuidado ("como organizo os remédios da minha avó")
+3. Imprensa tech BR / newsletters nacionais — só depois do L0/L1, pra não cobrir app que não dá pra instalar
+4. Reddit r/brasil — história pessoal real, não autopromoção
+
+### Sequência
+
+L0 publicado → teste fechado → produção → ASO polido → 2 canais em ritmo semanal → medir convites/semana → L1 quando houver base crítica.
