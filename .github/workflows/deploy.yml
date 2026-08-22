@@ -60,8 +60,13 @@ jobs:
             mkdir -p /opt/meus-remedios/web
             rm -rf /opt/meus-remedios/web/*
             tar xzf /tmp/web-dist.tar.gz -C /opt/meus-remedios/web && rm /tmp/web-dist.tar.gz
+            # Achado do primeiro deploy web (2026-08-22): o repo de infra
+            # usa branch MASTER (não main) — puxar 'origin main' falhava,
+            # o '|| true' engolia, o compose ficava sem o remedios-web e
+            # o smoke test quebrava. Sem '|| true': infra desatualizada
+            # tem que QUEBRAR o deploy, não passar despercebida.
             cd ~/hetzner-infra
-            git pull --ff-only origin main || true
+            git pull --ff-only origin master
             make deploy service=meus-remedios
 
       - name: Smoke test
