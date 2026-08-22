@@ -126,6 +126,11 @@ chaves pública e privada geradas. Estado verificado no código:
 > porque reprovação na revisão atrasa semanas. Dado de saúde = dado
 > SENSÍVEL no LGPD (art. 11) — barra mais alta que app comum.
 
+**Regra permanente do projeto:** todo lugar que citar contato
+(política de privacidade, ajuda, formulários da Play, e-mails
+transacionais) usa **meusremedios@narniano.com** — nunca e-mail
+pessoal.
+
 - [ ] **Permissões Android declaradas vs. justificáveis** — `app.json`
       declara `RECORD_AUDIO` (microfone!) num app de lembrete de
       remédio: ou tem uso real documentável ou REMOVER (provavelmente
