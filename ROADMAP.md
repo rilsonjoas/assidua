@@ -93,24 +93,26 @@ chaves pública e privada geradas. Estado verificado no código:
       não-renovante, app_user_id desconhecido sem quebrar).
 - [x] Client integra SDK (`services/purchases.ts`), UI Pro trata
       ausência de oferta com "em breve".
-- [x] Chave pública Android existe (colada em `app/.env` local)…
-
-- [ ] **⚠️ CONFERIR a chave** — chaves públicas do Google Play no
-      RevenueCat começam com `goog_`; a colada começa com `test_`.
-      Confirmar no dashboard (API Keys) se é a chave certa da plataforma
-      Google Play ou uma chave de teste — com a chave errada a compra
-      nunca funciona, sem erro óbvio.
-- [ ] **Chave NÃO está no EAS Environment** (`eas env:list --environment
-      preview` só tem API_URL e SENTRY_DSN). `.env` local não vale pra
-      `eas update`/`eas build`. Fazer:
-      `eas env:create --environment preview --name EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`
-      (+ ambiente production quando existir) → republicar `eas update`
-      pra chave chegar ao aparelho.
+- [x] **App Google Play criado no dashboard** (2026-08-21) — achado
+      antes disso: a primeira chave tinha sido copiada de um app
+      **Test Store** (prefixo `test_`, a loja falsa do RC pra testar
+      paywall). Chave certa agora: `goog_Uwier...` (app
+      `app748e094ea7`, URL scheme `rc-748e094ea7` — guardado pra deep
+      link do portal do assinante no futuro).
+- [x] **Chave configurada nos 3 lugares** (2026-08-21): `.env` local +
+      EAS Environment **preview** e **production**
+      (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`). Republicado `eas update`
+      canal preview logo em seguida (update group
+      `2e4c2b2d-edfa-45cf-9c60-c7f409179bc3`) — sem isso o bundle não
+      embute a chave.
 - [ ] **Webhook ainda não configurado de verdade**: falta criar o
-      webhook no dashboard RevenueCat apontando pra
-      `https://api-remedios.narniano.com/webhooks/revenuecat`, gerar o
-      secret lá e setar o MESMO valor em `REVENUECAT_WEBHOOK_SECRET` no
-      `.env` do VPS (não existe nem no `api/.env` local). Validar com o
+      webhook no dashboard RevenueCat (Integrations → Webhooks)
+      apontando pra `https://api-remedios.narniano.com/webhooks/revenuecat`,
+      copiar o valor do header `Authorization` que o RC gera e setar o
+      MESMO valor em `REVENUECAT_WEBHOOK_SECRET` no `.env` do VPS.
+      ⚠️ No VPS, depois de editar o `.env`: `docker compose up -d
+      --force-recreate` (restart simples NÃO recarrega env_file —
+      lição já registrada no hetzner-infra/README.md). Validar com o
       "send test event" do dashboard.
 - [ ] **Estrutura de entitlement/produto**: criar entitlement `pro` +
       convenção de IDs (`meus_remedios_pro_mensal` / `_anual`) no
