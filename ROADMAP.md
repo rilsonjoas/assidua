@@ -465,6 +465,66 @@ em `/opt/meus-remedios/web` e sobe os dois serviços. One-time no VPS:
 `WEB_AUTH_ORIGINS` de produção no `.env` da api + pull do
 hetzner-infra (README do infra documenta).
 
+## ⚖️ PENDENTE CRÍTICO — Marca e nome "Meus Remédios" (decidir ANTES do L0)
+
+> Levantamento 2026-08-22, disparado pelo Rilson ao encontrar produtos
+> homônimos. **Isto não é consultoria jurídica** — é análise técnica de
+> produto + direito autoral básico BR (LPI/INPI). Decisão final de
+> marca merece advogado de PI se for registrar de verdade.
+
+### Fatos levantados
+
+| Produto | Onde | Quem | Desde | Observação |
+|---|---|---|---|---|
+| **"Meus Remedios"** (lembrete de medicamentos) | App Store iOS (id6754898387) | **Elevii** (Talita Ramos dos Santos) | **06/11/2025** | Mesmo público, mesmas features (múltiplos horários, duração, adesão, alto contraste, fonte ajustável). Grátis. |
+| "Meus Remédios" (`com.bmdev.meus_remedios`) | Google Play | bmdev | verificar | Mesmo nome display |
+| "Meu Remédio" (admin) | admin-meuremedio.insix.com.br | insix | verificar | B2B, nome no singular |
+
+**Nosso marco temporal**: scaffold do projeto 28/06/2026, primeiro deploy
+web 22/08/2026 — **~8 meses DEPOIS** da Elevii na App Store, mesmo nicho,
+feature set quase idêntico (inclusive acessibilidade p/ idosos).
+
+### Avaliação de risco honesta
+
+- **Ação judicial contra nós: BAIXO.** Concorrente pequeno, nome
+  altamente descritivo/genérico ("meus remédios"), mercado cheio de
+  apps equivalentes (Medisafe, MyTherapy, LembraMed...). Ninguém
+  monopoliza isso facilmente.
+- **Recusa do NOSSO registro no INPI por colisão: MÉDIO.** Se a Elevii
+  (ou bmdev) tiver registro vivo nas classes 09/42/44, nosso pedido
+  trava. Pesquisa prévia resolve a dúvida em 30min, grátis.
+- **Custo comercial silencioso: MÉDIO-ALTO.** ASO briga pelo termo
+  exato; se crescermos, o outro pode "acordar"; e a narrativa externa
+  "app igual, nome igual, lançado DEPOIS" nos desgasta mesmo sem
+  processo — independência real não prova sozinha.
+- **Nuance desfavorável**: features + pitch parecidos demais elevam o
+  custo de reputação de qualquer disputa futura.
+
+### Opções (com custos reais)
+
+1. **RENOMEAR antes do L0** — janela mais barata que existirá. Hoje o
+   custo é: bundle id novo no Play Console/GCloud (OAuth redirect URIs
+   de novo), reconfigurar app RevenueCat (amarrado ao bundle atual),
+   i18n/logos/domínio. ~1–2 dias de trabalho. Ganho: nome
+   distintivo/coined registra no INPI sem brigar, diferencia no ASO,
+   zera esse capítulo jurídico.
+2. **MANTER + registrar no INPI** — pesquisa prévia obrigatória
+   (classes 09/42/44, busca por "MEUS REMEDIOS" E "MEU REMEDIO");
+   sem colisão viva, protocolar (pessoa física/MEI ≈ R$142/classe gov,
+   12–24 meses pra deferir, prioridade conta desde o protocolo) +
+   documentar uso de boa-fé (git history 28/06/2026, domínio no ar).
+   Risco residual: Elevii pode ter pedido protocolado não-publicado
+   ainda (sigilo de 180 dias).
+3. **MANTER sem registro** — viável só enquanto hobby; incompatível
+   com plano de cobrança (L1/RevenueCat).
+
+### Recomendação registrada
+
+**(1) Pesquisar INPI hoje (grátis) → (2) decidir renomear × manter com
+dado em mãos → (3) se manter, protocolar registro imediatamente após.**
+Pendurado no gate do L0: **não submeter à Play sem essa decisão
+tomada e documentada aqui**.
+
 ### Princípio
 
 Web entra como **segunda frente do mesmo produto**, não como projeto
