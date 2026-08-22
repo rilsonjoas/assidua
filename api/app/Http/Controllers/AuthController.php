@@ -209,19 +209,37 @@ class AuthController extends Controller
         $user->tokens()->delete();
         $token = $user->createToken('mobile')->plainTextToken;
 
-        // Fluxo mobile: redireciona para deep link com token
+        $query = http_build_query([
+            'token' => $token,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'subscription_tier' => $user->subscription_tier ?? 'free',
+        ]);
+
         $state = $request->get('state', '');
-        if (str_starts_with($state, 'meusremedios://')) {
-            return redirect($state . '?' . http_build_query([
-                'token' => $token,
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'subscription_tier' => $user->subscription_tier ?? 'free',
-            ]));
+
+        // Web (W1, 2026-08-22): origem http(s) autorizada → devolve pra
+        // rota /auth-callback da SPA (mesmo contrato de params nativo).
+        // ANTES deste ramo existir, web caía no json() logo abaixo — o
+        // Rilson recebia o TOKEN CRU renderizado como página.
+        if (in_array(rtrim($state, '/'), self::allowedWebOrigins(), true)) {
+            return redirect($state.'/auth-callback?'.$query);
         }
 
-        return response()->json(['user' => $user, 'token' => $token]);
+        // Fluxo mobile: redireciona para deep link com token
+        if (str_starts_with($state, 'meusremedios://')) {
+            return redirect($state.'?'.$query);
+        }
+
+        // SEM destino válido, NUNCA devolver token em corpo JSON aberto
+        // (vazamento real visto em produção). Clientes API/testes que
+        // falam JSON continuam suportados via content negotiation.
+        if ($request->expectsJson()) {
+            return response()->json(['user' => $user, 'token' => $token]);
+        }
+
+        abort(400, 'Login com Google sem destino de retorno válido.');
     }
 
     // 'account' é o mesmo ícone que o formulário de criação de perfil no
