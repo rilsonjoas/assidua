@@ -416,6 +416,10 @@ porta de entrada.
 - [ ] **Perfil: chips de Idioma quebrando em 2 linhas** mesmo com
       conteúdo ≤960px — revisar minWidth/flex dos chips quando wide
       (Aparência/Fonte cabem em 1 linha; Idioma tem 4 opções).
+- [ ] **Botão "Baixar o app" no site** — só DEPOIS da publicação na Play
+      Store (L0): badge/link do Google Play no rodapé e/ou navbar web.
+      Antes disso seria botão morto. Pedir pro Rilson lembrar ao fechar
+      o L0 (2026-08-22).
 - Nota de calibração: a centralização matemática confere (margens
   iguais nos dois lados); a sensação de desalinhado vem da faixa vazia
   à direita vs navbar full-bleed — reavaliar após os itens acima.

@@ -277,4 +277,29 @@ class AuthTest extends TestCase
 
         $this->assertSame(1, $existing->profiles()->count());
     }
+
+    // Regra de produto (2026-08-22, achado real em produção): um e-mail =
+    // uma conta, qualquer porta de entrada. Antes deste teste existir,
+    // login Google de e-mail já cadastrado via magic link criava
+    // DUPLICATA (updateOrCreate casava só por google_id) — dados da
+    // mesma pessoa divididos entre duas contas.
+    public function test_login_google_de_email_ja_cadastrado_via_magic_link_vincula_sem_duplicar(): void
+    {
+        $existing = User::factory()->create(['email' => 'mesma@pessoa.com', 'google_id' => null]);
+        $existing->profiles()->create(['name' => 'Perfil real com dados']);
+        $nomeOriginal = $existing->name;
+
+        $this->mockGoogleUser('google-novo-id', 'Nome Diferente no Google', 'mesma@pessoa.com');
+
+        $this->getJson('/api/auth/google/callback')->assertOk();
+
+        // Uma única conta para o e-mail — vinculada, não duplicada
+        $this->assertSame(1, User::where('email', 'mesma@pessoa.com')->count());
+        $fresh = $existing->fresh();
+        $this->assertSame('google-novo-id', $fresh->google_id);
+        // Nome escolhido na conta original é preservado
+        $this->assertSame($nomeOriginal, $fresh->name);
+        // Dados intactos: sem perfil padrão extra
+        $this->assertSame(1, $fresh->profiles()->count());
+    }
 }

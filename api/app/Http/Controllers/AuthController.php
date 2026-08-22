@@ -190,15 +190,34 @@ class AuthController extends Controller
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
 
-        $user = User::updateOrCreate(
-            ['google_id' => $googleUser->getId()],
-            [
+        // Regra de produto (2026-08-22, achado real do Rilson): um e-mail
+        // = uma pessoa = uma conta, qualquer porta de entrada. O
+        // updateOrCreate antigo casava só por google_id e criava
+        // DUPLICATA quando o e-mail já tinha conta via magic link —
+        // dados divididos para a mesma pessoa. Ordem de resolução:
+        // google_id → e-mail (vincula) → criar nova.
+        $user = User::where('google_id', $googleUser->getId())->first();
+
+        if (! $user && ($byEmail = User::where('email', $googleUser->getEmail())->first())) {
+            $byEmail->forceFill([
+                'google_id' => $googleUser->getId(),
+                'avatar_url' => $byEmail->avatar_url ?? $googleUser->getAvatar(),
+                'email_verified_at' => $byEmail->email_verified_at ?? now(),
+            ])->save();
+            // Nome da conta existente é preservado (a pessoa escolheu/é
+            // reconhecida por ele); Google entra só como credencial.
+            $user = $byEmail;
+        }
+
+        if (! $user) {
+            $user = User::create([
+                'google_id' => $googleUser->getId(),
                 'name' => $googleUser->getName(),
                 'email' => $googleUser->getEmail(),
                 'avatar_url' => $googleUser->getAvatar(),
                 'email_verified_at' => now(),
-            ]
-        );
+            ]);
+        }
 
         // wasRecentlyCreated só é true na mesma requisição que inseriu a
         // linha — próximos logins do mesmo google_id não recriam o perfil.
