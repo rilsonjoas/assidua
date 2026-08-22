@@ -372,6 +372,33 @@ Validação pós-fix: `tsc --noEmit` limpo · 145/145 testes · export OK.
 URIs" do OAuth client no GCloud pro login social funcionar no ambiente
 local (produção já tem o dele). Erro atual: `400 redirect_uri_mismatch`.
 
+### 🔴 PENDENTE — Fragmentação de contas: Google vs magic link com mesmo e-mail (reportado 2026-08-22)
+
+**Achado real em produção**: logou pelo Google, depois por magic link
+com o MESMO e-mail — dados vistos são diferentes. Duas contas para a
+mesma pessoa.
+
+**Causa raiz** (`AuthController::googleCallback`): `updateOrCreate`
+casa exclusivamente por `google_id`; conta pré-existente criada por
+magic link (e-mail sem google_id) nunca é encontrada → duplicata.
+O fluxo inverso já casa certo (magic-link busca por e-mail).
+
+**Correção em 2 partes:**
+
+1. **Código** — resolver conta por `google_id` OU por `email`;
+   achando por e-mail, VINCULAR o google_id na conta existente
+   (+ avatar/verificação), não criar nova. Seguro: o Google garante
+   posse do e-mail. Teste novo obrigatório: "login Google de e-mail
+   que já existe via magic link NÃO duplica conta" (cenário atual
+   passa reto e nem tem teste).
+2. **Dados** — merge one-time das duplicatas JÁ existentes (caso do
+   próprio Rilson). Backup do banco ANTES (P6); apontar google_id pra
+   conta dona dos dados; migrar órfãs se houver; excluir a vazia.
+   Script versionado (comando artisan), nunca SQL solto.
+
+**Regra de produto**: um e-mail = uma pessoa = uma conta, qualquer
+porta de entrada.
+
 ### 🎨 Adaptação UI web completa — aprovada pelo Rilson (2026-08-22, noite)
 
 Da crítica "parece mobile esticado" ao aprovado em 4 iterações de uso

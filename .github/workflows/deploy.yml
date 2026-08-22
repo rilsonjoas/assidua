@@ -68,6 +68,36 @@ jobs:
             }
             cd /opt/meus-remedios
             git pull --ff-only origin main
+
+            # ── Drift check de ambiente (2026-08-22): variável nova no
+            # .env.example TEM que existir no .env real do VPS antes de
+            # qualquer deploy. Pega "esqueci a variável" no CI, não em
+            # produção com usuário na mão.
+            cd api
+            MISSING=""
+            while IFS='=' read -r key _; do
+              case "$key" in ''|\#*) continue ;; esac
+              grep -q "^${key}=" .env || MISSING="$MISSING $key"
+            done < .env.example
+            if [ -n "$MISSING" ]; then
+              echo "" >&2
+              echo "🛑 DEPLOY BLOQUEADO — variáveis novas no .env.example ausentes no .env do VPS:$MISSING" >&2
+              echo "   No VPS: adicione-as em /opt/meus-remedios/api/.env e" >&2
+              echo "   recrie o container (--force-recreate) — up -d --build NÃO relê env_file." >&2
+              exit 1
+            fi
+
+            # ── Recria a API se o CONTEÚDO do .env mudou desde o último
+            # deploy (up -d --build não relê env_file — achado já
+            # documentado no README do hetzner-infra).
+            ENV_HASH=$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' .env | sort | sha256sum | cut -d' ' -f1)
+            if [ ! -f .env.deployed ] || [ "$(cat .env.deployed)" != "$ENV_HASH" ]; then
+              echo ".env mudou → recriando remedios-api para reler env_file..."
+              docker compose -f ~/hetzner-infra/meus-remedios/docker-compose.yml \
+                --env-file ~/hetzner-infra/.env up -d --force-recreate remedios-api
+              echo "$ENV_HASH" > .env.deployed
+            fi
+
             # Achado do primeiro deploy web (2026-08-22): o repo de infra
             # usa branch MASTER (não main) — puxar 'origin main' falhava,
             # o '|| true' engolia, o compose ficava sem o remedios-web e
