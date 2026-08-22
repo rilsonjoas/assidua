@@ -1,6 +1,34 @@
 # Roadmap — Meus Remédios
 
-**Status (2026-08-21):** No ar em `api-remedios.narniano.com` (Laravel 13 + Postgres + Docker no VPS Hetzner) + App Mobile Expo (React Native). P0-P7 de infraestrutura e qualidade 100% concluídos. Suíte de testes mobile: 145 passando (10 novos na sessão de hoje; ~221 no total com backend).
+## 🛑 PROJETO PAUSADO (2026-08-22) — decisão estratégica de marca
+
+> **Motivo**: colisão de nome confirmada — "Meus Remedios" já existe na
+> App Store desde 11/2025 com feature set quase espelho, além de
+> homônimo no Play e painel B2B "Meu Remédio" (análise completa na
+> seção ⚖️ abaixo). Renomear AGORA (pré-L0) custa dias; depois, caro e
+> juridicamente arriscado. Decisão do Rilson: pausar tudo e resolver
+> identidade primeiro.
+>
+> **O que fica congelado e funcionando**: web no ar
+> (meusremedios.narniano.com), API estável (**217/217** backend ·
+> 145/145 mobile), CI/CD verde com drift check, OTA publicado, fix de
+> vinculação Google×e-mail pronto.
+>
+> **Gate de retomada**: nome novo decidido (processo em `NAMING.md`)
+> → renomeação executada (checklist completo no mesmo arquivo) → L0
+> retoma o plano original. Nada mais entra aqui até lá.
+
+**Pendências congeladas junto** (na retomada, nesta ordem):
+1. 🔴 Merge das contas duplicadas do Rilson — comando pronto
+   (`meusremedios:merge-duplicate-accounts`); falta backup do banco +
+   dry-run + --execute em produção
+2. W2 visual web (logo real, onboarding desktop, chips)
+3. GCloud callback localhost · Sentry validação · TalkBack manual
+4. Botão "Baixar o app" pós-L0 (registrado abaixo)
+
+---
+
+**Status técnico (congelado em 2026-08-22):** No ar em `api-remedios.narniano.com` (Laravel 13 + Postgres + Docker no VPS Hetzner) + Web SPA em `meusremedios.narniano.com` + App Mobile Expo. P0-P7 de infraestrutura e qualidade 100% concluídos. Suíte mobile: 145/145 · backend: 216/216 (+1 teste de vinculação = 20/20 auth).
 
 ---
 
