@@ -24,10 +24,20 @@ interface ProfileState {
   setActiveProfile: (profile: Profile) => void;
 }
 
-export const useProfileStore = create<ProfileState>((set) => ({
+export const useProfileStore = create<ProfileState>((set, get) => ({
   profiles: [],
   activeProfile: null,
-  setProfiles: (profiles) =>
-    set({ profiles, activeProfile: profiles[0] ?? null }),
+  // Achado real (2026-08-22, durante automação de screenshot): Hoje e
+  // Perfis buscam a lista no mount e chamam isto — se a tela remonta ao
+  // trocar de aba (não só perde foco), a pessoa escolhe "Demonstração"
+  // na Home, vai pra Remédios, e a seleção volta sozinha pro primeiro
+  // perfil. Preserva a escolha atual se ela ainda existir na lista nova;
+  // só cai pro primeiro perfil quando não há seleção ou ela sumiu
+  // (perfil apagado).
+  setProfiles: (profiles) => {
+    const current = get().activeProfile;
+    const stillExists = current && profiles.some((p) => p.id === current.id);
+    set({ profiles, activeProfile: stillExists ? current : (profiles[0] ?? null) });
+  },
   setActiveProfile: (activeProfile) => set({ activeProfile }),
 }));

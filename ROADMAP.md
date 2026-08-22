@@ -124,7 +124,9 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 > `eas env:update preview --variable-name EXPO_PUBLIC_API_URL --value
 > ...` + novo `eas update` pra recompilar o bundle com o valor certo.
 > Mesma categoria dos achados no `.env` da VPS (`WEB_AUTH_ORIGINS`,
-> `APP_URL`, `GOOGLE_REDIRECT_URI`, `APP_NAME`, `MAIL_FROM_ADDRESS`) —
+> `APP_URL`, `GOOGLE_REDIRECT_URI`, `APP_NAME`, `MAIL_FROM_ADDRESS`,
+> `MAIL_FROM_NAME` — esse último achado só depois de receber o e-mail
+> de verdade, o nome do remetente é campo separado do endereço) —
 > **toda renomeação de projeto precisa varrer configuração fora do
 > git**: `.env` de servidor E variáveis de ambiente do EAS/CI, não só
 > o código.
@@ -510,6 +512,15 @@ porta de entrada.
       cross-platform pra confirmações sim/não; vale estender esse mesmo
       padrão pra alertas simples de erro/info em vez do alert do
       navegador/SO.
+- [ ] **Seleção de perfil não persiste entre telas** (achado 2026-08-22,
+      durante automação de screenshot) — trocar de perfil (chips na tela
+      Hoje) funciona, mas ao navegar pra outra aba (Remédios, Histórico)
+      volta sozinho pro primeiro perfil (`profileStore.setProfiles`
+      reseta `activeProfile` pra `profiles[0]` toda vez que a lista de
+      perfis é buscada de novo — parece acontecer a cada troca de rota).
+      Reproduzido de forma consistente. Precisa de `activeProfile`
+      persistido (ou pelo menos preservado) entre re-fetches, não
+      sempre voltar pro primeiro da lista.
 - [ ] **Botão "Baixar o app" no site** — só DEPOIS da publicação na Play
       Store (L0): badge/link do Google Play no rodapé e/ou navbar web.
       Antes disso seria botão morto. Pedir pro Rilson lembrar ao fechar
