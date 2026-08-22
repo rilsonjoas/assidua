@@ -399,6 +399,27 @@ O fluxo inverso já casa certo (magic-link busca por e-mail).
 **Regra de produto**: um e-mail = uma pessoa = uma conta, qualquer
 porta de entrada.
 
+### 🟡 W2 — Backlog visual web (testes reais do Rilson, 2026-08-22 noite)
+
+- [ ] **Logo real em vez de ícone genérico**: telas de login/cadastro
+      usam `MaterialCommunityIcons 'pill'` no logoBox e a WebTopNav usa
+      o mesmo ícone de fonte — trocar pelo logotipo de verdade
+      (coração+relógio, assets já existem). Favicon da web conferir.
+- [ ] **Home web: menos logos repetidos** — hoje acumula navbar (marca)
+      + header com mark pequeno + marca d'água grande. Em wide, escolher
+      UM ponto de marca por tela (navbar carrega a identidade; header
+      interno pode ficar só tipografia).
+- [ ] **Onboarding desktop quebrado** — elementos soltos/desalinhados
+      em tela larga (layout assume largura de celular). Nota: aparece
+      UMA vez por navegador/storage (flag própria), mas precisa ficar
+      bonito na primeira vez também.
+- [ ] **Perfil: chips de Idioma quebrando em 2 linhas** mesmo com
+      conteúdo ≤960px — revisar minWidth/flex dos chips quando wide
+      (Aparência/Fonte cabem em 1 linha; Idioma tem 4 opções).
+- Nota de calibração: a centralização matemática confere (margens
+  iguais nos dois lados); a sensação de desalinhado vem da faixa vazia
+  à direita vs navbar full-bleed — reavaliar após os itens acima.
+
 ### 🎨 Adaptação UI web completa — aprovada pelo Rilson (2026-08-22, noite)
 
 Da crítica "parece mobile esticado" ao aprovado em 4 iterações de uso
