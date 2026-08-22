@@ -9,7 +9,9 @@ import {
   Share,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -218,6 +220,16 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
       {/* Card do usuário */}
       <View style={styles.userCard}>
+        {/* Marca (2026-08-21) — feedback do Rilson: "quem não aparece não
+            é lembrado". A tela de Perfis não tinha NENHUM ponto de marca;
+            a silhueta branca no canto do card colorido ancora o logo no
+            primeiro lugar onde o olho pousa, sem virar poluição. */}
+        <Image
+          source={require('../../assets/android-icon-monochrome.png')}
+          style={styles.cardBrandMark}
+          accessible={false}
+          importantForAccessibility="no"
+        />
         <View style={styles.userAvatarBox}>
           <MaterialCommunityIcons name="account-circle" size={52} color="#fff" />
         </View>
@@ -596,6 +608,25 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>{deleting ? t('profile.deleting') : t('profile.deleteAccount')}</Text>
         </TouchableOpacity>
       )}
+
+      {/* Rodapé de marca (2026-08-21) — padrão comum em apps: assinatura
+          discreta no fim do scroll. O tintColor adapta a silhueta ao tema
+          (o PNG é branco; tingido com textMuted funciona claro/escuro).
+          Versão do app junto — ajuda muito em report de bug. */}
+      <View style={styles.brandFooter}>
+        <Image
+          source={require('../../assets/android-icon-monochrome.png')}
+          style={[styles.brandFooterLogo, { tintColor: colors.textMuted }]}
+          accessible={false}
+          importantForAccessibility="no"
+        />
+        <Text style={styles.brandFooterName}>{t('login.title')}</Text>
+        {!!Constants.expoConfig?.version && (
+          <Text style={styles.brandFooterVersion}>
+            {t('profile.version', { version: Constants.expoConfig.version })}
+          </Text>
+        )}
+      </View>
     </ScrollView>
     </KeyboardAvoidingView>
 
@@ -638,6 +669,10 @@ function makeStyles(c: ThemeColors) {
     userCard: {
       backgroundColor: c.headerBg, borderRadius: 20, padding: 20,
       flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 28,
+      overflow: 'hidden',
+    },
+    cardBrandMark: {
+      position: 'absolute', top: -26, right: -26, width: 110, height: 110, opacity: 0.14,
     },
     userAvatarBox: {
       width: 64, height: 64, borderRadius: 32,
@@ -727,5 +762,11 @@ function makeStyles(c: ThemeColors) {
     deleteConfirmBtn: {
       flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10, alignItems: 'center',
     },
+    brandFooter: { alignItems: 'center', marginTop: 36, gap: 6 },
+    // Mesma silhueta branca do header/card; tintColor (no JSX) a adapta
+    // ao tema aqui, onde o fundo é claro/escuro variável.
+    brandFooterLogo: { width: 30, height: 30, opacity: 0.55 },
+    brandFooterName: { fontSize: 14, fontWeight: '700', color: c.textMuted, letterSpacing: 0.3 },
+    brandFooterVersion: { fontSize: 11, color: c.textMuted, opacity: 0.8 },
   });
 }

@@ -1,8 +1,63 @@
 # Roadmap — Meus Remédios
 
-**Status (2026-08-21):** No ar em `api-remedios.narniano.com` (Laravel 13 + Postgres + Docker no VPS Hetzner) + App Mobile Expo (React Native). P0-P7 de infraestrutura e qualidade 100% concluídos. 211 testes automatizados passando.
+**Status (2026-08-21):** No ar em `api-remedios.narniano.com` (Laravel 13 + Postgres + Docker no VPS Hetzner) + App Mobile Expo (React Native). P0-P7 de infraestrutura e qualidade 100% concluídos. Suíte de testes mobile: 145 passando (10 novos na sessão de hoje; ~221 no total com backend).
 
 ---
+
+## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
+
+Trabalho direto no código a partir do levantamento abaixo.
+
+### ✅ Feito — frequência e duração configuráveis
+
+- **Múltiplos horários já no cadastro** — o maior buraco: antes dava pra
+  cadastrar UM horário ("Primeiro horário") e os outros só depois de
+  criar, reabrir e editar. Agora a seção Horários na criação tem lista
+  de rascunhos editáveis/removíveis (mesma UI da seção de horários de
+  remédio existente). Todo remédio exige ≥1 horário; quem remove todos
+  recebe aviso claro (`errorNoSchedule`) em vez de salvar um remédio
+  invisível no dashboard.
+- **Atalho "Quantas vezes por dia?"** — chips `1x/2x/3x/4x por dia`
+  preenchem a lista com horários padrão (08:00 · 08+20 · 08+14+20 ·
+  06+12+18+00), todos fixos/todos os dias, cada um editável depois.
+  Chip fica destacado enquanto a lista corresponde exatamente ao atalho.
+- **Presets de dias da semana** — chips `Todos` / `Seg a Sex` /
+  `Fim de semana` acima dos círculos D S T Q Q S S (nos dois editores:
+  criação e remédio existente).
+- **Presets de intervalo** — chips `4h 6h 8h 12h 24h` acima do campo
+  livre "de quantas em quantas horas".
+- **Duração do tratamento com data concreta** — ao digitar N dias,
+  aparece `Fim previsto: {{date}}` (locale-aware via `toLocaleDateString`),
+  transformando número solto em informação tangível.
+- **i18n completo** pt/en/es para tudo acima (+ `profile.version`).
+- **Testes** — 10 novos cobrindo múltiplos horários, atalhos, presets
+  de dias/intervalo e data de fim. Suíte inteira: **145 passando**
+  (era 211 contando backend; 145 é o pacote mobile).
+
+### ✅ Feito — logotipo na UI
+
+> Achado primeiro: o header da home JÁ tinha o logo desde 14/08
+> (`eaa6b14`, ícone monocromático 30px) — passou despercebido de tão
+> pequeno (e o build instalado pode ser anterior ao commit). Perfis
+> estava sem NENHUM ponto de marca, confirmado.
+
+- **Home (`(tabs)/index.tsx`)** — marca d'água grande (170px, opacity
+  0.12, recortada no header) com a silhueta coração+relógio atrás da
+  data/título, além do mark pequeno que já existia. Presença de marca
+  sem brigar por atenção — literalmente o "nem que seja como marca
+  d'água" pedido.
+- **Perfis (`(tabs)/profile.tsx`)** — duas âncoras novas: silhueta
+  translúcida no canto do card colorido do usuário (primeiro lugar onde
+  o olho pousa) e rodapé de assinatura no fim do scroll (logo tingido
+  com `textMuted`, adapta aos dois temas + nome do app + **versão** via
+  `expo-constants`, útil pra report de bug).
+
+### ✅ Feito — plano da versão web
+
+Escrito em detalhe na seção "🌐 Versão Web" abaixo: recomendação de
+spike curto com Expo Router web medindo o custo real dos módulos
+nativos (notificações, RevenueCat, foto) antes de decidir contra uma
+SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 
 ## Backlog de Produto — Issues e Bugs (levantamento 2026-08-21)
 
@@ -10,13 +65,75 @@
 
 ### 🔴 Crítico / Alta Prioridade (UX e Configuração de Uso Real)
 
-- [ ] **Frequência e duração do tratamento incompletas** — usuários precisam de:
-  - Frequência flexível: a cada X horas, a cada X dias, dias da semana específicos ou horários livres/múltiplos.
-  - Duração do tratamento: limite de dias (ex.: tomar por 7 dias e parar automaticamente).
-- [ ] **Logotipo ausente na UI** — colocar a logomarca (`meus-remedios-logo.png`) no header da página inicial e na tela de perfis. Pode ser sutil ou marca d'água.
-- [ ] **Editar agendamentos existentes** — permitir alterar horários e frequências de um remédio já cadastrado sem ter que deletar e recriar.
+- [x] **Frequência e duração do tratamento incompletas** — usuários precisam de:
+  - Frequência flexível: a cada X horas, a cada X dias, dias da semana específicos ou horários livres/múltiplos. → **Implementado 2026-08-21** (múltiplos horários no cadastro + atalhos 1x–4x/dia + presets de dias e intervalo; ver seção acima).
+  - Duração do tratamento: limite de dias com "Fim previsto" visível. → **Implementado 2026-08-21** (aviso quando acaba; o app nunca pausa sozinho — decisão de produto de 2026-08-14 mantida).
+- [x] **Logotipo ausente na UI** — colocar a logomarca no header da página inicial e na tela de perfis. → **Feito 2026-08-21**: home ganhou marca d'água no header (o mark pequeno já existia desde 14/08); Perfis ganhou marca no card + rodapé com nome e versão. Ver seção da sessão acima.
+- [x] **Editar agendamentos existentes** — permitir alterar horários e frequências de um remédio já cadastrado sem ter que deletar e recriar. → Já existia (editor por horário, testes em `medication-schedule-edit.test.tsx`); o que faltava era múltiplos horários *no cadastro*, resolvido acima.
 
 ### 🟡 Média Prioridade / Evolução
 
-- [ ] **Versão Web do Meus Remédios** — o projeto nasceu como mobile, mas existe espaço para uma versão web (Next.js/React) integrada à API Laravel existente, permitindo aos cuidadores gerenciarem os medicamentos pelo computador.
+- [ ] **Versão Web do Meus Remédios** — plano completo na seção abaixo (2026-08-21).
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
+
+---
+
+## 🌐 Versão Web — Planejamento (2026-08-21)
+
+> O projeto nasceu como app, mas tem espaço natural pra web: **o cuidador
+> no computador**. Quem gerencia remédio de pai/mãe/filho à distância
+> vive no desktop; conferir doses e histórico numa tela grande, com
+> teclado de verdade pra cadastrar medicamento, é uso real — hoje sem
+> resposta. O backend já está pronto pra isso: API REST + Sanctum,
+> independente de cliente.
+
+### Decisão de stack — duas opções honestas
+
+| | **A. Expo Router web** (react-native-web) | **B. SPA separada** (Vite + React + TS) |
+|---|---|---|
+| Código | Um só (`expo export --platform web`) | Terceira base de UI |
+| Reaproveito | ~90% (telas, stores Zustand, services, i18n, tema) | Só `services/` + tipos (axios puro) |
+| Risco | Módulos nativos sem equivalente na web | Custo de manutenção dobrado pra sempre |
+| UX | "App-like"; precisa trabalho responsivo | Web-native desde o dia 1 |
+
+**Recomendação: começar pela A com spike curto (W0).** O app já é Expo
+Router com lógica bem isolada em `services/`; o spike mede o dano real
+em 1–2 dias e a decisão go/no-go fica documentada. Se o custo passar do
+que vale, pivotar pra B já sabendo exatamente o que portar.
+
+### O que NÃO porta direto (inventário do spike)
+
+- `expo-notifications` — lembretes locais não existem na web assim → mock no-op na v1 (Web Push fica pro W3)
+- RevenueCat / AdMob — billing e anúncios são ecossistemas separados na web → feature flag off (monetização web = decisão futura própria, Stripe/Pagar.me)
+- `expo-image-picker` — câmera não; galeria vira `<input type=file>` ou fica desabilitada na v1
+- `expo-sqlite` (fila offline) — web fica online-only na v1 (IndexedDB só se fizer sentido depois)
+- `expo-haptics`, NetInfo etc. — têm fallback/no-op natural
+
+O que reaproveita intacto: autenticação (mesmos tokens Bearer Sanctum —
+backend só precisa de CORS pro domínio novo), stores Zustand persistidos,
+services de API, i18n pt/en/es, tema claro/escuro, toda a regra de
+negócio de doses/schedules que já mora no backend.
+
+### Fases
+
+- **W0 — Spike go/no-go (1–2 dias):** habilitar plataforma web, mocks dos
+  módulos acima, rodar as 9 telas no browser, documentar o que quebrou.
+  Métrica de decisão: % de código adaptado vs. duplicado.
+- **W1 — MVP "companheira do cuidador" (~1 semana):** Hoje (marcar/
+  pular/desfazer), Histórico, Estoque, login (Google OAuth com redirect
+  URIs web novas no GCloud + magic link), layout responsivo, deploy
+  estático no VPS (`web-remedios.narniano.com`, nginx + Traefik como os
+  outros).
+- **W2 — Paridade útil:** cadastro/edição completa de medicamento (formulário
+  longo rende muito mais no desktop), convite de cuidador por deep link
+  (`?code=XXXX`), PWA instalável (manifest + service worker).
+- **W3 — Notificações web:** Web Push (VAPID) como canal adicional do
+  push por servidor que já existe (cron Laravel já dispara; adiciona-se
+  destino web). Só depois de destravar L0/L1 mobile.
+
+### Princípio
+
+Web entra como **segunda frente do mesmo produto**, não como projeto
+paralelo: mesma API, mesmas contas, mesmos perfis compartilhados. O que
+não existir na web (push, foto por câmera) degrada com aviso honesto,
+nunca quebra silenciosamente.

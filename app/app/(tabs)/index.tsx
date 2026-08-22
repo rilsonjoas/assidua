@@ -212,6 +212,17 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        {/* Marca d'água (2026-08-21) — feedback do Rilson: o mark de 30px
+            do header passou despercebido ("cadê o logo?"). O coração com
+            relógio grande e translúcido, atrás do conteúdo, dá presença
+            de marca sem competir com data/título — a leitura continua
+            sendo "que remédios tenho hoje", não "que logo é esse". */}
+        <Image
+          source={require('../../assets/android-icon-monochrome.png')}
+          style={styles.brandWatermark}
+          accessible={false}
+          importantForAccessibility="no"
+        />
         <View style={styles.headerTop}>
           {/* Marca (2026-08-14): feedback do Rilson — o app tinha o
               ícone novo, mas nenhum ponto de ancoragem *dentro* das
@@ -403,7 +414,13 @@ export default function HomeScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    header: { backgroundColor: c.headerBg, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20 },
+    // overflow hidden mantém a marca d'água recortada dentro do header.
+    header: { backgroundColor: c.headerBg, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
+    // Grande e quase transparente: presença de marca sem brigar com
+    // data/título por atenção (feedback "nem que seja como marca d'água").
+    brandWatermark: {
+      position: 'absolute', top: -44, right: -32, width: 170, height: 170, opacity: 0.12,
+    },
     headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     brandMark: { width: 30, height: 30, opacity: 0.92 },
     date: { color: c.headerSubtext, fontSize: 13, textTransform: 'capitalize' },

@@ -42,6 +42,50 @@ const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
+// "Quantas vezes por dia?" (2026-08-21, feedback do Rilson): responder
+// a pergunta que interesse direto com um toque, sem pensar em relógio.
+// Os horários gerados são os defaults clínicos mais comuns e cada um
+// continua editável/removível individualmente depois do atalho.
+const FREQUENCY_PRESET_TIMES = {
+  once: ['08:00'],
+  twice: ['08:00', '20:00'],
+  thrice: ['08:00', '14:00', '20:00'],
+  fourTimes: ['06:00', '12:00', '18:00', '00:00'],
+} as const;
+
+// Presets de dia da semana — "dias úteis" e "fim de semana" são muito
+// mais comuns na boca do usuário que selecionar círculos um a um.
+const DAY_PRESETS: Array<{ key: 'all' | 'weekdays' | 'weekend'; days: number[] }> = [
+  { key: 'all', days: ALL_DAYS },
+  { key: 'weekdays', days: [1, 2, 3, 4, 5] },
+  { key: 'weekend', days: [0, 6] },
+];
+
+// Intervalos de dose mais prescritos (antibiótico 6/8h, crônicos 12/24h)
+// como toque único — o campo livre fica pra casos fora da curva.
+const INTERVAL_HOUR_OPTIONS = [4, 6, 8, 12, 24];
+
+// Rascunho de horário durante a CRIAÇÃO do medicamento — ainda não tem
+// id nem existe no backend; vira schedule de verdade quando o remédio é
+// salvo (ver saveMedication). Mesma forma do formulário de horário.
+type DraftSchedule = {
+  time: string;
+  mode: 'fixed' | 'interval';
+  days: number[];
+  intervalHours: string;
+};
+
+const DEFAULT_DRAFT: DraftSchedule = { time: '08:00', mode: 'fixed', days: [...ALL_DAYS], intervalHours: '8' };
+
+function sameDays(a: number[], b: number[]) {
+  return a.length === b.length && b.every((d) => a.includes(d));
+}
+
+function parseIntOrNull(value: string): number | null {
+  const n = parseInt(value, 10);
+  return isNaN(n) ? null : n;
+}
+
 // "Frequência de horário" (2026-08-14) — schedule de intervalo mostra
 // "A cada 8 horas" na lista em vez da lista de dias, que nem se aplica
 // (intervalo ignora days_of_week de propósito, ver GenerateScheduleOccurrences
@@ -56,7 +100,7 @@ function formatDays(days: number[] | null, t: TFunction, intervalHours?: number 
 }
 
 export default function MedicationFormScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const isNew = id === 'new';
   const router = useRouter();
@@ -105,9 +149,21 @@ export default function MedicationFormScreen() {
   // Horários existentes
   const [schedules, setSchedules] = useState<DoseSchedule[]>([]);
 
+  // Rascunhos de horário na criação (2026-08-21) — antes dava pra
+  // cadastrar UM horário e o resto só depois de criar e reabrir o
+  // remédio, que é exatamente a reclamação "quantas vezes tomar não
+  // está configurável". Agora a lista aceita quantos quiser já no
+  // cadastro. Começa com um padrão (08:00, todos os dias) igual ao
+  // comportamento antigo de sempre criar um.
+  const [draftSchedules, setDraftSchedules] = useState<DraftSchedule[]>([{ ...DEFAULT_DRAFT, days: [...ALL_DAYS] }]);
+  // Editor de rascunho: addingDraft = criando novo; editingDraftIndex =
+  // editando esse índice da lista; ambos null/false = fechado.
+  const [addingDraft, setAddingDraft] = useState(false);
+  const [editingDraftIndex, setEditingDraftIndex] = useState<number | null>(null);
+
   // Formulário de horário — mesmo form serve pra criar e pra editar;
   // editingScheduleId null = criando, preenchido = editando esse horário.
-  const [addingSchedule, setAddingSchedule] = useState(isNew);
+  const [addingSchedule, setAddingSchedule] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
   const [newTime, setNewTime] = useState('08:00');
   const [newDays, setNewDays] = useState<number[]>(ALL_DAYS);
@@ -171,6 +227,14 @@ export default function MedicationFormScreen() {
       }
       treatmentDurationToSend = parsed;
     }
+    // "Quantas vezes por dia" (2026-08-21) — todo remédio aqui nasce
+    // com ao menos um horário; quem não quer lembrete nenhum remove os
+    // rascunhos e recebe um aviso claro em vez de um remédio invisível
+    // no dashboard.
+    if (isNew && draftSchedules.length === 0) {
+      Alert.alert(t('medicationForm.errorNoSchedule'));
+      return;
+    }
     // '' vira null no envio — não salva string vazia como se fosse
     // uma dosagem de verdade. Unidade sem preencher fica de fora do
     // payload — o backend já tem um default sensato (`comprimidos` no
@@ -196,18 +260,22 @@ export default function MedicationFormScreen() {
         if (initialStock.trim() && !isNaN(stockQuantity) && stockQuantity >= 0) {
           await updateStock(med.id, { current_quantity: stockQuantity });
         }
-        const isIntervalMode = scheduleMode === 'interval';
-        if (newTime && (isIntervalMode || newDays.length > 0)) {
-          const days_of_week = isIntervalMode ? null : (newDays.length === 7 ? null : newDays);
-          const interval_hours = isIntervalMode ? parseInt(newIntervalHours, 10) : null;
+        // Rascunhos viram schedules de verdade — quantos o usuário
+        // tiver montado na lista. Cada rascunho já passou pela
+        // validação do editor (formato HH:MM, intervalo 1-168, ≥1 dia),
+        // então o laço não repete checagem.
+        for (const draft of draftSchedules) {
+          const isIntervalMode = draft.mode === 'interval';
+          const days_of_week = isIntervalMode ? null : (draft.days.length === 7 ? null : [...draft.days]);
+          const interval_hours = isIntervalMode ? parseIntOrNull(draft.intervalHours) : null;
           const schedule = await createSchedule(med.id, {
-            time: newTime,
+            time: draft.time,
             days_of_week,
             interval_hours,
           });
           await scheduleScheduleNotifications({
             scheduleId: schedule.id,
-            time: newTime,
+            time: draft.time,
             days_of_week,
             interval_hours,
             medicationName: name,
@@ -351,13 +419,68 @@ export default function MedicationFormScreen() {
     }
   }
 
-  function startAddSchedule() {
-    setEditingScheduleId(null);
+  function resetScheduleFields() {
     setNewTime('08:00');
     setNewDays(ALL_DAYS);
     setScheduleMode('fixed');
     setNewIntervalHours('8');
-    setAddingSchedule(true);
+  }
+
+  function startAddSchedule() {
+    setEditingScheduleId(null);
+    setEditingDraftIndex(null);
+    setNewTime('08:00');
+    setNewDays(ALL_DAYS);
+    setScheduleMode('fixed');
+    setNewIntervalHours('8');
+    // Mesmo botão "+", destinos diferentes: na criação alimenta a lista
+    // de rascunhos (nada vai pro backend até salvar o remédio); num
+    // remédio já existente salva direto, como sempre.
+    if (isNew) setAddingDraft(true);
+    else setAddingSchedule(true);
+  }
+
+  function startEditDraft(index: number) {
+    const draft = draftSchedules[index];
+    setEditingDraftIndex(index);
+    setAddingDraft(false);
+    setNewTime(draft.time);
+    setNewDays([...draft.days]);
+    setScheduleMode(draft.mode);
+    setNewIntervalHours(draft.intervalHours);
+  }
+
+  // Rascunho não existe no backend ainda — recriar custa dois toques,
+  // então remoção direta sem diálogo de confirmação.
+  function removeDraft(index: number) {
+    setDraftSchedules((prev) => prev.filter((_, i) => i !== index));
+    if (editingDraftIndex === index) {
+      setEditingDraftIndex(null);
+      setAddingDraft(false);
+      resetScheduleFields();
+    }
+  }
+
+  // Atalho "quantas vezes por dia" (2026-08-21) — substitui a lista por
+  // N horários padrão (todos fixos, todos os dias); ajuste fino fica
+  // por conta do editor individual de cada rascunho.
+  function applyFrequencyPreset(times: readonly string[]) {
+    setDraftSchedules(
+      times.map((time) => ({ time, mode: 'fixed' as const, days: [...ALL_DAYS], intervalHours: '8' })),
+    );
+    setEditingDraftIndex(null);
+    setAddingDraft(false);
+    resetScheduleFields();
+  }
+
+  // Chip fica destacado enquanto a lista corresponder exatamente ao
+  // atalho (mesma quantidade, modo fixo, dias completos) — feedback de
+  // que o toque fez efeito sem impedir edições posteriores.
+  function isPresetActive(times: readonly string[]) {
+    return (
+      draftSchedules.length === times.length &&
+      draftSchedules.every((d, i) => d.mode === 'fixed' && d.time === times[i] && sameDays(d.days, ALL_DAYS))
+    );
   }
 
   function startEditSchedule(schedule: DoseSchedule) {
@@ -372,10 +495,9 @@ export default function MedicationFormScreen() {
   function cancelScheduleForm() {
     setAddingSchedule(false);
     setEditingScheduleId(null);
-    setNewDays(ALL_DAYS);
-    setNewTime('08:00');
-    setScheduleMode('fixed');
-    setNewIntervalHours('8');
+    setAddingDraft(false);
+    setEditingDraftIndex(null);
+    resetScheduleFields();
   }
 
   async function saveScheduleForm() {
@@ -394,6 +516,19 @@ export default function MedicationFormScreen() {
       return;
     }
     const days_of_week = isInterval ? null : (newDays.length === 7 ? null : newDays);
+    // Na criação o formulário alimenta a lista de rascunhos local — os
+    // schedules de verdade nascem quando o remédio é salvo (ver
+    // saveMedication). Validação idêntica ao fluxo de backend.
+    if (isNew) {
+      const draft: DraftSchedule = { time: newTime, mode: scheduleMode, days: [...newDays], intervalHours: newIntervalHours };
+      setDraftSchedules((prev) =>
+        editingDraftIndex !== null && !addingDraft
+          ? prev.map((d, i) => (i === editingDraftIndex ? draft : d))
+          : [...prev, draft],
+      );
+      cancelScheduleForm();
+      return;
+    }
     setSavingSchedule(true);
     try {
       const schedule = editingScheduleId
@@ -486,6 +621,25 @@ export default function MedicationFormScreen() {
         {scheduleMode === 'interval' ? (
           <>
             <Text style={styles.label}>{t('medicationForm.intervalHoursLabel')}</Text>
+            {/* Atalhos dos intervalos mais prescritos — um toque no
+                lugar de digitar; o campo livre continua pra casos fora
+                da curva (3h, 36h...). */}
+            <View style={styles.presetRow}>
+              {INTERVAL_HOUR_OPTIONS.map((h) => (
+                <TouchableOpacity
+                  key={h}
+                  style={[styles.presetChip, newIntervalHours === String(h) && styles.presetChipActive]}
+                  onPress={() => setNewIntervalHours(String(h))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${h}h`}
+                  accessibilityState={{ selected: newIntervalHours === String(h) }}
+                >
+                  <Text style={[styles.presetChipText, newIntervalHours === String(h) && styles.presetChipTextActive]}>
+                    {h}h
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TextInput
               style={styles.input}
               value={newIntervalHours}
@@ -499,6 +653,27 @@ export default function MedicationFormScreen() {
         ) : (
           <>
             <Text style={styles.label}>{t('medicationForm.daysLabel')}</Text>
+            {/* Atalhos de dias (2026-08-21) — "dias úteis" e "fim de
+                semana" são o vocabulário real; os círculos ficam pra
+                combinações fora dessas três. */}
+            <View style={styles.presetRow}>
+              {DAY_PRESETS.map((preset) => {
+                const label = t(`medicationForm.dayPreset${preset.key.charAt(0).toUpperCase()}${preset.key.slice(1)}`);
+                const active = sameDays(newDays, preset.days);
+                return (
+                  <TouchableOpacity
+                    key={preset.key}
+                    style={[styles.presetChip, active && styles.presetChipActive]}
+                    onPress={() => setNewDays([...preset.days])}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('medicationForm.dayPresetAccessibilityLabel', { label })}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.presetChipText, active && styles.presetChipTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
             <View style={styles.daysRow}>
               {DAYS.map((label, i) => (
                 <TouchableOpacity
@@ -520,6 +695,20 @@ export default function MedicationFormScreen() {
       </>
     );
   }
+
+  const locale = i18n.language;
+  // "Fim previsto" (2026-08-21) — duração em dias solta no formulário
+  // não diz nada pra quem está cadastrando; a data transforma o número
+  // em algo tangível ("10" → "Fim previsto: 30 de ago. de 2026").
+  const durationDaysNum = parseIntOrNull(treatmentDurationDays);
+  const treatmentEndsOn =
+    durationDaysNum !== null && durationDaysNum >= 1
+      ? new Date(Date.now() + (durationDaysNum - 1) * 24 * 60 * 60 * 1000).toLocaleDateString(locale, {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : null;
 
   if (loading) {
     return <ActivityIndicator style={{ flex: 1, backgroundColor: colors.background }} color={colors.brand} />;
@@ -648,6 +837,9 @@ export default function MedicationFormScreen() {
         keyboardType="number-pad"
         accessibilityLabel={t('medicationForm.treatmentDurationAccessibilityLabel')}
       />
+      {treatmentEndsOn && (
+        <Text style={styles.fieldHint}>{t('medicationForm.treatmentEndsPreview', { date: treatmentEndsOn })}</Text>
+      )}
 
       <Text style={styles.label}>{t('medicationForm.instructionsLabel')}</Text>
       <TextInput
@@ -778,25 +970,132 @@ export default function MedicationFormScreen() {
         </>
       )}
 
-      {/* Horário inicial ao criar */}
+      {/* Horários ao criar (2026-08-21) — substitui o antigo "Primeiro
+          horário" (um só, sempre criado) por: atalho de quantas vezes
+          por dia + lista de rascunhos editáveis. Mesma cara da seção de
+          horários de remédio já existente, pra não ter duas linguagens
+          visuais no mesmo formulário. */}
       {isNew && (
         <>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('medicationForm.firstSchedule')}</Text>
+            <Text style={styles.sectionTitle}>{t('medicationForm.sectionSchedules')}</Text>
+            {!addingDraft && editingDraftIndex === null && (
+              <TouchableOpacity
+                style={styles.addScheduleBtn}
+                onPress={startAddSchedule}
+                accessibilityRole="button"
+                accessibilityLabel={t('medicationForm.addScheduleLabel')}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <Text style={styles.label}>{t('medicationForm.hourLabel')}</Text>
-          <TextInput
-            style={styles.input}
-            value={newTime}
-            onChangeText={setNewTime}
-            placeholder={t('medicationForm.hourPlaceholder')}
-            placeholderTextColor={colors.textMuted}
-            keyboardType="numbers-and-punctuation"
-            accessibilityLabel={t('medicationForm.hourAccessibilityLabel')}
-          />
+          {/* Resposta direta a "quantas vezes tomar?" — um toque monta
+              a lista toda; depois ajusta horário individual à vontade. */}
+          <Text style={styles.label}>{t('medicationForm.frequencyQuickLabel')}</Text>
+          <View style={styles.presetRow}>
+            {(
+              [
+                ['once', t('medicationForm.quickOnce')],
+                ['twice', t('medicationForm.quickTwice')],
+                ['thrice', t('medicationForm.quickThrice')],
+                ['fourTimes', t('medicationForm.quickFourTimes')],
+              ] as const
+            ).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.presetChip, isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipActive]}
+                onPress={() => applyFrequencyPreset(FREQUENCY_PRESET_TIMES[key])}
+                accessibilityRole="button"
+                accessibilityLabel={t('medicationForm.quickAccessibilityLabel', { preset: label })}
+                accessibilityState={{ selected: isPresetActive(FREQUENCY_PRESET_TIMES[key]) }}
+              >
+                <Text
+                  style={[
+                    styles.presetChipText,
+                    isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-          {renderFrequencyFields()}
+          {draftSchedules.map((draft, index) => {
+            const draftInterval = draft.mode === 'interval' ? parseIntOrNull(draft.intervalHours) : null;
+            const summary = formatDays(draft.mode === 'interval' ? null : draft.days, t, draftInterval);
+            return (
+              <View key={`${draft.time}-${index}`} style={styles.scheduleCard}>
+                <MaterialCommunityIcons name="clock-outline" size={20} color={colors.brand} />
+                <View style={styles.scheduleInfo}>
+                  <Text style={styles.scheduleTime}>{draft.time}</Text>
+                  <Text style={styles.scheduleDays}>{summary}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => startEditDraft(index)}
+                  style={styles.editBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('medicationForm.editLabel', { time: draft.time, days: summary })}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => removeDraft(index)}
+                  style={styles.deleteBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('medicationForm.removeLabel', { time: draft.time, days: summary })}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+
+          {(addingDraft || editingDraftIndex !== null) && (
+            <View style={styles.addScheduleBox}>
+              <Text style={styles.addScheduleTitle}>
+                {editingDraftIndex !== null && !addingDraft ? t('medicationForm.editSchedule') : t('medicationForm.newSchedule')}
+              </Text>
+
+              <Text style={styles.label}>{t('medicationForm.hourLabel')}</Text>
+              <TextInput
+                style={styles.input}
+                value={newTime}
+                onChangeText={setNewTime}
+                placeholder={t('medicationForm.hourPlaceholder')}
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numbers-and-punctuation"
+                accessibilityLabel={t('medicationForm.hourAccessibilityLabel')}
+              />
+
+              {renderFrequencyFields()}
+
+              <View style={styles.addScheduleActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={cancelScheduleForm}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.cancel')}
+                >
+                  <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.confirmBtn}
+                  onPress={saveScheduleForm}
+                  accessibilityRole="button"
+                  accessibilityLabel={editingDraftIndex !== null && !addingDraft ? t('medicationForm.saveScheduleLabel') : t('medicationForm.addScheduleLabel')}
+                >
+                  <Text style={styles.confirmBtnText}>
+                    {editingDraftIndex !== null && !addingDraft ? t('medicationForm.saveAction') : t('medicationForm.addAction')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </>
       )}
 
@@ -951,6 +1250,18 @@ function makeStyles(c: ThemeColors) {
     freqBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
     freqBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
     freqBtnTextActive: { color: c.onBrand },
+    // Chips de atalho (presets de frequência/dias/intervalo, 2026-08-21)
+    // — largura pelo conteúdo e quebra de linha, diferente dos botões
+    // flex:1 acima: "4x por dia" não cabe espremido em quarto de tela.
+    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, marginBottom: 6 },
+    presetChip: {
+      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
+    },
+    presetChipActive: { backgroundColor: c.brand, borderColor: c.brand },
+    presetChipText: { fontSize: 12, fontWeight: '600', color: c.textMuted },
+    presetChipTextActive: { color: c.onBrand },
+    fieldHint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
     addScheduleActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
     cancelBtn: {
       flex: 1, padding: 12, borderRadius: 10,

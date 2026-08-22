@@ -585,6 +585,177 @@ describe('MedicationFormScreen — duração do tratamento (2026-08-14)', () => 
   });
 });
 
+// Feedback do Rilson (2026-08-21): "quantas vezes tomar não está bem
+// configurável" — o cadastro só aceitava UM horário; o resto exigia
+// criar, reabrir e editar. Agora a criação tem lista de rascunhos com
+// atalhos de frequência, presets de dias/intervalo e duração com data
+// de fim prevista.
+describe('MedicationFormScreen — múltiplos horários no cadastro (2026-08-21)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSearchParams.mockReturnValue({ id: 'new' });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedMedications.createMedication.mockResolvedValue(medication as any);
+    let scheduleId = 100;
+    mockedMedications.createSchedule.mockImplementation(() =>
+      Promise.resolve({ id: ++scheduleId, medication_id: 10, time: '08:00:00', days_of_week: null, interval_hours: null, is_active: true }),
+    );
+  });
+
+  it('cadastro começa com um horário padrão 08:00 de todos os dias já na lista', async () => {
+    renderScreen();
+
+    expect(await screen.findByText('Quantas vezes por dia?')).toBeTruthy();
+    expect(screen.getByText('08:00')).toBeTruthy();
+    expect(screen.getByText('Todos os dias')).toBeTruthy();
+  });
+
+  it('atalho "2x por dia" substitui a lista por dois horários padrão', async () => {
+    renderScreen();
+
+    await screen.findByText('Quantas vezes por dia?');
+    fireEvent.press(screen.getByLabelText('Atalho: 2x por dia'));
+
+    expect(screen.getByText('08:00')).toBeTruthy();
+    expect(screen.getByText('20:00')).toBeTruthy();
+    // Chip fica destacado enquanto a lista corresponde ao atalho.
+    const chip = screen.getByLabelText('Atalho: 2x por dia');
+    expect(chip.props.accessibilityState.selected).toBe(true);
+  });
+
+  it('salvar com o atalho 2x por dia cria DOIS schedules e agenda duas notificações', async () => {
+    renderScreen();
+
+    fireEvent.changeText(await screen.findByLabelText('Nome do medicamento'), 'Losartana');
+    fireEvent.press(screen.getByLabelText('Atalho: 2x por dia'));
+    fireEvent.press(screen.getByText('Cadastrar medicamento'));
+
+    await waitFor(() => {
+      expect(mockedMedications.createSchedule).toHaveBeenCalledTimes(2);
+      expect(mockedMedications.createSchedule).toHaveBeenNthCalledWith(1, 10, {
+        time: '08:00',
+        days_of_week: null,
+        interval_hours: null,
+      });
+      expect(mockedMedications.createSchedule).toHaveBeenNthCalledWith(2, 10, {
+        time: '20:00',
+        days_of_week: null,
+        interval_hours: null,
+      });
+      expect(mockedNotifications.scheduleScheduleNotifications).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('"Adicionar horário" abre o editor e acrescenta rascunho à lista', async () => {
+    renderScreen();
+
+    await screen.findByText('Quantas vezes por dia?');
+    fireEvent.press(screen.getByLabelText('Adicionar horário'));
+    expect(screen.getByText('Novo horário')).toBeTruthy();
+
+    fireEvent.changeText(screen.getByPlaceholderText('08:00'), '14:00');
+    fireEvent.press(screen.getByText('Adicionar'));
+
+    expect(await screen.findByText('14:00')).toBeTruthy();
+    // Dois rascunhos agora: o padrão 08:00 continua lá.
+    expect(screen.getAllByText('Todos os dias')).toHaveLength(2);
+  });
+
+  it('editar rascunho pela lista atualiza a linha correspondente', async () => {
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Editar horário das 08:00, Todos os dias'));
+    expect(screen.getByText('Editar horário')).toBeTruthy();
+    fireEvent.changeText(screen.getByPlaceholderText('08:00'), '09:30');
+    fireEvent.press(screen.getByText('Salvar'));
+
+    expect(await screen.findByText('09:30')).toBeTruthy();
+    expect(screen.queryByText('08:00')).toBeNull();
+  });
+
+  it('remover todos os horários bloqueia o salvamento com aviso claro', async () => {
+    renderScreen();
+
+    fireEvent.changeText(await screen.findByLabelText('Nome do medicamento'), 'Losartana');
+    fireEvent.press(screen.getByLabelText('Remover horário das 08:00, Todos os dias'));
+    fireEvent.press(screen.getByText('Cadastrar medicamento'));
+
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith('Adicione ao menos um horário antes de salvar.');
+    });
+    expect(mockedMedications.createMedication).not.toHaveBeenCalled();
+  });
+
+  it('preset "Seg a Sex" no editor desmarca fim de semana e a lista reflete', async () => {
+    renderScreen();
+
+    await screen.findByText('Quantas vezes por dia?');
+    fireEvent.press(screen.getByLabelText('Adicionar horário'));
+    fireEvent.press(screen.getByLabelText('Seg a Sex (atalho de dias da semana)'));
+
+    // Rótulos dos círculos usam os nomes abreviados de i18n (days.*).
+    expect(screen.getByLabelText('Sáb').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByLabelText('Dom').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByLabelText('Seg').props.accessibilityState.selected).toBe(true);
+
+    fireEvent.press(screen.getByText('Adicionar'));
+
+    // Rascunho novo com dias úteis; resumo vira a lista de nomes cheios.
+    expect(await screen.findByText('Seg, Ter, Qua, Qui, Sex')).toBeTruthy();
+  });
+
+  it('preset "8h" de intervalo preenche o campo e salvar usa interval_hours', async () => {
+    renderScreen();
+
+    fireEvent.changeText(await screen.findByLabelText('Nome do medicamento'), 'Azitromicina');
+    await screen.findByText('Quantas vezes por dia?');
+    fireEvent.press(screen.getByLabelText('Adicionar horário'));
+    fireEvent.press(screen.getByLabelText('A cada X horas'));
+    fireEvent.press(screen.getByLabelText('12h'));
+
+    expect(screen.getByLabelText('Intervalo em horas entre as doses').props.value).toBe('12');
+
+    fireEvent.press(screen.getByText('Adicionar'));
+    fireEvent.press(screen.getByText('Cadastrar medicamento'));
+
+    await waitFor(() => {
+      expect(mockedMedications.createSchedule).toHaveBeenCalledWith(10, {
+        time: '08:00',
+        days_of_week: null,
+        interval_hours: 12,
+      });
+    });
+  });
+});
+
+describe('MedicationFormScreen — duração com data de fim prevista (2026-08-21)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSearchParams.mockReturnValue({ id: 'new' });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedMedications.createMedication.mockResolvedValue(medication as any);
+  });
+
+  it('preencher duração mostra a data de fim prevista', async () => {
+    renderScreen();
+
+    fireEvent.changeText(await screen.findByLabelText('Nome do medicamento'), 'Amoxicilina');
+    fireEvent.changeText(screen.getByLabelText('Duração do tratamento em dias'), '7');
+
+    expect(await screen.findByText(/Fim previsto:/)).toBeTruthy();
+  });
+
+  it('sem duração, não há data de fim (uso contínuo)', async () => {
+    renderScreen();
+
+    await screen.findByLabelText('Nome do medicamento');
+
+    expect(screen.queryByText(/Fim previsto:/)).toBeNull();
+  });
+});
+
 // "Foto do medicamento" (2026-08-13).
 describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
   beforeEach(() => {
