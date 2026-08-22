@@ -509,7 +509,7 @@ export default function ProfileScreen() {
         {LANGUAGE_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.mode}
-            style={[styles.languageBtn, languageMode === opt.mode && styles.themeBtnActive]}
+            style={[styles.languageBtn, isWide && styles.languageBtnWide, languageMode === opt.mode && styles.themeBtnActive]}
             onPress={() => setLanguage(opt.mode)}
             accessibilityRole="button"
             accessibilityLabel={t('profile.languageLabel', { label: opt.label })}
@@ -802,6 +802,11 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: 12, padding: 12,
       borderWidth: 1.5, borderColor: c.border,
     },
+    // Web wide (2026-08-22) — achado do Rilson: os 48% fixos (pensados
+    // pra grade 2x2 do celular) prendiam em 2 por linha mesmo sobrando
+    // espaço de sobra numa tela larga. Igual ao themeBtn (flex:1), só
+    // que aqui via override porque o base já tem width fixo.
+    languageBtnWide: { width: undefined, flex: 1 },
     helpBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 20,

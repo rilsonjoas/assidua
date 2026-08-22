@@ -219,26 +219,36 @@ export default function HomeScreen() {
             do header passou despercebido ("cadê o logo?"). O coração com
             relógio grande e translúcido, atrás do conteúdo, dá presença
             de marca sem competir com data/título — a leitura continua
-            sendo "que remédios tenho hoje", não "que logo é esse". */}
-        <Image
-          source={require('../../assets/android-icon-monochrome.png')}
-          style={styles.brandWatermark}
-          accessible={false}
-          importantForAccessibility="no"
-        />
+            sendo "que remédios tenho hoje", não "que logo é esse".
+            Escondida em wide (W2, 2026-08-22): a WebTopNav já carrega a
+            identidade ali — repetir aqui também virava "logo demais na
+            mesma tela" (achado do Rilson). Header interno vira só
+            tipografia quando tem navbar. */}
+        {!isWide && (
+          <Image
+            source={require('../../assets/android-icon-monochrome.png')}
+            style={styles.brandWatermark}
+            accessible={false}
+            importantForAccessibility="no"
+          />
+        )}
         <View style={styles.headerTop}>
           {/* Marca (2026-08-14): feedback do Rilson — o app tinha o
               ícone novo, mas nenhum ponto de ancoragem *dentro* das
               telas. Um só lugar (aqui, a primeira tela que a pessoa vê)
               é de propósito — espalhar o logo em toda tela lê como
               inseguro, não como identidade. Usa a silhueta monocromática
-              branca, já pensada pra ficar sobre uma cor sólida. */}
-          <Image
-            source={require('../../assets/android-icon-monochrome.png')}
-            style={styles.brandMark}
-            accessible={false}
-            importantForAccessibility="no"
-          />
+              branca, já pensada pra ficar sobre uma cor sólida.
+              Mesma lógica acima: em wide, a navbar já é o único ponto
+              de marca. */}
+          {!isWide && (
+            <Image
+              source={require('../../assets/android-icon-monochrome.png')}
+              style={styles.brandMark}
+              accessible={false}
+              importantForAccessibility="no"
+            />
+          )}
           <View>
             <Text style={styles.date}>{today}</Text>
             <View style={styles.titleRow}>

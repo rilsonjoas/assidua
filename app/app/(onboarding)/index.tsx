@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { requestNotificationPermission, registerPushToken } from '../../services/notifications';
@@ -25,6 +26,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
+  const isWide = useIsWideScreen();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const setCompleted = useOnboardingStore((s) => s.setCompleted);
   const scrollRef = useRef<ScrollView>(null);
@@ -83,11 +85,17 @@ export default function OnboardingScreen() {
             accessible
             accessibilityLabel={t('onboarding.stepLabel', { current: i + 1, total: steps.length, title: s.title, text: s.text })}
           >
-            <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name={s.icon} size={56} color={colors.brand} />
+            {/* Wrapper interno com maxWidth (2026-08-22) — a página em si
+                precisa ficar exatamente do tamanho da janela pro paging
+                funcionar, mas o CONTEÚDO não deveria esticar até a borda
+                numa tela larga (achado do Rilson, W2). */}
+            <View style={isWide && styles.contentInnerWide}>
+              <View style={styles.iconCircle}>
+                <MaterialCommunityIcons name={s.icon} size={56} color={colors.brand} />
+              </View>
+              <Text style={styles.title}>{s.title}</Text>
+              <Text style={styles.text}>{s.text}</Text>
             </View>
-            <Text style={styles.title}>{s.title}</Text>
-            <Text style={styles.text}>{s.text}</Text>
           </View>
         ))}
       </ScrollView>
@@ -108,7 +116,7 @@ export default function OnboardingScreen() {
       </View>
 
       <TouchableOpacity
-        style={styles.nextBtn}
+        style={[styles.nextBtn, isWide && styles.nextBtnWide]}
         onPress={() => (isLast ? finish() : goToStep(step + 1))}
         accessibilityRole="button"
         accessibilityLabel={isLast ? t('onboarding.finish') : t('onboarding.next')}
@@ -126,6 +134,7 @@ function makeStyles(c: ThemeColors) {
     skipText: { color: c.textMuted, fontSize: 14, fontWeight: '600' },
     pager: { flex: 1 },
     content: { alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 },
+    contentInnerWide: { alignItems: 'center', gap: 16, width: '100%', maxWidth: 480 },
     iconCircle: {
       width: 112, height: 112, borderRadius: 56, backgroundColor: c.brandSubtle,
       alignItems: 'center', justifyContent: 'center', marginBottom: 8,
@@ -136,6 +145,7 @@ function makeStyles(c: ThemeColors) {
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
     dotActive: { backgroundColor: c.brand, width: 20 },
     nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginHorizontal: 24 },
+    nextBtnWide: { alignSelf: 'center', width: '100%', maxWidth: 480, marginHorizontal: 0 },
     nextBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
   });
 }

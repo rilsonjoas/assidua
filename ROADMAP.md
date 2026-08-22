@@ -110,6 +110,27 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 - [ ] **Versão Web do Meus Remédios** — plano completo na seção abaixo (2026-08-21).
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
 
+#### Rascunho do formulário "Data Safety" (pré-preenchido 2026-08-22, sem depender da conta paga)
+
+> Baseado nas migrations reais (`users`, `profiles`, `medications`,
+> `dose_logs`, `push_tokens` etc.), não em suposição. Preencher isso
+> quando a conta existir — economiza reler o schema na hora.
+
+| Categoria (Google Play) | Coletado? | O quê | Compartilhado com terceiro? | Uso |
+|---|---|---|---|---|
+| Informações pessoais | Sim | Nome, e-mail | Não (Google só como provedor de login, não é "compartilhamento") | Conta/funcionalidade do app |
+| Saúde e bem-estar → Info de saúde | Sim | Nome do remédio, dosagem, horários, histórico de adesão | Não | Funcionalidade principal do app |
+| Fotos e vídeos | Sim (opcional) | Foto do remédio (`photo_path`, usuário escolhe adicionar) | Não | Funcionalidade do app |
+| Atividade no app | Sim | Dose marcada como tomada/pulada | Não | Funcionalidade do app |
+| Identificadores de dispositivo | Sim | Token de notificação push | Não | Lembretes/notificações |
+| Informações financeiras | **Não, ainda** — reavaliar quando RevenueCat sair do vazio (ver seção abaixo) | — | — | — |
+
+**Outras perguntas do formulário:**
+- Dado criptografado em trânsito? **Sim** (HTTPS/TLS via Traefik + Let's Encrypt em toda a stack)
+- Usuário pode pedir exclusão de dado? **Sim** — exclusão de conta dentro do próprio app (`AuthController::destroyAccount`), sem precisar suporte
+- Compartilhamento com terceiros de verdade: **Sentry** (diagnóstico de erro, sem PII — `send_default_pii=false` no backend, servidor nos EUA, já disclosurado na política de privacidade)
+- Auditoria de segurança independente: Não
+
 ### 💰 RevenueCat — estado real e o que falta (levantado 2026-08-21)
 
 Projeto "Meus remédios" **já criado no dashboard** pelo Rilson, com
@@ -400,7 +421,23 @@ Validação pós-fix: `tsc --noEmit` limpo · 145/145 testes · export OK.
 URIs" do OAuth client no GCloud pro login social funcionar no ambiente
 local (produção já tem o dele). Erro atual: `400 redirect_uri_mismatch`.
 
-### 🔴 PENDENTE — Fragmentação de contas: Google vs magic link com mesmo e-mail (reportado 2026-08-22)
+### 🟡 Fragmentação de contas: Google vs magic link com mesmo e-mail (reportado 2026-08-22)
+
+> **Parte 1 (código) confirmada corrigida e testada — 2026-08-22.**
+> `AuthController::googleCallback` já resolve por `google_id` OU
+> `email` antes de criar conta nova (ver código). Teste
+> `test_login_google_de_email_ja_cadastrado_via_magic_link_vincula_sem_duplicar`
+> existe e passou na CI do push de hoje (run verde, confirmado via
+> `gh run list`, não só leitura de código).
+>
+> **Parte 2 (merge de dado real) verificada e fechada — 2026-08-22.**
+> Backup rodado (`make backup`, ok), dry-run de
+> `assidua:merge-duplicate-accounts` rodado e depois conferido direto
+> na tabela (`User::all()`, sem agregação): **1 única conta** pro
+> e-mail do Rilson (id 2, google_id preenchido, sem senha — só
+> magic-link/Google, as duas batendo na mesma conta). Nenhuma
+> duplicata pra mesclar hoje — o relato original era de antes do fix.
+> Item fechado, `--execute` nunca precisou rodar.
 
 **Achado real em produção**: logou pelo Google, depois por magic link
 com o MESMO e-mail — dados vistos são diferentes. Duas contas para a
@@ -429,21 +466,24 @@ porta de entrada.
 
 ### 🟡 W2 — Backlog visual web (testes reais do Rilson, 2026-08-22 noite)
 
-- [ ] **Logo real em vez de ícone genérico**: telas de login/cadastro
-      usam `MaterialCommunityIcons 'pill'` no logoBox e a WebTopNav usa
-      o mesmo ícone de fonte — trocar pelo logotipo de verdade
-      (coração+relógio, assets já existem). Favicon da web conferir.
-- [ ] **Home web: menos logos repetidos** — hoje acumula navbar (marca)
-      + header com mark pequeno + marca d'água grande. Em wide, escolher
-      UM ponto de marca por tela (navbar carrega a identidade; header
-      interno pode ficar só tipografia).
-- [ ] **Onboarding desktop quebrado** — elementos soltos/desalinhados
-      em tela larga (layout assume largura de celular). Nota: aparece
-      UMA vez por navegador/storage (flag própria), mas precisa ficar
-      bonito na primeira vez também.
-- [ ] **Perfil: chips de Idioma quebrando em 2 linhas** mesmo com
-      conteúdo ≤960px — revisar minWidth/flex dos chips quando wide
-      (Aparência/Fonte cabem em 1 linha; Idioma tem 4 opções).
+- [x] **Logo real em vez de ícone genérico** — feito 2026-08-22: login,
+      cadastro e WebTopNav agora usam `assets/icon.png` (coração+relógio
+      colorido) em vez de `MaterialCommunityIcons 'pill'`. Favicon
+      conferido — já era o ícone certo, sem texto embutido, não precisou
+      mudar.
+- [x] **Home web: menos logos repetidos** — feito 2026-08-22: mark
+      pequeno + marca d'água grande do header agora somem em wide
+      (`!isWide`) — a WebTopNav já é o único ponto de marca nesse modo,
+      header interno vira só tipografia.
+- [x] **Onboarding desktop quebrado** — feito 2026-08-22: conteúdo de
+      cada passo (ícone/título/texto) e o botão de avançar ganharam
+      `maxWidth: 480` centralizado em wide, dentro do wrapper de página
+      que precisa continuar em `{ width }` cheio pro paging do
+      `ScrollView` funcionar.
+- [x] **Perfil: chips de Idioma quebrando em 2 linhas** — feito
+      2026-08-22: causa era `width: '48%'` fixo (pensado pra grade 2x2
+      do celular) nunca liberado em wide; `languageBtnWide` troca pra
+      `flex: 1` como os outros seletores quando `isWide`.
 - [ ] **Botão "Baixar o app" no site** — só DEPOIS da publicação na Play
       Store (L0): badge/link do Google Play no rodapé e/ou navbar web.
       Antes disso seria botão morto. Pedir pro Rilson lembrar ao fechar
@@ -2067,8 +2107,9 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       categoria sensível pela LGPD; com poucos usuários o risco é
       teórico, com milhares vira exposição real (resposta a incidente,
       portabilidade de dado, etc.)
-- [ ] Termos de uso — hoje só existe a política de privacidade, não um
-      termo de uso separado
+- [x] Termos de uso — item desatualizado (2026-08-22): página já
+      existe (`api/resources/views/terms.blade.php`, 121 linhas, rota
+      `/termos` real), não é só a política de privacidade
 - [ ] **Exportação de dados de verdade** (portabilidade, LGPD art. 18
       VI) — hoje só existe "revisar na tela Histórico"; a política
       agora é honesta sobre isso, mas o direito de portabilidade real

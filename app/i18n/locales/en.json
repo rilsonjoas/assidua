@@ -20,8 +20,8 @@
     "title": "Medicine"
   },
   "login": {
-    "title": "My Medicines",
-    "subtitle": "Enter your email to get a sign-in link",
+    "title": "Assídua",
+    "subtitle": "Medication reminders and remote caregiving. Enter your email to get a sign-in link.",
     "emailLabel": "Email",
     "emailPlaceholder": "Email",
     "enter": "Send sign-in link",
@@ -35,7 +35,7 @@
   },
   "register": {
     "title": "Create account",
-    "subtitle": "Fill in your details to get a sign-in link",
+    "subtitle": "Medication reminders and remote caregiving. Fill in your details to get a sign-in link.",
     "nameLabel": "Name",
     "namePlaceholder": "Name",
     "emailLabel": "Email",
@@ -150,7 +150,7 @@
     "profileLabelShared": "Profile {{name}}, you're a remote caregiver",
     "profileLabel": "Profile {{name}}",
     "inviteLabel": "Invite caregiver for {{name}}",
-    "inviteMessage": "Use the code {{code}} in the My Medicines app to follow along with me — Profile > I have a code. Valid for 7 days.",
+    "inviteMessage": "Use the code {{code}} in the Assídua app to follow along with me — Profile > I have a code. Valid for 7 days.",
     "errorInvite": "Couldn't create the invite.",
     "haveCode": "I have a code",
     "pasteCode": "Paste the code you got from whoever invited you to follow a profile.",
@@ -213,7 +213,7 @@
   "pro": {
     "headerTitle": "Pro Plan",
     "badgeLabel": "Your plan: {{tier}}. Tap to see Pro benefits",
-    "title": "My Medicines Pro",
+    "title": "Assídua Pro",
     "subtitle": "Compare what changes between the free plan and Pro.",
     "alreadyPro": "You're already Pro — thanks for supporting the app!",
     "benefit": {
@@ -378,7 +378,7 @@
     },
     "shareButton": "Share guide",
     "shareLabel": "Share a quick text guide",
-    "shareHint": "Sends a simple summary via WhatsApp (or any other app), to leave with whoever will use My Medicines day to day.",
-    "shareText": "Quick guide — My Medicines\n\n1. When you take your medicine on time, tap \"Taken\".\n2. If it shows \"Missed\", it's just because the time passed without marking it — not an error, just a heads up.\n3. To see how much medicine is left, go to the Stock tab.\n4. If you have a question, just open Profile → Help inside the app."
+    "shareHint": "Sends a simple summary via WhatsApp (or any other app), to leave with whoever will use Assídua day to day.",
+    "shareText": "Quick guide — Assídua\n\n1. When you take your medicine on time, tap \"Taken\".\n2. If it shows \"Missed\", it's just because the time passed without marking it — not an error, just a heads up.\n3. To see how much medicine is left, go to the Stock tab.\n4. If you have a question, just open Profile → Help inside the app."
   }
 }

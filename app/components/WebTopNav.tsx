@@ -1,5 +1,5 @@
 import { Link, usePathname } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
@@ -12,7 +12,7 @@ import { useTheme } from '../hooks/useTheme';
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export default function WebTopNav() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { t } = useTranslation();
   const pathname = usePathname() ?? '/';
 
@@ -29,9 +29,15 @@ export default function WebTopNav() {
 
   return (
     <View style={[styles.nav, { backgroundColor: colors.tabBar, borderBottomColor: colors.tabBarBorder }]}>
-      {/* Marca */}
+      {/* Marca — logo real (coração+relógio), não o ícone genérico de
+          pílula (achado do Rilson, W2, 2026-08-22). */}
       <View style={styles.brand}>
-        <MaterialCommunityIcons name="pill" size={22} color={colors.brand} />
+        <Image
+          source={isDark ? require('../assets/android-icon-monochrome.png') : require('../assets/logo-mark.png')}
+          style={styles.brandIcon}
+          accessible={false}
+          importantForAccessibility="no"
+        />
         <Text style={[styles.brandText, { color: colors.text }]}>Assídua</Text>
       </View>
 
@@ -86,6 +92,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  brandIcon: {
+    width: 22,
+    height: 22,
   },
   brandText: {
     fontSize: 17,

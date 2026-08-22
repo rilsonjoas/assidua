@@ -4,7 +4,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-
+  Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -32,7 +32,7 @@ export default function RegisterScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const setUser = useAuthStore((s) => s.setUser);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   async function handleGoogleLogin() {
@@ -88,7 +88,14 @@ export default function RegisterScreen() {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <View style={styles.logoBox}>
-          <MaterialCommunityIcons name="pill" size={48} color={colors.brand} />
+          {/* Mesma lógica tema-aware do login (2026-08-22) — `icon.png`
+              tem fundo branco opaco, feio no escuro. */}
+          <Image
+            source={isDark ? require('../../assets/android-icon-monochrome.png') : require('../../assets/logo-mark.png')}
+            style={styles.logoImage}
+            accessible={false}
+            importantForAccessibility="no"
+          />
         </View>
         <Text style={styles.title}>{t('register.title')}</Text>
         <Text style={styles.subtitle}>{t('register.subtitle')}</Text>
@@ -164,6 +171,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.background },
     inner: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 48 },
     logoBox: { alignItems: 'center', marginBottom: 12 },
+    logoImage: { width: 64, height: 64 },
     title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: c.text, marginBottom: 8 },
     subtitle: { fontSize: 16, textAlign: 'center', color: c.textSecondary, marginBottom: 32 },
     input: {

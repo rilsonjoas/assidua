@@ -21,7 +21,7 @@
   },
   "login": {
     "title": "Assídua",
-    "subtitle": "Digite seu e-mail para receber um link de acesso",
+    "subtitle": "Lembretes de remédio e cuidado a distância. Digite seu e-mail para receber um link de acesso.",
     "emailLabel": "Email",
     "emailPlaceholder": "Email",
     "enter": "Enviar link de acesso",
@@ -35,7 +35,7 @@
   },
   "register": {
     "title": "Criar conta",
-    "subtitle": "Preencha seus dados para receber um link de acesso",
+    "subtitle": "Lembretes de remédio e cuidado a distância. Preencha seus dados para receber um link de acesso.",
     "nameLabel": "Nome",
     "namePlaceholder": "Nome",
     "emailLabel": "Email",

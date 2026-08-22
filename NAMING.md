@@ -33,6 +33,17 @@
 | e-mail | `assidua@narniano.com` |
 | comando Artisan | `assidua:merge-duplicate-accounts` |
 | repo GitHub | github.com/rilsonjoas/assidua |
+| **slug do `app.json` (EAS)** | **`meus-remedios` — NÃO MUDA, de propósito** |
+
+> [!WARNING] Slug do EAS é imutável — achado 2026-08-22
+> Slug fica amarrado pra sempre ao `projectId` (confirmado na doc
+> oficial do Expo, `expo.fyi/eas-project-id`: "A project ID is
+> associated with a single slug, which cannot be changed"). Eu tinha
+> renomeado `slug: "assidua"` no find-replace original — errado,
+> quebrou `eas build:list`/`eas build`. Revertido pra `meus-remedios`.
+> Diferente de `name`/`scheme`/`bundleIdentifier`/`package` — esses
+> são branding de verdade e mudam; `slug` é só plumbing interno do
+> EAS, invisível pro usuário, e fica preso ao projeto desde a criação.
 
 ## Por que não Cuidia (escolha anterior, revertida no mesmo dia)
 

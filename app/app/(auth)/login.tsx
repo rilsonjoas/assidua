@@ -4,7 +4,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-
+  Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -26,7 +26,7 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const setUser = useAuthStore((s) => s.setUser);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   async function handleGoogleLogin() {
@@ -84,7 +84,18 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.inner}>
         <View style={styles.logoBox}>
-          <MaterialCommunityIcons name="pill" size={48} color={colors.brand} />
+          {/* Marca real (coração+relógio), não o ícone genérico de pílula —
+              é a primeira tela que qualquer pessoa vê, e "Assídua" sozinho
+              não é autoexplicativo como "Meus Remédios" era (2026-08-22).
+              Achado do Rilson (mesmo dia): `icon.png` tem fundo branco
+              opaco, não transparente — vira um quadrado feio no escuro.
+              Tema-aware: roxa transparente no claro, branca no escuro. */}
+          <Image
+            source={isDark ? require('../../assets/android-icon-monochrome.png') : require('../../assets/logo-mark.png')}
+            style={styles.logoImage}
+            accessible={false}
+            importantForAccessibility="no"
+          />
         </View>
         <Text style={styles.title}>{t('login.title')}</Text>
         <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
@@ -147,6 +158,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.background },
     inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
     logoBox: { alignItems: 'center', marginBottom: 12 },
+    logoImage: { width: 64, height: 64 },
     title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: c.text },
     subtitle: { fontSize: 16, textAlign: 'center', color: c.textSecondary, marginBottom: 32 },
     input: {

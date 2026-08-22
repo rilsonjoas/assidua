@@ -20,8 +20,8 @@
     "title": "Medicina"
   },
   "login": {
-    "title": "Mis Medicinas",
-    "subtitle": "Ingresa tu correo para recibir un enlace de acceso",
+    "title": "Assídua",
+    "subtitle": "Recordatorios de medicamentos y cuidado a distancia. Ingresa tu correo para recibir un enlace de acceso.",
     "emailLabel": "Correo electrónico",
     "emailPlaceholder": "Correo electrónico",
     "enter": "Enviar enlace de acceso",
@@ -35,7 +35,7 @@
   },
   "register": {
     "title": "Crear cuenta",
-    "subtitle": "Completa tus datos para recibir un enlace de acceso",
+    "subtitle": "Recordatorios de medicamentos y cuidado a distancia. Completa tus datos para recibir un enlace de acceso.",
     "nameLabel": "Nombre",
     "namePlaceholder": "Nombre",
     "emailLabel": "Correo electrónico",
@@ -150,7 +150,7 @@
     "profileLabelShared": "Perfil {{name}}, cuidas de forma remota",
     "profileLabel": "Perfil {{name}}",
     "inviteLabel": "Invitar cuidador para {{name}}",
-    "inviteMessage": "Usa el código {{code}} en la app Mis Medicinas para acompañarme — Perfil > Tengo un código. Válido por 7 días.",
+    "inviteMessage": "Usa el código {{code}} en la app Assídua para acompañarme — Perfil > Tengo un código. Válido por 7 días.",
     "errorInvite": "No se pudo crear la invitación.",
     "haveCode": "Tengo un código",
     "pasteCode": "Pega el código que recibiste de quien te invitó a seguir un perfil.",
@@ -213,7 +213,7 @@
   "pro": {
     "headerTitle": "Plan Pro",
     "badgeLabel": "Tu plan: {{tier}}. Toca para ver los beneficios de Pro",
-    "title": "Mis Medicinas Pro",
+    "title": "Assídua Pro",
     "subtitle": "Compara qué cambia entre el plan gratuito y el Pro.",
     "alreadyPro": "Ya eres Pro — ¡gracias por apoyar la app!",
     "benefit": {
@@ -378,7 +378,7 @@
     },
     "shareButton": "Compartir guía",
     "shareLabel": "Compartir una guía rápida en texto",
-    "shareHint": "Envía un resumen simple por WhatsApp (o cualquier otro app), para dejar con quien vaya a usar Mis Medicamentos en el día a día.",
-    "shareText": "Guía rápida — Mis Medicamentos\n\n1. Cuando tomes tu medicamento a tiempo, toca \"Tomado\".\n2. Si aparece \"Perdido\", es solo porque pasó la hora sin marcarlo — no es un error, es solo un aviso.\n3. Para ver cuánto medicamento queda, ve a la pestaña Existencia.\n4. Si tienes dudas, abre Perfil → Ayuda dentro del app."
+    "shareHint": "Envía un resumen simple por WhatsApp (o cualquier otro app), para dejar con quien vaya a usar Assídua en el día a día.",
+    "shareText": "Guía rápida — Assídua\n\n1. Cuando tomes tu medicamento a tiempo, toca \"Tomado\".\n2. Si aparece \"Perdido\", es solo porque pasó la hora sin marcarlo — no es un error, es solo un aviso.\n3. Para ver cuánto medicamento queda, ve a la pestaña Existencia.\n4. Si tienes dudas, abre Perfil → Ayuda dentro del app."
   }
 }
