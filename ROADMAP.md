@@ -190,12 +190,32 @@ pessoal.
 - [ ] **Teste fechado L0**: 12 testadores / 14 dias (bloqueado pela
       conta Google Play).
 
-> ⚠️ Nota de ambiente (2026-08-22): rodar a suíte backend no container
-> avulso `laravelsail/php84-composer` falha em 6 casos do
-> MedicationPhotoTest com "GD extension is not installed" — a imagem
-> não tem GD, exigida por `UploadedFile::fake()->image()`. NÃO é
-> regressão (nenhum código de foto tocado); rodar os testes pelo Sail,
-> que tem GD.
+> ⚠️ Nota de ambiente (2026-08-22, RESOLVIDA): rodar a suíte backend no
+> container avulso `laravelsail/php84-composer` falha em 6 casos do
+> MedicationPhotoTest com "GD extension is not installed" (imagem sem
+> GD). **Resolução: rodar pelo Sail** (`./vendor/bin/sail artisan test`),
+> que tem GD — verificado nesta data: **216/216 passando**, incluindo
+> os 5 novos do DataExport. Nenhuma mudança de código foi necessária.
+
+## Estado na pausa (2026-08-22)
+
+Sessão encerrada com tudo publicado:
+
+- **App**: último `eas update` canal `preview` inclui múltiplos horários
+  + presets, logo na home/Perfis, botão "Exportar meus dados" e link
+  dos Termos no cadastro (commit `a351963`, update `b635c4ab`).
+- **Backend no ar** (`api-remedios.narniano.com`): política de
+  privacidade revisada (LGPD), `/termos` novo, exportação LGPD ativa,
+  webhook RevenueCat validado end-to-end.
+- **Mobile**: 145/145 testes · TypeScript limpo. **Backend**: 216/216
+  via Sail.
+- **RevenueCat**: completo dentro do possível pré-L0 (chave `goog_`
+  configurada nos 3 ambientes, webhook entregando 200, entitlement
+  `pro` oficial).
+- **Pendências abertas** (nada pausado por esquecimento): L0 (US$25) →
+  desbloqueia loja + produtos RC + sandbox; TalkBack/VoiceOver manual;
+  versão web (plano pronto, spike não iniciado); primeiro build de
+  produção já nasce sem `RECORD_AUDIO`.
 
 ---
 
