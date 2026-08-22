@@ -100,7 +100,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/remedios-api
+          images: ghcr.io/${{ github.repository_owner }}/assidua-api
           tags: |
             type=edge,branch=main
             type=semver,pattern={{version}}

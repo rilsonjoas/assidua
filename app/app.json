@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Meus Remédios",
-    "slug": "meus-remedios",
+    "name": "Assídua",
+    "slug": "assidua",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "meusremedios",
+    "scheme": "assidua",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.meusremedios.app"
+      "bundleIdentifier": "com.assidua.app"
     },
     "android": {
-      "package": "com.meusremedios.app",
+      "package": "com.assidua.app",
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/android-icon-foreground.png",

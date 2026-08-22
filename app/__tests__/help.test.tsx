@@ -38,7 +38,7 @@ describe('HelpScreen', () => {
     fireEvent.press(screen.getByLabelText('Compartilhar um guia rápido em texto'));
 
     expect(Share.share).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining('Guia rápido — Meus Remédios') }),
+      expect.objectContaining({ message: expect.stringContaining('Guia rápido — Assídua') }),
     );
   });
 });

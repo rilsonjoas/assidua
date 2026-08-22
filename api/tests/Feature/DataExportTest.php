@@ -48,7 +48,7 @@ class DataExportTest extends TestCase
         $download = $this->getJson($response->json('url'));
 
         $download->assertOk()
-            ->assertHeader('Content-Disposition', 'attachment; filename="meus-remedios-dados.json"')
+            ->assertHeader('Content-Disposition', 'attachment; filename="assidua-dados.json"')
             ->assertJsonPath('account.email', $user->email)
             ->assertJsonPath('owned_profiles.0.name', 'Rilson')
             ->assertJsonPath('owned_profiles.0.medications.0.name', 'Losartana');

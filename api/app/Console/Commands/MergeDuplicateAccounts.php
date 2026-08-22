@@ -27,7 +27,7 @@ use Illuminate\Console\Command;
  */
 class MergeDuplicateAccounts extends Command
 {
-    protected $signature = 'meusremedios:merge-duplicate-accounts
+    protected $signature = 'assidua:merge-duplicate-accounts
         {--execute : Aplica o merge de verdade (padrão: dry-run)}';
 
     protected $description = 'Funde contas duplicadas do mesmo e-mail (Google × magic link), mantendo a conta com mais dados';

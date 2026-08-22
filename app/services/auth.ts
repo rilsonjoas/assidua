@@ -51,13 +51,13 @@ export async function getMe(): Promise<User | null> {
   }
 }
 
-const RETURN_URL = 'meusremedios://auth-callback';
+const RETURN_URL = 'assidua://auth-callback';
 
 export async function loginWithGoogle(): Promise<User> {
   const base = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api';
 
   // Web (W1, 2026-08-22): redirect completo na própria aba. O scheme
-  // `meusremedios://` não navega no browser — o return_url precisa ser
+  // `assidua://` não navega no browser — o return_url precisa ser
   // URL http da MESMA origem, e a rota /auth-callback já lê os query
   // params que o backend devolve (mesmo contrato do deep link nativo,
   // achado de 2026-08-14). A Promise nunca resolve de propósito: a

@@ -184,7 +184,7 @@ export async function registerPushToken(): Promise<void> {
       platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'unknown',
     });
   } catch (err) {
-    console.warn('[meus-remedios] Falha ao registrar push token:', err);
+    console.warn('[assidua] Falha ao registrar push token:', err);
   }
 }
 

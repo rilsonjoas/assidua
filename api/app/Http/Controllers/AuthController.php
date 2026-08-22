@@ -140,7 +140,7 @@ class AuthController extends Controller
             return redirect(rtrim($data['origin'], '/').'/auth-callback?'.$query);
         }
 
-        return redirect('meusremedios://auth-callback?'.$query);
+        return redirect('assidua://auth-callback?'.$query);
     }
 
     public function logout(Request $request): JsonResponse
@@ -258,7 +258,7 @@ class AuthController extends Controller
         }
 
         // Fluxo mobile: redireciona para deep link com token
-        if (str_starts_with($state, 'meusremedios://')) {
+        if (str_starts_with($state, 'assidua://')) {
             return redirect($state.'?'.$query);
         }
 

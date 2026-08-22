@@ -18,7 +18,7 @@ describe('i18n — troca de idioma (2026-08-10)', () => {
 
   it('renderiza em português por padrão no ambiente de teste', () => {
     render(<LoginScreen />);
-    expect(screen.getByText('Meus Remédios')).toBeTruthy();
+    expect(screen.getByText('Assídua')).toBeTruthy();
     expect(screen.getByText('Enviar link de acesso')).toBeTruthy();
   });
 
@@ -43,6 +43,6 @@ describe('i18n — troca de idioma (2026-08-10)', () => {
     await i18next.changeLanguage('fr');
     render(<LoginScreen />);
 
-    expect(screen.getByText('Meus Remédios')).toBeTruthy();
+    expect(screen.getByText('Assídua')).toBeTruthy();
   });
 });

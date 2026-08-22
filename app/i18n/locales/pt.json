@@ -20,7 +20,7 @@
     "title": "Medicamento"
   },
   "login": {
-    "title": "Meus Remédios",
+    "title": "Assídua",
     "subtitle": "Digite seu e-mail para receber um link de acesso",
     "emailLabel": "Email",
     "emailPlaceholder": "Email",
@@ -150,7 +150,7 @@
     "profileLabelShared": "Perfil {{name}}, você cuida remotamente",
     "profileLabel": "Perfil {{name}}",
     "inviteLabel": "Convidar cuidador para {{name}}",
-    "inviteMessage": "Use o código {{code}} no app Meus Remédios pra acompanhar comigo — Perfil > Tenho um código. Válido por 7 dias.",
+    "inviteMessage": "Use o código {{code}} no app Assídua pra acompanhar comigo — Perfil > Tenho um código. Válido por 7 dias.",
     "errorInvite": "Não foi possível criar o convite.",
     "haveCode": "Tenho um código",
     "pasteCode": "Cole o código que recebeu de quem te convidou pra acompanhar um perfil.",
@@ -213,7 +213,7 @@
   "pro": {
     "headerTitle": "Plano Pro",
     "badgeLabel": "Seu plano: {{tier}}. Toque para ver os benefícios do Pro",
-    "title": "Meus remédios Pro",
+    "title": "Assídua Pro",
     "subtitle": "Compare o que muda entre o plano gratuito e o Pro.",
     "alreadyPro": "Você já é Pro — obrigado por apoiar o app!",
     "benefit": {
@@ -378,7 +378,7 @@
     },
     "shareButton": "Compartilhar guia",
     "shareLabel": "Compartilhar um guia rápido em texto",
-    "shareHint": "Manda um resumo simples por WhatsApp (ou qualquer outro app), pra deixar junto de quem vai usar o Meus Remédios no dia a dia.",
-    "shareText": "Guia rápido — Meus Remédios\n\n1. Quando tomar o remédio no horário certo, toque em \"Tomei\".\n2. Se aparecer \"Perdido\", é só porque passou da hora sem marcar — não é erro, é um aviso.\n3. Pra ver quantos remédios ainda restam, vá na aba Estoque.\n4. Se tiver dúvida, é só abrir Perfil → Ajuda dentro do app."
+    "shareHint": "Manda um resumo simples por WhatsApp (ou qualquer outro app), pra deixar junto de quem vai usar o Assídua no dia a dia.",
+    "shareText": "Guia rápido — Assídua\n\n1. Quando tomar o remédio no horário certo, toque em \"Tomei\".\n2. Se aparecer \"Perdido\", é só porque passou da hora sem marcar — não é erro, é um aviso.\n3. Pra ver quantos remédios ainda restam, vá na aba Estoque.\n4. Se tiver dúvida, é só abrir Perfil → Ajuda dentro do app."
   }
 }

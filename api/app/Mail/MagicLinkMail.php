@@ -29,7 +29,7 @@ class MagicLinkMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Seu link de acesso — Meus Remédios',
+            subject: 'Seu link de acesso — Assídua',
         );
     }
 

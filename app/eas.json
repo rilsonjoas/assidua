@@ -15,7 +15,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-remedios.narniano.com/api",
+        "EXPO_PUBLIC_API_URL": "https://api-assidua.narniano.com/api",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "channel": "preview"

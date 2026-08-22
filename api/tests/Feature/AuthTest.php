@@ -104,7 +104,7 @@ class AuthTest extends TestCase
 
         $response->assertRedirect();
         $location = $response->headers->get('Location');
-        $this->assertStringStartsWith('meusremedios://auth-callback?', $location);
+        $this->assertStringStartsWith('assidua://auth-callback?', $location);
         parse_str(parse_url($location, PHP_URL_QUERY), $params);
         $this->assertSame((string) $user->id, $params['id']);
         $this->assertSame($user->email, $params['email']);

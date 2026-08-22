@@ -10,7 +10,7 @@ import { setAuthToken } from '../services/tokenStorage';
 // `services/auth.ts`) deveria interceptar o redirect do Google antes dele
 // virar um deep link de verdade, mas em pelo menos um aparelho real
 // (Custom Tabs do Samsung) isso não aconteceu — o Android tratou
-// `meusremedios://auth-callback?...` como abertura normal do app, e sem
+// `assidua://auth-callback?...` como abertura normal do app, e sem
 // rota registrada pra esse caminho, o expo-router mostrava "Unmatched
 // Route" com o token inteiro exposto na tela, sem nunca logar.
 //

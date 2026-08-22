@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Política de Privacidade — Meus Remédios</title>
+    <title>Política de Privacidade — Assídua</title>
     <style>
         :root { color-scheme: light dark; }
         body {
@@ -30,17 +30,17 @@
 </head>
 <body>
     <h1>Política de Privacidade</h1>
-    <p class="updated">Meus Remédios · Última atualização: 22 de agosto de 2026</p>
+    <p class="updated">Assídua · Última atualização: 22 de agosto de 2026</p>
 
     <p>
-        Esta política explica quais dados o aplicativo <strong>Meus Remédios</strong> coleta, como eles são usados
+        Esta política explica quais dados o aplicativo <strong>Assídua</strong> coleta, como eles são usados
         e quais direitos você tem sobre eles, em conformidade com a Lei Geral de Proteção de Dados (LGPD).
     </p>
 
     <h2>1. Quem é o responsável pelos dados</h2>
     <p>
-        O Meus Remédios é desenvolvido e operado por Rilson Joás. Dúvidas sobre privacidade podem ser enviadas para
-        <a href="mailto:meusremedios@narniano.com">meusremedios@narniano.com</a>.
+        O Assídua é desenvolvido e operado por Rilson Joás. Dúvidas sobre privacidade podem ser enviadas para
+        <a href="mailto:assidua@narniano.com">assidua@narniano.com</a>.
     </p>
 
     <h2>2. Quais dados coletamos</h2>
@@ -129,7 +129,7 @@
     <h2>9. Contato</h2>
     <p>
         Para dúvidas, solicitações de acesso, correção ou exclusão de dados, entre em contato:
-        <a href="mailto:meusremedios@narniano.com">meusremedios@narniano.com</a>.
+        <a href="mailto:assidua@narniano.com">assidua@narniano.com</a>.
     </p>
 </body>
 </html>

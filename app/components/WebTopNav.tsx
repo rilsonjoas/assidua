@@ -32,7 +32,7 @@ export default function WebTopNav() {
       {/* Marca */}
       <View style={styles.brand}>
         <MaterialCommunityIcons name="pill" size={22} color={colors.brand} />
-        <Text style={[styles.brandText, { color: colors.text }]}>Meus Remédios</Text>
+        <Text style={[styles.brandText, { color: colors.text }]}>Assídua</Text>
       </View>
 
       {/* Navegação */}

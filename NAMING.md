@@ -2,83 +2,220 @@
 
 > Criado 2026-08-22 quando o projeto entrou em pausa por colisão de
 > nome ("Meus Remedios" já existia na App Store desde 11/2025 — ver
-> ROADMAP, seção ⚖️). Este documento é o processo completo até o novo
-> nome ser escolhido, validado e aplicado.
+> ROADMAP, seção ⚖️).
 
-## Critérios (o nome precisa passar em TUDO)
+## Nome final: **ASSÍDUA** (decidido 2026-08-22)
 
-1. **Distintivo e registrável** no INPI — coined/arbitrário > descritivo
-2. **Internacional**: lê-se bem em pt-BR, EN e ES sem trocadilho ruim
-3. **Semântica remota mas presente**: medicação/hora/tratamento/cuidado
-4. **Curto** (≤3 sílabas) e claro ao OUVIDO — idoso tem que entender
-   quando alguém fala em voz alta (teste da avó)
+- Grafia oficial: **Assídua** (com acento, é a grafia correta em
+  português). O acento só existe na forma escrita estilizada
+  (logo, nome no app) — domínio, handles, bundle id e tudo que
+  precisa ser digitado usam a forma sem acento (`assidua`), que é
+  como todo domínio/handle funciona sempre, não uma solução de
+  contorno específica daqui.
+- Raiz: "assíduo/assídua" — é literalmente o termo de adesão ao
+  tratamento, carrega fidelidade/constância. Combina com a
+  filosofia do Rilson sem precisar copiar marca com A Biblioteca
+  (coerência de **valores**, não de identidade visual — ver conversa
+  2026-08-22).
+- Verificado (2026-08-22, triagem web + checagem fonética): sem
+  colisão de app no mesmo nicho, sem trocadilho vulgar em PT/EN/ES.
+
+### Identificadores aplicados
+
+| Item | Valor |
+|---|---|
+| Nome exibido | Assídua |
+| slug/scheme (Expo) | `assidua` |
+| bundle id | `com.assidua.app` |
+| domínio web | `assidua.narniano.com` |
+| domínio API | `api-assidua.narniano.com` |
+| serviços Docker | `assidua-api`, `assidua-web` |
+| e-mail | `assidua@narniano.com` |
+| comando Artisan | `assidua:merge-duplicate-accounts` |
+| repo GitHub | github.com/rilsonjoas/assidua |
+
+## Por que não Cuidia (escolha anterior, revertida no mesmo dia)
+
+Cuidia foi a primeira escolha, chegou a ser aplicada no código e
+revertida horas depois — registrado aqui pra não repetir o erro.
+Motivo: falado rápido em português, "Cuidia" abre a leitura "cu em
+dia"/"cuidjia" (o "cui-" colapsando em "cu" + o "di" palatalizado
+do PT-BR). Não é a leitura óbvia, mas é exatamente o tipo de
+trocadilho que a internet brasileira acha sozinha e vira piada — pra
+um app de cuidado com idoso, isso pesa mais que a média. Achado do
+próprio Rilson, não da triagem técnica — a lição: checklist de
+colisão de marca (rodado certo) não cobre "soa mal em voz alta",
+são checagens diferentes. As duas passaram a ser feitas juntas daqui
+pra frente.
+
+## Por que não os outros sobreviventes
+
+- **HoraMed** — só funciona em PT, não lê bem em EN.
+- **Laudes** — associação religiosa forte demais pro público geral
+  (mesmo sendo termo obscuro o suficiente pra não soar como
+  doutrina, o risco foi considerado alto demais).
+- **Cuidia** — ver seção acima.
+- **Matina / Tércia** — não descartados por defeito, ficam registrados
+  como plano B caso "Assídua" esbarre em algo no checklist oficial
+  abaixo.
+
+## Critérios usados (o nome precisa passar em tudo)
+
+1. Distintivo — coined/arbitrário > descritivo (registro no INPI não
+   é objetivo, mas nome fácil de registrar é nome fácil de diferenciar)
+2. Internacional: lê-se bem em pt-BR, EN e ES, **sem trocadilho ruim**
+   (inclui leitura fonética torta, não só tradução)
+3. Semântica remota mas presente: medicação/hora/tratamento/cuidado
+4. Curto (≤3 sílabas), claro ao ouvido (teste da avó)
 5. Domínio `.com`/`.app` plausível + handles sociais livres
-6. Zero apps grandes homônimos nas stores (BR, US, PT)
+6. Zero apps grandes homônimos nas stores (BR, US, PT) **no mesmo nicho**
+   — colisão em setor diferente é tolerável, já que não há registro
+   INPI em jogo (decisão do Rilson, 2026-08-22, por custo)
 
-## Processo por finalista (checklist obrigatório)
+## Checklist oficial ainda pendente pra "Assídua"
 
-- [ ] INPI: busca classes **09** (software), **42** (SaaS), **44** (saúde)
-- [ ] App Store + Play Store: BR, US e PT (busca exata e aproximada)
-- [ ] Domínios disponíveis (.com e .app)
-- [ ] Teste da avó: falar em voz alta nos 3 idiomas
-- [ ] Significado ruim/gíria noutro idioma? (ES principalmente)
-- [ ] Handles sociais (@) disponíveis
-- [ ] Decidir → registrar INPI ANTES de qualquer anúncio público
+> A triagem web (abaixo) substitui parte disso, mas não é a busca
+> oficial nas lojas BR nem teste de voz com outra pessoa.
 
-## Candidatos — ⚠️ TODOS NÃO VERIFICADOS ainda
+- [ ] App Store + Play Store BR: busca exata "Assídua"/"Assidua"
+- [ ] Domínio `assidua.com` / `assidua.app` disponível
+- [ ] Handles sociais (@assidua) disponíveis
+- [ ] Falar em voz alta pra alguém (PT) — confirmação humana do que
+      já foi checado aqui
 
-Validar antes de se apegar. A lista é ponto de partida criativo.
+## Execução já feita (2026-08-22)
 
-### Coined forte (melhor registrabilidade)
+- [x] Nome escolhido, identificadores definidos (tabela acima)
+- [x] Find-replace mecânico em `meus-remedios` (app.json, eas.json,
+      i18n, telas, testes, e-mails, `.env.*`, comando Artisan) —
+      cuidado tomado pra não confundir a **marca** ("Meus Remédios"/
+      "Cuidia") com o **vocabulário genérico do domínio** ("remédio"
+      = medicação, que continua sendo assunto do app)
+- [x] `hetzner-infra`: pasta renomeada (`git mv`), docker-compose,
+      README, Makefile, RECUPERACAO.md, ARCHITECTURE.md atualizados
+- [x] Repositório GitHub renomeado → github.com/rilsonjoas/assidua
+- [x] VPS: `/opt/meus-remedios` → `/opt/cuidia` → `/opt/assidua`
+      (precisou `sudo`)
+- [ ] Nada commitado ainda em nenhum dos 2 repositórios — revisar
+      `git diff` antes
 
-| Nome | Raiz | Por quê | Risco observado |
-|---|---|---|---|
-| **Ritmia** | ritmo do tratamento | inventivo, feminino, provavelmente único, bonito nos 3 idiomas | verificar INPI/stores |
-| **Dosely** | dose + `-ly` | soa app nativo em EN; PT pronuncia "dozéli" naturalmente | verificar |
-| **Dosemate** | dose + mate (companheiro) | captura O diferencial: cuidador remoto é um "mate" | verificar |
-| **Medora** | med + ora (hora) | sonoro, quase nome próprio | existem pequenas marcas Medora |
-| **Remedia** | latim: "tu remedias" | semântica perfeita | Remedia = rede de farmácias na Áustria; risco médio |
-| **Sanavia** | sanus (curar) | limpo, global; mais genérico-saúde que remédio-específico | verificar |
+### Não tocado de propósito (recursos vivos, não é texto)
 
-### Híbridos semânticos
+Nome do banco Postgres (`meus_remedios_db`), usuário (`remedios_app`),
+volume Docker (`remedios-storage`) — renomear isso de verdade exige
+`ALTER DATABASE`/`ALTER ROLE` + migrar o volume, não um find-replace.
+Documentação (`RECUPERACAO.md`, `ARCHITECTURE.md`) continua citando
+esses nomes reais de propósito, pra não mentir sobre o estado da VPS.
 
-| Nome | Raiz | Nota |
-|---|---|---|
-| **HoraMed** | hora + med | clareza total em PT; EN soa estranho |
-| **Cuidia** | cuidar | carrega o diferencial do cuidador; coined; verificar |
+### Deixado de lado por ser log histórico, não estado atual
 
-### Descartados de cara (aprendizado registrado)
+`MIGRATION.md` e os exemplos em `PADRAO-DE-ENGENHARIA.md` continuam
+dizendo "meus-remedios" — são registro datado de quando aconteceu,
+não precisam ser reescritos. Avisar se quiser mesmo assim.
 
-- Traduções literais ("MyMeds", "MisRemedios") = descritivas = mesmo
-  problema jurídico do nome atual, só que em inglês
-- **Bula**, **Cartela**: untransliteráveis, presos ao BR
-- **Medly/Medley**: colide com a farmacêutica brasileira Medley
+### Logo — nenhuma ação necessária
 
-## Checklist de renomeação (executar QUANDO o nome for escolhido)
+O ícone (coração + relógio) não tem texto embutido em nenhuma versão
+(app icon, watermark da Home). Serve pro Assídua como está.
+
+## Painéis externos — ordem de dependência real
+
+1. [x] **DNS** — registros A criados no cPanel (2026-08-22):
+   `assidua.narniano.com` e `api-assidua.narniano.com` →
+   `167.233.254.53`. Traefik + Let's Encrypt (HTTP-01) fazem o resto
+   sozinhos assim que o deploy subir os containers com os labels novos
+   — não precisa de passo manual de certificado.
+2. **GCloud OAuth** — ainda pendente. Client/redirect URI pro domínio
+   novo. Login Google já está ao vivo hoje, então fazer antes/junto do
+   próximo deploy, não depois.
+
+### Deploy — é automático, não é `make deploy` na mão
+
+`deploy.yml` dispara sozinho no push pra `main` do repo do app: builda
+a web, publica em `/opt/assidua/web`, entra na VPS via SSH, dá
+`git pull` no app **e** no `hetzner-infra` (branch `master`, não
+`main` — achado real já documentado no próprio workflow), recria os
+containers, roda smoke test contra os domínios novos. Únicos passos
+manuais antes de empurrar:
+1. VPS: `sudo mv /opt/cuidia /opt/assidua` (senão o `cd` do workflow
+   falha — de propósito, "falhar alto sempre")
+2. Desktop: commit + push do `hetzner-infra` pro `master` primeiro
+   (o deploy do app puxa ele automaticamente lá dentro)
+3. Desktop: commit + push do app pro `main` — dispara tudo
+3. **Play Console** — segue bloqueado pelos US$ 25, sem relação com
+   o nome. Usar `com.assidua.app` quando destravar.
+4. **RevenueCat** — só importa quando existir listagem na Play Store.
+   Sem urgência.
+5. **Umami** — site novo quando for conveniente.
+6. **Sentry — não precisa.** DSN não depende do nome público do app;
+   trocar o rótulo em Settings → General é só cosmético, opcional.
+
+## Triagem de colisão — histórico completo (2026-08-22, Claude)
+
+> Busca web geral, não é INPI nem busca oficial nas lojas BR — achar
+> um app ativo no mesmo nicho elimina com confiança; não achar nada
+> é sinal favorável, não é aprovação.
+
+### Eliminados — colisão confirmada no mesmo nicho
+
+| Nome | Achado |
+|---|---|
+| **Ritmia** | App ativo + marca ™ (Heart Sentinel, monitoramento cardíaco) |
+| **Dosely** | Múltiplos apps ativos, mesmo nicho exato |
+| **Dosemate** | App ativo — "Never Miss a Dose", mesmo nicho exato |
+| **Medora** | App ativo — "Health & Pill Tracker", mesmo nicho exato |
+| **Zelo** | "Plataforma Zelo Saúde" já existe — cuidador+familiar, financiado pela FIOCRUZ, quase o mesmo produto |
+| **Remedia** | Rede de farmácias na Áustria |
+| **Novira** | "Novira Therapeutics" — farmacêutica |
+| **Cuidia** | Ver seção "Por que não Cuidia" acima (trocadilho, não colisão de marca) |
+
+### Setor diferente — tecnicamente livre
+
+Sanavia (biotech oncologia), Alvora (robótica B2B), Amavia (app
+automotivo), Fidare (consultorias — atenção a `Fidari.care`, nome
+próximo), Âncora (seguros/coaching de saúde), HoraMed (limpo, mas
+fraco em EN).
+
+### Ideia das horas litúrgicas (veio não explorada, mantida como plano B)
+
+As horas canônicas (Matinas, Laudes, Prima, **Tércia**, Sexta, Noa,
+Vésperas, Completas) são um sistema histórico de horários fixos do
+dia — mesma lógica de um lembrete de medicação. Nenhuma healthtech
+BR minerou esse campo. **Matina** e **Tércia** sobrevivem como plano
+B; **Laudes** descartado (religioso demais), **Vésper(a)** descartado
+(Vesper Lynd/007), **Noa** descartado (soa "nona" = vovó em it/es).
+
+## Checklist de renomeação (referência, já aplicado acima)
 
 ### Código / infra
-1. `app.json`: `name`, `slug`, `package`/`bundleIdentifier` (**bundle id NOVO!**)
-2. i18n pt/en/es: strings com o nome (`profile.version` footer, login, sobre)
-3. Assets: logo/splash/favicon regenerados com o novo wordmark
-4. WebTopNav wordmark + login logoBox + AlertDialogs
-5. `api/.env`: `APP_NAME`; `MagicLinkMail` (subject + view)
-6. README/ROADMAP/docs do repo
+1. `app.json`: name/slug/bundle id — feito
+2. i18n pt/en/es — feito (en/es nunca tiveram o nome hardcoded)
+3. Assets: logo — não precisa, ver seção acima
+4. Wordmarks nas telas (WebTopNav, login, AlertDialogs) — feito
+5. `api/.env`, `MagicLinkMail` — feito
+6. README/ROADMAP do repo — feito
 
-### Serviços externos (reconfigurar do zero)
-7. Play Console: app NOVO (bundle id novo) → Data Safety de novo
-8. RevenueCat: app novo + chaves novas (`goog_`) + entitlement `pro`
-9. GCloud OAuth: client novo pro bundle (redirect URIs)
-10. EAS: projectId permanece (independente de bundle); canais seguem
-11. Domínio: `<nome>.narniano.com` → DNS + Traefik labels + nginx `server_name`
-12. Umami: site novo · Sentry: projeto novo ou renomear
+### Serviços externos — ver "Painéis externos" acima
 
 ### Documentos/marketing
-13. Vault (Projetos/, Monetização, Marketing), Portfólio, LinkedIn
-14. Contas de divulgação futuras já usam o nome novo desde o dia 1
+7. Vault (Projetos/, Monetização, Marketing), Portfólio, LinkedIn —
+   pendente, baixa prioridade (não bloqueia o projeto)
+8. Contas de divulgação futuras já nascem com "Assídua"
+9. **Ficha da loja (ASO) — necessária, não é polimento.** Nome coined
+   perde a autoexplicação que "Meus Remédios" tinha de graça; quem
+   busca "lembrete de remédio" só acha o Assídua se subtítulo/keywords
+   carregarem esses termos. Copy pronta (2026-08-22):
+   - Subtitle iOS (30c): "Lembrete de remédios e cuidado"
+   - Keywords iOS (100c): `medicamento,dose,horario,idoso,cuidador,tratamento,adesao,familia,saude,dosagem,alarme`
+   - Short description Play (80c): "Lembrete de remédios para idosos, com acompanhamento do cuidador à distância"
+   - Descrição completa: rascunho na conversa 2026-08-22 — 4
+     parágrafos (o que é, como funciona, diferencial do cuidador
+     remoto, pra quem é), levar pro texto final do painel na hora do
+     L0
 
-## Status da decisão
+## Status
 
-- [ ] Rilson valida candidatos → escolhe 3 finalistas
-- [ ] Roda checklist nos finalistas (INPI + stores + domínios)
-- [ ] Escolhe → registra INPI → aplica checklist de renomeação
+- [x] Nome decidido e aplicado no código — 2026-08-22
+- [ ] Checklist oficial (stores/domínio/handles) — pendente
+- [ ] Painéis externos (ordem acima) — pendente
 - [ ] Retoma projeto pelo gate no topo do ROADMAP

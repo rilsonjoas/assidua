@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Termos de Uso — Meus Remédios</title>
+    <title>Termos de Uso — Assídua</title>
     <style>
         :root { color-scheme: light dark; }
         body {
@@ -31,10 +31,10 @@
 </head>
 <body>
     <h1>Termos de Uso</h1>
-    <p class="updated">Meus Remédios · Última atualização: 22 de agosto de 2026</p>
+    <p class="updated">Assídua · Última atualização: 22 de agosto de 2026</p>
 
     <p>
-        Estes termos regulam o uso do aplicativo <strong>Meus Remédios</strong>. Ao criar uma conta ou usar o app,
+        Estes termos regulam o uso do aplicativo <strong>Assídua</strong>. Ao criar uma conta ou usar o app,
         você concorda com eles e com nossa
         <a href="/privacidade">Política de Privacidade</a>.
     </p>
@@ -42,7 +42,7 @@
     <div class="box">
         <h2>⚠️ Aviso importante sobre saúde</h2>
         <p>
-            O Meus Remédios é um <strong>organizador pessoal de medicamentos</strong>: lembretes de horário,
+            O Assídua é um <strong>organizador pessoal de medicamentos</strong>: lembretes de horário,
             controle de estoque e registro de doses. Ele <strong>não é um dispositivo médico</strong> e
             <strong>não oferece orientação, diagnóstico, tratamento ou prescrição médica de qualquer tipo</strong>.
         </p>
@@ -95,7 +95,7 @@
 
     <h2>7. Limitação de responsabilidade</h2>
     <p>
-        Na máxima extensão permitida pela lei, o Meus Remédios não será responsável por danos indiretos decorrentes
+        Na máxima extensão permitida pela lei, o Assídua não será responsável por danos indiretos decorrentes
         do uso do app, incluindo decisões de tratamento tomadas sem acompanhamento profissional. Nada aqui limita
         responsabilidade que a lei não permita excluir (incluindo responsabilidade por dolo) nem afeta seus direitos
         como consumidor previstos no Código de Defesa do Consumidor.
@@ -115,7 +115,7 @@
 
     <h2>10. Contato</h2>
     <p>
-        Dúvidas sobre estes termos: <a href="mailto:meusremedios@narniano.com">meusremedios@narniano.com</a>.
+        Dúvidas sobre estes termos: <a href="mailto:assidua@narniano.com">assidua@narniano.com</a>.
     </p>
 </body>
 </html>

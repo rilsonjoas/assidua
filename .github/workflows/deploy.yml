@@ -31,7 +31,7 @@ jobs:
       - name: Build web (expo export)
         working-directory: app
         env:
-          EXPO_PUBLIC_API_URL: https://api-remedios.narniano.com/api
+          EXPO_PUBLIC_API_URL: https://api-assidua.narniano.com/api
         run: |
           npm ci --legacy-peer-deps
           npx expo export --platform web
@@ -49,7 +49,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: "app/dist/"
-          target: /opt/meus-remedios/web
+          target: /opt/assidua/web
           strip_components: 2
 
       - name: Deploy no VPS (git pull + rebuild)
@@ -62,11 +62,11 @@ jobs:
             # Achado 2026-08-22: sem set -e, o tar que falhava em silêncio
             # deixava o deploy "verde" com site vazio. Falhar ALTO sempre.
             set -e
-            test -f /opt/meus-remedios/web/index.html || {
+            test -f /opt/assidua/web/index.html || {
               echo "ERRO: index.html não chegou ao VPS — scp falhou?" >&2
               exit 1
             }
-            cd /opt/meus-remedios
+            cd /opt/assidua
             git pull --ff-only origin main
 
             # ── Drift check de ambiente (2026-08-22): as chaves de
@@ -84,7 +84,7 @@ jobs:
             if [ -n "$MISSING" ]; then
               echo "" >&2
               echo "🛑 DEPLOY BLOQUEADO — variáveis novas no .env.example ausentes no .env do VPS:$MISSING" >&2
-              echo "   No VPS: adicione-as em /opt/meus-remedios/api/.env e" >&2
+              echo "   No VPS: adicione-as em /opt/assidua/api/.env e" >&2
               echo "   recrie o container (--force-recreate) — up -d --build NÃO relê env_file." >&2
               exit 1
             fi
@@ -94,20 +94,20 @@ jobs:
             # documentado no README do hetzner-infra).
             ENV_HASH=$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' .env | sort | sha256sum | cut -d' ' -f1)
             if [ ! -f .env.deployed ] || [ "$(cat .env.deployed)" != "$ENV_HASH" ]; then
-              echo ".env mudou → recriando remedios-api para reler env_file..."
-              docker compose -f ~/hetzner-infra/meus-remedios/docker-compose.yml \
-                --env-file ~/hetzner-infra/.env up -d --force-recreate remedios-api
+              echo ".env mudou → recriando assidua-api para reler env_file..."
+              docker compose -f ~/hetzner-infra/assidua/docker-compose.yml \
+                --env-file ~/hetzner-infra/.env up -d --force-recreate assidua-api
               echo "$ENV_HASH" > .env.deployed
             fi
 
             # Achado do primeiro deploy web (2026-08-22): o repo de infra
             # usa branch MASTER (não main) — puxar 'origin main' falhava,
-            # o '|| true' engolia, o compose ficava sem o remedios-web e
+            # o '|| true' engolia, o compose ficava sem o assidua-web e
             # o smoke test quebrava. Sem '|| true': infra desatualizada
             # tem que QUEBRAR o deploy, não passar despercebida.
             cd ~/hetzner-infra
             git pull --ff-only origin master
-            make deploy service=meus-remedios
+            make deploy service=assidua
 
       - name: Smoke test
         run: |
@@ -115,12 +115,12 @@ jobs:
           # às vezes ainda reiniciando) mesmo com o deploy tendo funcionado.
           # Retry de verdade: até 10 tentativas, 3s entre elas.
           for i in $(seq 1 10); do
-            curl -sf -o /dev/null https://api-remedios.narniano.com/ && break
+            curl -sf -o /dev/null https://api-assidua.narniano.com/ && break
             [ "$i" -eq 10 ] && exit 1
             sleep 3
           done
           for i in $(seq 1 10); do
-            curl -sf -o /dev/null https://meusremedios.narniano.com/ && break
+            curl -sf -o /dev/null https://assidua.narniano.com/ && break
             [ "$i" -eq 10 ] && exit 1
             sleep 3
           done

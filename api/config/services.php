@@ -43,7 +43,7 @@ return [
 
     // Web (W1, 2026-08-22) — origens autorizadas a receber redirect com
     // token no browser, separadas por vírgula. Produção:
-    // https://meusremedios.narniano.com
+    // https://assidua.narniano.com
     'web_auth_origins' => env('WEB_AUTH_ORIGINS', ''),
 
     'revenuecat' => [

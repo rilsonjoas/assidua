@@ -12,14 +12,14 @@
                 <table role="presentation" width="100%" style="max-width: 480px;" cellpadding="0" cellspacing="0">
                     <tr>
                         <td style="background:#4f46e5; border-radius: 16px 16px 0 0; padding: 24px 28px;">
-                            <span style="color:#fff; font-size: 18px; font-weight: 700;">Meus Remédios</span>
+                            <span style="color:#fff; font-size: 18px; font-weight: 700;">Assídua</span>
                         </td>
                     </tr>
                     <tr>
                         <td style="background:#fff; border-radius: 0 0 16px 16px; padding: 28px; color:#1e293b;">
                             <p style="font-size: 16px; margin: 0 0 16px;">Oi, {{ $name }}!</p>
                             <p style="font-size: 15px; line-height: 1.6; margin: 0 0 24px; color:#334155;">
-                                Toque no botão abaixo, neste mesmo aparelho, pra entrar no Meus Remédios.
+                                Toque no botão abaixo, neste mesmo aparelho, pra entrar no Assídua.
                             </p>
                             <table role="presentation" cellpadding="0" cellspacing="0">
                                 <tr>

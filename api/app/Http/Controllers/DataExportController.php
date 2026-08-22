@@ -42,7 +42,7 @@ class DataExportController extends Controller
         $user = User::findOrFail((int) $request->query('user'));
 
         return response()->json($this->payloadFor($user))
-            ->header('Content-Disposition', 'attachment; filename="meus-remedios-dados.json"');
+            ->header('Content-Disposition', 'attachment; filename="assidua-dados.json"');
     }
 
     private function payloadFor(User $user): array
