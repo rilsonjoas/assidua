@@ -7,6 +7,12 @@
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
 
 Trabalho direto no código a partir do levantamento abaixo.
+**Publicado**: commit `15926bd` (pushed em `main`) + `eas update` canal
+`preview` / ambiente `preview` (update group
+`45cbf01b-a61f-4843-9554-556b6d42248f`). Lição nova registrada no
+README: `eas update` não-interativo exige `--environment preview`
+explícito — sem ele, bundle sai sem `EXPO_PUBLIC_API_URL` (bug do
+localhost de 14/08 de novo).
 
 ### ✅ Feito — frequência e duração configuráveis
 

@@ -1298,6 +1298,95 @@ manter como está** — mudar pra "lixeira" com prazo contradiz a
 política de privacidade atual, que já promete exclusão "imediata e
 definitiva".
 
+### Frequência configurável, marca na UI e plano web (2026-08-21)
+
+Sessão disparada por 3 pontos do Rilson: versão web (só planejar),
+"quantas vezes/quantos dias tomar ainda não está bem configurável", e
+o logotipo ausente das telas. Tudo implementado, testado e publicado.
+
+- [x] **Múltiplos horários já no cadastro** — o buraco central: o form
+      só aceitava UM horário ("Primeiro horário"); montar "2x ao dia"
+      exigia criar, reabrir e editar. Agora a criação tem lista de
+      rascunhos (`DraftSchedule` em `app/medication/[id].tsx`) com a
+      MESMA UI da seção de horários de remédio existente — nada vira
+      schedule de verdade até salvar o remédio (`saveMedication` faz o
+      laço `createSchedule` + notificações). Regra nova: remédio exige
+      ≥1 horário — remover todos e salvar dá aviso claro
+      (`errorNoSchedule`) em vez de criar um remédio invisível no
+      dashboard (comportamento antigo criava um horário padrão
+      silenciosamente, sem dar escolha nenhuma).
+- [x] **Atalho "Quantas vezes por dia?"** — chips 1x/2x/3x/4x por dia
+      preenchem a lista com horários padrão clínicos (08:00 · 08+20 ·
+      08+14+20 · 06+12+18+00), todos fixos/todos os dias, cada um
+      editável depois. Chip fica destacado enquanto a lista corresponde
+      exatamente ao atalho (`isPresetActive`) — feedback de que o toque
+      fez efeito sem impedir ajuste fino.
+- [x] **Presets de dias da semana** — chips Todos / Seg a Sex / Fim de
+      semana acima dos círculos D S T Q Q S S, nos DOIS editores (o de
+      rascunho e o de remédio existente compartilham
+      `renderFrequencyFields`). Vocabulário real do usuário ("dias
+      úteis") em vez de seleção círculo a círculo.
+- [x] **Presets de intervalo** — chips 4h/6h/8h/12h/24h acima do campo
+      livre "de quantas em quantas horas". Os intervalos mais
+      prescritos com um toque; campo livre continua pros casos fora da
+      curva.
+- [x] **Duração do tratamento ganhou data concreta** — digitar N dias
+      mostra "Fim previsto: {data}" (`toLocaleDateString` com o idioma
+      ativo). Número solto ("10") não diz nada; data diz. Continua
+      avisando quando acaba, nunca pausando sozinho (decisão de produto
+      de 2026-08-14 mantida).
+- [x] **Logotipo na UI — com achado importante**: o header da home JÁ
+      tinha o logo desde 14/08 (commit `eaa6b14`, silhueta
+      monocromática 30px ao lado da data) e mesmo assim o Rilson
+      perguntou "cadê o logo?" — presença invisível é igual a ausência.
+      Correção em duas frentes: home ganhou marca d'água grande
+      (170px, opacity 0.12, recortada pelo `overflow: hidden` do
+      header) atrás de data/título; Perfis (zero marca até hoje)
+      ganhou silhueta translúcida no canto do card colorido do usuário
+      + rodapé de assinatura no fim do scroll (logo tingido com
+      `tintColor: textMuted`, adapta aos dois temas) com nome do app +
+      versão via `expo-constants`. A pergunta "quem não aparece não é
+      lembrado" vale pra marca também.
+- [x] **Plano da versão web** — registrado no `ROADMAP.md` (seção
+      "🌐 Versão Web"): recomendação de spike curto (1–2 dias) com Expo
+      Router web medindo o custo real dos módulos nativos
+      (notificações, RevenueCat, foto, sqlite offline) antes de decidir
+      vs. SPA separada; fases W0 spike → W1 MVP do cuidador → W2
+      paridade+PWA → W3 Web Push. Backend já serve qualquer cliente
+      (API REST + Sanctum); falta só CORS pro domínio novo.
+- i18n pt/en/es completo para tudo (+ chave `profile.version`; chave
+  `firstSchedule` aposentada dos três locales junto). **10 testes
+  novos** (`medication-schedule-edit.test.tsx`: múltiplos horários,
+  atalhos, presets, bloqueio sem horário, data de fim) — suíte mobile:
+  145/145. TypeScript limpo.
+
+Achados reais do caminho (pra não repetir):
+
+- Rótulos acessíveis dos botões de dia são os nomes ABREVIADOS de
+  `i18n.days.*` ("Seg", "Sáb"), não os nomes completos — o teste que
+  procurou "Sábado" falhou; o certo é "Sáb".
+- Teste de fluxo de cadastro que passa pelo salvamento PRECISA preencher
+  o nome antes — a validação "Preencha o nome do remédio." bloqueia
+  antes de chegar em qualquer horário (2 testes corrigidos por isso).
+
+Publicado: commit `15926bd` (main, pushed) + **`eas update` canal
+`preview`, ambiente `preview`** — update group
+`45cbf01b-a61f-4843-9554-556b6d42248f`, runtime 1.0.0, android+ios.
+
+> [!WARNING] Lição do `eas update` desta vez (2026-08-21)
+> Complementa o achado CRÍTICO de 2026-08-14 (variáveis EXPO_PUBLIC_
+> vêm do EAS Environment Variables no servidor, não do `env` do perfil):
+> em modo **não-interativo** o comando exige a flag explícita
+> `--environment preview` (sem ela: "The `--environment` flag must be
+> set when running in `--non-interactive` mode"). O comando completo
+> seguro é:
+> `eas update --channel preview --environment preview -m "..."`.
+> Sem ambiente certo, o bundle sai SEM `EXPO_PUBLIC_API_URL` e o app
+> quebra tentando `localhost` — o mesmo bug do Google login de 14/08.
+> Verificação pós-publicação recomendada: abrir o app no celular,
+> deixar baixar o update OTA (fecha e reabre) e conferir a lista de
+> horários no cadastro + logo no header/Perfis.
+
 ### Fase 4 — Monetização (pós-lançamento com usuários reais)
 
 - [x] **Limites do plano Free** — 4 perfis, 15 medicamentos por perfil, histórico de 30 dias — já implementado e testado (ver `tests/Feature/ProfileTest.php`, `MedicationTest.php`, `DoseLogHistoryTest.php`). Falta a parte de cobrança em si (Fase L1 abaixo)
