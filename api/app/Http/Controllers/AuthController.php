@@ -219,12 +219,23 @@ class AuthController extends Controller
 
         $state = $request->get('state', '');
 
-        // Web (W1, 2026-08-22): origem http(s) autorizada → devolve pra
-        // rota /auth-callback da SPA (mesmo contrato de params nativo).
-        // ANTES deste ramo existir, web caía no json() logo abaixo — o
-        // Rilson recebia o TOKEN CRU renderizado como página.
-        if (in_array(rtrim($state, '/'), self::allowedWebOrigins(), true)) {
-            return redirect($state.'/auth-callback?'.$query);
+        // Web (W1, 2026-08-22): o frontend manda ORIGEM+/auth-callback
+        // como state. Achado do segundo teste real: comparar o state
+        // COMPLETO contra a allowlist de ORIGENS falhava sempre (path no
+        // state, origem pura na lista) → 400 "sem destino válido" logo
+        // após o consentimento do Google. Comparação correta: extrair a
+        // base (scheme://host[:port]) e checar na allowlist; o caminho
+        // tem que ser o nosso /auth-callback — defesa extra pra o token
+        // nunca pousar em outra página do mesmo domínio.
+        $parts = parse_url($state);
+        $stateBase = ($parts && isset($parts['scheme'], $parts['host']))
+            ? strtolower($parts['scheme']).'://'.strtolower($parts['host'])
+                .(isset($parts['port']) ? ':'.$parts['port'] : '')
+            : null;
+        $pathOk = isset($parts['path']) && str_starts_with($parts['path'], '/auth-callback');
+
+        if ($stateBase !== null && $pathOk && in_array($stateBase, self::allowedWebOrigins(), true)) {
+            return redirect($state.(str_contains($state, '?') ? '&' : '?').$query);
         }
 
         // Fluxo mobile: redireciona para deep link com token
