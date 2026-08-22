@@ -82,6 +82,84 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 - [ ] **Versão Web do Meus Remédios** — plano completo na seção abaixo (2026-08-21).
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
 
+### 💰 RevenueCat — estado real e o que falta (levantado 2026-08-21)
+
+Projeto "Meus remédios" **já criado no dashboard** pelo Rilson, com
+chaves pública e privada geradas. Estado verificado no código:
+
+- [x] Backend webhook completo e testado (`RevenueCatWebhookController`
+      + 9 casos em `RevenueCatWebhookTest.php`: auth por secret,
+      INITIAL_PURCHASE/RENEWAL/EXPIRATION/CANCELLATION, compra
+      não-renovante, app_user_id desconhecido sem quebrar).
+- [x] Client integra SDK (`services/purchases.ts`), UI Pro trata
+      ausência de oferta com "em breve".
+- [x] Chave pública Android existe (colada em `app/.env` local)…
+
+- [ ] **⚠️ CONFERIR a chave** — chaves públicas do Google Play no
+      RevenueCat começam com `goog_`; a colada começa com `test_`.
+      Confirmar no dashboard (API Keys) se é a chave certa da plataforma
+      Google Play ou uma chave de teste — com a chave errada a compra
+      nunca funciona, sem erro óbvio.
+- [ ] **Chave NÃO está no EAS Environment** (`eas env:list --environment
+      preview` só tem API_URL e SENTRY_DSN). `.env` local não vale pra
+      `eas update`/`eas build`. Fazer:
+      `eas env:create --environment preview --name EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`
+      (+ ambiente production quando existir) → republicar `eas update`
+      pra chave chegar ao aparelho.
+- [ ] **Webhook ainda não configurado de verdade**: falta criar o
+      webhook no dashboard RevenueCat apontando pra
+      `https://api-remedios.narniano.com/webhooks/revenuecat`, gerar o
+      secret lá e setar o MESMO valor em `REVENUECAT_WEBHOOK_SECRET` no
+      `.env` do VPS (não existe nem no `api/.env` local). Validar com o
+      "send test event" do dashboard.
+- [ ] **Estrutura de entitlement/produto**: criar entitlement `pro` +
+      convenção de IDs (`meus_remedios_pro_mensal` / `_anual`) no
+      dashboard AGORA; os produtos reais da Play só nascem pós-L0, mas
+      os IDs têm que bater exato — decidir antes de criar lá.
+- [ ] **Compra sandbox real** — bloqueada pela L0 (produto na Play +
+      teste interno). Último passo do fluxo.
+
+### ⚖️ Conformidade — Políticas da Play Store + LGPD (registrado 2026-08-21)
+
+> Pedido do Rilson: "nem sei se o app está de acordo com as políticas
+> de uso e LGPD". Auditoria dedicada ANTES de submeter à Play (L0),
+> porque reprovação na revisão atrasa semanas. Dado de saúde = dado
+> SENSÍVEL no LGPD (art. 11) — barra mais alta que app comum.
+
+- [ ] **Permissões Android declaradas vs. justificáveis** — `app.json`
+      declara `RECORD_AUDIO` (microfone!) num app de lembrete de
+      remédio: ou tem uso real documentável ou REMOVER (provavelmente
+      sobrou de algum módulo). Revisar também NOTIFICATIONS,
+      RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM (esses três têm
+      justificativa clara: lembretes). Permissão injustificada é motivo
+      clássico de rejeição.
+- [ ] **Formulário Data Safety da Play** — já listado no L0; preencher
+      com o que a política de privacidade REALMENTE diz (nome, e-mail,
+      dados de tratamento, foto opcional; backend próprio, não
+      terceiros além Sentry/RevenueCat/Resend).
+- [ ] **Política Health Apps da Play** — apps de medicação caem sob
+      política específica de saúde do Google Play: checar exigências de
+      disclosure na primeira abertura e restrições de publicidade
+      (relevante pro AdMob futuro: anúncio em tela de dose é
+      permanentemente vetado por decisão própria, mas a política
+      reforça).
+- [ ] **LGPD art. 11 — base legal do dado sensível**: política atual
+      fala em consentimento; conferir se o texto cobre explicitamente
+      dado de saúde (tratamento/horários) e a hipótese de tutela da
+      saúde. Ajustar texto se preciso.
+- [ ] **LGPD portabilidade (art. 18, V)** — hoje não há exportação de
+      dados pelo usuário (só exclusão). Item já mapeado como feature
+      Pro (PDF); avaliar exportação simples em JSON independente de
+      pagamento — barato e elimina risco reputacional.
+- [ ] **Transferência internacional** — VPS Hetzner fica na UE: dados
+      de brasileiros saem do país. LGPD permite, mas exige garantias
+      (art. 33); conferir se a política menciona isso e se o contrato
+      Hetzner/SCC cobre. Documentar decisão.
+- [x] **Canal de contato único** — política de privacidade e remetente
+      do magic link já usam `meusremedios@narniano.com` (commit
+      `d1d28cb`). Regra permanente registrada no CLAUDE.md: TODO lugar
+      que citar contato usa esse endereço.
+
 ---
 
 ## 🌐 Versão Web — Planejamento (2026-08-21)

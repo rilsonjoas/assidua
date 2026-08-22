@@ -21,6 +21,7 @@ App mobile de gestão de medicamentos para pacientes crônicos. Objetivo é vira
 
 ## Decisões importantes
 
+- **Contato oficial: SEMPRE `meusremedios@narniano.com`** — todo lugar que citar e-mail/contato (política de privacidade, tela de ajuda, formulários da Play Store, e-mails transacionais, suporte) usa esse endereço. Nunca e-mail pessoal.
 - **Sem Firebase**: substituído por Laravel completo
 - **AdMob, não AdSense**: AdSense é para web, AdMob é para mobile
 - **RevenueCat**: padrão cross-platform para IAP (App Store + Play Store)
