@@ -195,25 +195,25 @@ export default function HistoryScreen() {
 
       <View style={styles.consultationButtonsRow}>
         <TouchableOpacity
-          style={[styles.consultationButton, { flex: 1 }]}
+          style={styles.consultationButton}
           onPress={handleShareSummary}
           disabled={sharingSummary}
           accessibilityRole="button"
           accessibilityLabel={t('history.shareConsultationSummary')}
         >
           <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.brand} />
-          <Text style={styles.consultationButtonText} numberOfLines={1}>{t('history.shareConsultationSummary')}</Text>
+          <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.consultationButton, styles.consultationPdfButton, { flex: 1 }]}
+          style={[styles.consultationButton, styles.consultationPdfButton]}
           onPress={handlePrintReport}
           disabled={sharingSummary}
           accessibilityRole="button"
           accessibilityLabel={t('history.exportPdf')}
         >
           <MaterialCommunityIcons name="file-pdf-box" size={16} color="#fff" />
-          <Text style={styles.consultationPdfButtonText} numberOfLines={1}>{t('history.exportPdf')}</Text>
+          <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -358,11 +358,12 @@ function makeStyles(c: ThemeColors) {
     summaryLabel: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
     consultationButtonsRow: {
-      flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 8, marginBottom: 8,
+      flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginHorizontal: 16, marginTop: 8, marginBottom: 8,
     },
     consultationButton: {
+      flex: 1, minWidth: 140,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      paddingVertical: 12, paddingHorizontal: 16, minHeight: 44,
+      paddingVertical: 12, paddingHorizontal: 10, minHeight: 44,
       borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface,
     },
     consultationButtonText: { color: c.brand, fontSize: 13, fontWeight: '600' },

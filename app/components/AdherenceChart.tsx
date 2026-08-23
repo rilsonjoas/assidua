@@ -122,6 +122,7 @@ function makeStyles(c: ThemeColors) {
     barDateLabel: { fontSize: 11, fontWeight: '600', color: c.textMuted, marginTop: 6 },
     legendRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       justifyContent: 'center',
       gap: 12,
       marginTop: 14,
