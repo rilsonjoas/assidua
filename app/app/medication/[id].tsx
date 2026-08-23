@@ -1237,8 +1237,19 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.brandSubtle, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     },
     addScheduleBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
-    emptySchedules: { alignItems: 'center', paddingVertical: 24, gap: 8 },
-    emptySchedulesText: { color: c.textMuted, fontSize: 14 },
+    emptySchedules: {
+      alignItems: 'center',
+      paddingVertical: 20,
+      paddingHorizontal: 16,
+      gap: 8,
+      backgroundColor: c.surfaceSecondary,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: c.border,
+      marginBottom: 12,
+    },
+    emptySchedulesText: { color: c.textSecondary, fontSize: 13, fontWeight: '600', textAlign: 'center' },
     scheduleCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 8,
@@ -1254,18 +1265,15 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1, borderColor: c.border, marginTop: 4,
     },
     addScheduleTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
-    daysRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+    daysRow: { flexDirection: 'row', gap: 6, marginTop: 4, justifyContent: 'space-between' },
     dayBtn: {
-      // minWidth/minHeight, não width/height fixos (auditoria de
-      // responsividade, 2026-08-13) — é um círculo com uma letra só
-      // dentro; com fonte do sistema aumentada, largura/altura fixas
-      // cortariam a letra em vez de crescer o botão.
-      minWidth: 36, minHeight: 36, paddingHorizontal: 4, borderRadius: 18,
+      flex: 1,
+      minWidth: 38, minHeight: 38, paddingHorizontal: 2, borderRadius: 19,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     dayBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
-    dayBtnText: { fontSize: 12, fontWeight: '700', color: c.textMuted },
+    dayBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     dayBtnTextActive: { color: c.onBrand },
     // "Frequência de horário" (2026-08-14) — toggle fixo/intervalo,
     // mesmo padrão visual dos seletores de tema/idioma/fonte em Perfil.
