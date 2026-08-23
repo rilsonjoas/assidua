@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { api } from './api';
 
 // Achado real de uso (2026-08-14): sem isto, cada tela que monta
@@ -111,14 +112,20 @@ export async function updateStock(medicationId: number, payload: Partial<StockIt
 // "Foto do medicamento" (2026-08-13) — `imageUri` vem do
 // expo-image-picker (`result.assets[0].uri`), formato `file://...`.
 export async function uploadMedicationPhoto(medicationId: number, imageUri: string): Promise<Medication> {
-  const filename = imageUri.split('/').pop() ?? 'photo.jpg';
+  const rawFilename = imageUri.split('/').pop()?.split('?')[0] ?? 'photo.jpg';
+  const filename = rawFilename.includes('.') ? rawFilename : `${rawFilename}.jpg`;
   const extMatch = /\.(\w+)$/.exec(filename);
   const type = extMatch ? `image/${extMatch[1].toLowerCase()}` : 'image/jpeg';
 
   const formData = new FormData();
-  // React Native aceita esse formato de objeto (uri/name/type) em vez de
-  // um File/Blob de verdade — é o padrão da própria doc do expo-image-picker.
-  formData.append('photo', { uri: imageUri, name: filename, type } as any);
+  if (Platform.OS === 'web') {
+    const res = await fetch(imageUri);
+    const blob = await res.blob();
+    const file = new File([blob], filename, { type: blob.type || type });
+    formData.append('photo', file);
+  } else {
+    formData.append('photo', { uri: imageUri, name: filename, type } as any);
+  }
 
   const { data } = await api.post(`/medications/${medicationId}/photo`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

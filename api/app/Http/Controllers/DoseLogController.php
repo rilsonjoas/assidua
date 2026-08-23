@@ -154,12 +154,14 @@ class DoseLogController extends Controller
         $profile = Profile::findOrFail($data['profile_id']);
         Gate::authorize('create', [DoseLog::class, $profile]);
 
+        $scheduledAtFormatted = Carbon::parse($data['scheduled_at'])->setTimezone($profile->timezone)->format('Y-m-d H:i:s');
+
         $log = DoseLog::updateOrCreate(
             [
                 'dose_schedule_id' => $data['dose_schedule_id'],
-                'scheduled_at' => Carbon::parse($data['scheduled_at'])->format('Y-m-d H:i:s'),
+                'scheduled_at' => $scheduledAtFormatted,
             ],
-            $data
+            array_merge($data, ['scheduled_at' => $scheduledAtFormatted])
         );
 
         // Streak (Fase 2, 2026-08-11): só verifica marco (7/30/60) quando

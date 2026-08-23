@@ -117,6 +117,10 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 - [x] **Exportação de Relatório em PDF**: Gerar relatórios em PDF para acompanhamento médico com `expo-print` e `expo-sharing`. → **Implementado e testado 2026-08-23** (`lib/reportPdf.ts` + `history.tsx`)
 - [x] **Telemetria / Analytics Anônimo (sem PII)**: Registrador local de eventos anônimos de engajamento. → **Implementado e testado 2026-08-23** (`services/analytics.ts`)
 - [x] **Atalhos de Teclado no Desktop (Web)**: Hook para capturar atalhos (`Esc`, `Cmd+N` / `Ctrl+N`) no browser. → **Implementado e testado 2026-08-23** (`hooks/useKeyboardShortcuts.ts`)
+- [x] **Pacote de Usabilidade Sênior & Acessibilidade**: Gráfico de adesão redesenhado (rótulos de data, trilho visual 0-100%, legenda explicativa `🟢/🟡/🔴`), confirmação visual de dose (toast feedback ao marcar "Tomei") e touch targets expandidos. → **Implementado e testado 2026-08-23** (`AdherenceChart.tsx` + `index.tsx`)
+- [x] **Correção no PDF de Consulta (Alinhamento de Fuso Horário)**: Alinhamento da busca de doses em UTC e fuso local no backend para garantir contagem 100% precisa das doses tomadas. → **Implementado e testado 2026-08-23** (`GenerateConsultationSummary.php` + `DoseLogController.php`)
+- [x] **Assets de Alta Definição e Suavização na Web**: Logotipo vetorial em alta resolução 1024x1024 px no modo escuro e suavização de fonte antialiased no CSS global da Web. → **Implementado e testado 2026-08-23** (`logo-mark-white.png` + `_layout.tsx`)
+- [x] **Envio de Foto de Medicamento na Web**: Suporte a conversão automática de imagens `blob:`/`data:` para objeto `File` no navegador. → **Implementado e testado 2026-08-23** (`services/medications.ts`)
 
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
 - [x] **`EXPO_PUBLIC_API_URL` no ambiente `production` do EAS —

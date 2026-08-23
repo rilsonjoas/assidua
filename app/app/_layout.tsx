@@ -32,12 +32,28 @@ if (isNative) {
     enabled: !!sentryDsn,
     tracesSampleRate: 1.0,
   });
-} else if (sentryDsn) {
-  SentryWeb.init({
-    dsn: sentryDsn,
-    enabled: true,
-    tracesSampleRate: 1.0,
-  });
+} else {
+  if (sentryDsn) {
+    SentryWeb.init({
+      dsn: sentryDsn,
+      enabled: true,
+      tracesSampleRate: 1.0,
+    });
+  }
+
+  if (typeof document !== 'undefined') {
+    const styleEl = document.createElement('style');
+    styleEl.innerHTML = `
+      body, input, textarea, select, button, div, span, p {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        letter-spacing: normal !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
 }
 
 // L1 — monetização (2026-08-21). Mesmo padrão do Sentry acima: sem

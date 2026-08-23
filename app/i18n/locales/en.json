@@ -69,6 +69,7 @@
     "step3Text": "Turn on notifications to get an alert at each dose's time. You can change this later in your phone's settings."
   },
   "home": {
+    "doseSuccessToast": "Great job! Dose of {{name}} recorded successfully.",
     "dosesToday": "Today's doses",
     "progress_one": "{{count}} of {{total}} taken",
     "progress_other": "{{count}} of {{total}} taken",

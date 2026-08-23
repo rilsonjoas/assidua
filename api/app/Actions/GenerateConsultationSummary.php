@@ -42,7 +42,11 @@ class GenerateConsultationSummary
                     $totalDue++;
 
                     $log = $schedule->doseLogs()
-                        ->where('scheduled_at', $scheduledAt->format('Y-m-d H:i:s'))
+                        ->where(function ($q) use ($scheduledAt) {
+                            $q->where('scheduled_at', $scheduledAt->format('Y-m-d H:i:s'))
+                              ->orWhere('scheduled_at', $scheduledAt->copy()->utc()->format('Y-m-d H:i:s'))
+                              ->orWhereDate('scheduled_at', $scheduledAt->toDateString());
+                        })
                         ->first();
 
                     if ($log?->status === 'taken') {

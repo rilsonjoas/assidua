@@ -69,6 +69,7 @@
     "step3Text": "Ative as notificações para receber um aviso no horário de cada dose. Você pode mudar isso depois, nas configurações do celular."
   },
   "home": {
+    "doseSuccessToast": "Muito bem! Dose de {{name}} registrada com sucesso.",
     "dosesToday": "Doses de hoje",
     "progress_one": "{{count}} de {{total}} tomada",
     "progress_other": "{{count}} de {{total}} tomadas",

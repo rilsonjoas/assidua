@@ -126,7 +126,18 @@ export default function ProfileScreen() {
     setExporting(true);
     try {
       const { data } = await api.post('/me/export-link', { format: exportFormat });
-      await Linking.openURL(data.url);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = exportFormat === 'csv' ? 'assidua-dados.csv' : 'assidua-dados.json';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        await Linking.openURL(data.url);
+      }
       setExportModalVisible(false);
     } catch (err: any) {
       showAlert(t('common.error'), t('profile.exportError'));
@@ -573,7 +584,7 @@ export default function ProfileScreen() {
           esqueceu o que algo significa ou nunca chegou a ver o
           onboarding (porque foi o cuidador quem configurou). */}
       <TouchableOpacity
-        style={styles.helpBtn}
+        style={[styles.helpBtn, { marginTop: 24 }]}
         onPress={() => router.push('/help')}
         accessibilityRole="button"
         accessibilityLabel={t('help.headerTitle')}
@@ -587,7 +598,7 @@ export default function ProfileScreen() {
           de verdade, independente de plano pago. Mesma UI do botão de
           Ajuda; hint explica o que sai no arquivo. */}
       <TouchableOpacity
-        style={styles.helpBtn}
+        style={[styles.helpBtn, { marginTop: 10 }]}
         onPress={() => setExportModalVisible(true)}
         disabled={exporting}
         accessibilityRole="button"
@@ -656,7 +667,7 @@ export default function ProfileScreen() {
         </View>
       ) : (
         <TouchableOpacity
-          style={styles.logoutBtn}
+          style={[styles.logoutBtn, { marginTop: 10 }]}
           onPress={() => setConfirmingDelete(true)}
           disabled={deleting}
           accessibilityRole="button"
@@ -673,7 +684,7 @@ export default function ProfileScreen() {
           Versão do app junto — ajuda muito em report de bug. */}
       <View style={styles.brandFooter}>
         <Image
-          source={require('../../assets/android-icon-monochrome.png')}
+          source={require('../../assets/logo-mark-white.png')}
           style={[styles.brandFooterLogo, { tintColor: colors.textMuted }]}
           accessible={false}
           importantForAccessibility="no"
@@ -884,17 +895,18 @@ function makeStyles(c: ThemeColors) {
     exportHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     logoutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 6, padding: 14, marginTop: 8,
+      gap: 8, paddingVertical: 14, paddingHorizontal: 20, marginTop: 24,
+      borderRadius: 12,
     },
     logoutText: { color: c.error, fontWeight: '600', fontSize: 15 },
     deleteBox: {
-      backgroundColor: c.surface, borderRadius: 16, padding: 16, marginTop: 8,
+      backgroundColor: c.surface, borderRadius: 16, padding: 16, marginTop: 12,
       borderWidth: 1, borderColor: c.error,
     },
     deleteConfirmBtn: {
       flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10, alignItems: 'center',
     },
-    brandFooter: { alignItems: 'center', marginTop: 36, gap: 6 },
+    brandFooter: { alignItems: 'center', marginTop: 48, marginBottom: 20, gap: 6 },
     // Mesma silhueta branca do header/card; tintColor (no JSX) a adapta
     // ao tema aqui, onde o fundo é claro/escuro variável.
     brandFooterLogo: { width: 30, height: 30, opacity: 0.55 },

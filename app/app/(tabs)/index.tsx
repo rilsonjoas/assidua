@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -42,6 +42,13 @@ const DATE_FORMAT: Record<string, string> = {
 
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  }
+
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
   const { isPrivate, togglePrivacy } = usePrivacyStore();
   const currentUser = useAuthStore((s) => s.user);
@@ -114,6 +121,9 @@ export default function HomeScreen() {
       queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
         old?.map((d) => (d.id === dose.id ? { ...d, ...log } : d)),
       );
+
+      showToast(t('home.doseSuccessToast', { name: maskMedicationName(dose.medication.name, isPrivate) }));
+
       if (log._pendingSync) return; // offline — o resto acontece quando a fila drenar
 
       // Haptic feedback (Fase 1) — só no sucesso, não no toque em si:
@@ -227,7 +237,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         {!isWide && (
           <Image
-            source={require('../../assets/android-icon-monochrome.png')}
+            source={require('../../assets/logo-mark-white.png')}
             style={styles.brandWatermark}
             accessible={false}
             importantForAccessibility="no"
@@ -236,7 +246,7 @@ export default function HomeScreen() {
         <View style={styles.headerTop}>
           {!isWide && (
             <Image
-              source={require('../../assets/android-icon-monochrome.png')}
+              source={require('../../assets/logo-mark-white.png')}
               style={styles.brandMark}
               accessible={false}
               importantForAccessibility="no"
@@ -448,6 +458,12 @@ export default function HomeScreen() {
           }}
         />
       )}
+      {!!toastMessage && (
+        <View style={styles.toastContainer} accessible accessibilityLiveRegion="polite">
+          <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
       {alertDialog}
     </View>
   );
@@ -456,6 +472,26 @@ export default function HomeScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    toastContainer: {
+      position: 'absolute',
+      bottom: 24,
+      left: 20,
+      right: 20,
+      backgroundColor: c.success,
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      elevation: 6,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      zIndex: 999,
+    },
+    toastText: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
     // overflow hidden mantém a marca d'água recortada dentro do header.
     header: { backgroundColor: c.headerBg, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
     // Grande e quase transparente: presença de marca sem brigar com

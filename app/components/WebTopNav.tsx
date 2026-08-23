@@ -33,7 +33,7 @@ export default function WebTopNav() {
           pílula (achado do Rilson, W2, 2026-08-22). */}
       <View style={styles.brand}>
         <Image
-          source={isDark ? require('../assets/android-icon-monochrome.png') : require('../assets/logo-mark.png')}
+          source={isDark ? require('../assets/logo-mark-white.png') : require('../assets/logo-mark.png')}
           style={styles.brandIcon}
           accessible={false}
           importantForAccessibility="no"
@@ -94,8 +94,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   brandIcon: {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
+    resizeMode: 'contain',
   },
   brandText: {
     fontSize: 17,

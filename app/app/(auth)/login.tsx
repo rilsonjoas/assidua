@@ -93,7 +93,7 @@ export default function LoginScreen() {
               opaco, não transparente — vira um quadrado feio no escuro.
               Tema-aware: roxa transparente no claro, branca no escuro. */}
           <Image
-            source={isDark ? require('../../assets/android-icon-monochrome.png') : require('../../assets/logo-mark.png')}
+            source={isDark ? require('../../assets/logo-mark-white.png') : require('../../assets/logo-mark.png')}
             style={styles.logoImage}
             accessible={false}
             importantForAccessibility="no"

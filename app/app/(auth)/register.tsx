@@ -93,7 +93,7 @@ export default function RegisterScreen() {
           {/* Mesma lógica tema-aware do login (2026-08-22) — `icon.png`
               tem fundo branco opaco, feio no escuro. */}
           <Image
-            source={isDark ? require('../../assets/android-icon-monochrome.png') : require('../../assets/logo-mark.png')}
+            source={isDark ? require('../../assets/logo-mark-white.png') : require('../../assets/logo-mark.png')}
             style={styles.logoImage}
             accessible={false}
             importantForAccessibility="no"

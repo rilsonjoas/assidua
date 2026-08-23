@@ -120,11 +120,35 @@ class MedicationController extends Controller
 
         $this->deletePhotoFile($medication);
 
-        $path = $request->file('photo')->store(
-            "medication-photos/{$medication->profile_id}",
-            'public',
-        );
+        $file = $request->file('photo');
+        $directory = "medication-photos/{$medication->profile_id}";
 
+        if (function_exists('imagecreatefromstring') && function_exists('imagewebp')) {
+            $imageContent = file_get_contents($file->getRealPath());
+            $gdImage = @imagecreatefromstring($imageContent);
+
+            if ($gdImage !== false) {
+                imagealphablending($gdImage, true);
+                imagesavealpha($gdImage, true);
+
+                $hash = \Illuminate\Support\Str::random(40);
+                $filename = "{$directory}/{$hash}.webp";
+                $fullStoragePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filename);
+
+                $dirPath = dirname($fullStoragePath);
+                if (! is_dir($dirPath)) {
+                    mkdir($dirPath, 0755, true);
+                }
+
+                imagewebp($gdImage, $fullStoragePath, 80);
+                imagedestroy($gdImage);
+
+                $medication->update(['photo_path' => $filename]);
+                return response()->json($medication->load(['schedules', 'stock']));
+            }
+        }
+
+        $path = $file->store($directory, 'public');
         $medication->update(['photo_path' => $path]);
 
         return response()->json($medication->load(['schedules', 'stock']));
