@@ -92,8 +92,12 @@
     "alreadyReacted": "Você já mandou um coração",
     "reactedByLabel": "{{name}} mandou um coração",
     "streakLabel": "{{count}} dias seguidos de adesão",
-    "streakMilestoneTitle": "🎉 Parabéns!",
-    "streakMilestoneText": "{{count}} dias seguidos tomando certinho. Continue assim!",
+    "milestone7Title": "Uma semana completa",
+    "milestone7Text": "Você não faltou nenhum dia. Continue assim.",
+    "milestone30Title": "Um mês completo",
+    "milestone30Text": "Isso já é hábito formado, não sorte.",
+    "milestone60Title": "Dois meses seguidos",
+    "milestone60Text": "Rotina de verdade. Seu cuidado está funcionando.",
     "pendingSync": "Aguardando conexão"
   },
   "medications": {
@@ -140,7 +144,11 @@
     "chartTitle": "Adesão por semana",
     "chartWeekLabel": "{{percentage}}% de adesão nessa semana",
     "chartNoData": "Sem dados nessa semana",
-    "chartEmptyState": "Ainda não há doses registradas nesse período. O gráfico aparece assim que você começar a marcar Tomei/Pulei."
+    "chartEmptyState": "Ainda não há doses registradas nesse período. O gráfico aparece assim que você começar a marcar Tomei/Pulei.",
+    "shareConsultationSummary": "Compartilhar resumo pra consulta",
+    "consultationSummaryText": "Resumo de {{profileName}} — últimos 30 dias\n\nAdesão: {{percentage}}% ({{taken}} de {{due}} doses tomadas)\n\nDoses não tomadas:\n{{missedList}}\n\nGerado pelo app Assídua.",
+    "consultationSummaryNoMissed": "Nenhuma — todas as doses foram tomadas.",
+    "consultationSummaryError": "Não foi possível gerar o resumo. Tente de novo."
   },
   "profile": {
     "pro": "Pro",

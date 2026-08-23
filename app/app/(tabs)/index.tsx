@@ -121,12 +121,14 @@ export default function HomeScreen() {
 
       // Streak (Fase 2) — o backend só manda streak_milestone quando esta
       // ação específica fechou o dia num número redondo (7/30/60).
-      if (log.streak_milestone) {
+      // Marcos de significado (2026-08-23, ideia de produto aprovada):
+      // frase própria por marco, não "X dias seguidos!" genérico com
+      // confete — celebra o hábito formado, não o placar. Público
+      // idoso/perda de autonomia não combina com gamificação de pontos.
+      if (log.streak_milestone === 7 || log.streak_milestone === 30 || log.streak_milestone === 60) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert(
-          t('home.streakMilestoneTitle'),
-          t('home.streakMilestoneText', { count: log.streak_milestone }),
-        );
+        const key = log.streak_milestone as 7 | 30 | 60;
+        showAlert(t(`home.milestone${key}Title`), t(`home.milestone${key}Text`));
       }
     },
   });

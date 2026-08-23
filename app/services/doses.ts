@@ -55,6 +55,23 @@ export async function getWeeklyAdherence(profileId: number): Promise<WeeklyAdher
   return data;
 }
 
+// "Resumo pra consulta" (2026-08-23) — não é o histórico de uso, é o
+// documento pra levar ao médico: % do período + quais doses faltaram.
+export interface ConsultationSummary {
+  period_days: number;
+  period_start: string;
+  period_end: string;
+  percentage: number | null;
+  taken: number;
+  due: number;
+  missed: { medication_name: string; scheduled_at: string }[];
+}
+
+export async function getConsultationSummary(profileId: number, days: number): Promise<ConsultationSummary> {
+  const { data } = await api.get(`/profiles/${profileId}/consultation-summary`, { params: { days } });
+  return data;
+}
+
 export interface HistoryFilters {
   status?: 'taken' | 'skipped' | 'missed';
   medication_id?: number;

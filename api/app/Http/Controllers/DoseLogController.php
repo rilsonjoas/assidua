@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CalculateAdherenceStreak;
 use App\Actions\CalculateWeeklyAdherence;
+use App\Actions\GenerateConsultationSummary;
 use App\Actions\GenerateScheduleOccurrences;
 use App\Actions\MarkDoseMissedAndNotifyCollaborators;
 use App\Actions\ReactToDoseLog;
@@ -263,6 +264,21 @@ class DoseLogController extends Controller
     // o que o roadmap pedia). É o mesmo paywall que já existe, não um
     // novo — só aplicado aqui também, pra não abrir uma segunda forma
     // de ver mais histórico do que o plano permite.
+    // "Resumo pra consulta" (2026-08-23) — mesmo paywall de profundidade
+    // de histórico que weeklyAdherence já usa (30 dias grátis, mais só
+    // Pro), mas o teto aqui é 90 mesmo pra Pro: mais que isso não serve
+    // pra uma consulta médica de verdade, é histórico de uso.
+    public function consultationSummary(Request $request, Profile $profile, GenerateConsultationSummary $generateSummary): JsonResponse
+    {
+        Gate::authorize('view', $profile);
+
+        $requested = (int) $request->query('days', 30);
+        $maxDays = $request->user()->isPro() ? 90 : 30;
+        $days = max(1, min($requested, $maxDays));
+
+        return response()->json($generateSummary->handle($profile, $days));
+    }
+
     public function weeklyAdherence(Request $request, Profile $profile, CalculateWeeklyAdherence $calculateAdherence): JsonResponse
     {
         Gate::authorize('view', $profile);

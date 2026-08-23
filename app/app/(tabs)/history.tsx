@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Share,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
@@ -12,7 +13,7 @@ import { ptBR, enUS, es } from 'date-fns/locale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
-import { getDoseHistory, getWeeklyAdherence, DoseLog, HistoryFilters } from '../../services/doses';
+import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, DoseLog, HistoryFilters } from '../../services/doses';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
@@ -20,6 +21,7 @@ import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';
+import { showAlert } from '../../lib/alert';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
 
@@ -110,6 +112,35 @@ export default function HistoryScreen() {
   const totalCount = logs.length;
   const adherence = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : null;
 
+  // "Resumo pra consulta" (2026-08-23) — texto pronto pra levar/mandar
+  // pro médico: % do período + quais doses faltaram, com data e hora.
+  // Não é o histórico completo (isso já existe na tela) — é o recorte
+  // que interessa numa consulta.
+  const [sharingSummary, setSharingSummary] = useState(false);
+  async function handleShareSummary() {
+    if (!activeProfile) return;
+    setSharingSummary(true);
+    try {
+      const summary = await getConsultationSummary(activeProfile.id, 30);
+      const dateLocale = DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR;
+      const missedLines = summary.missed
+        .map((m) => `• ${m.medication_name} — ${format(parseISO(m.scheduled_at), "d 'de' MMMM, HH:mm", { locale: dateLocale })}`)
+        .join('\n');
+      const message = t('history.consultationSummaryText', {
+        profileName: activeProfile.name,
+        percentage: summary.percentage ?? 0,
+        taken: summary.taken,
+        due: summary.due,
+        missedList: missedLines || t('history.consultationSummaryNoMissed'),
+      });
+      await Share.share({ message });
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('history.consultationSummaryError'));
+    } finally {
+      setSharingSummary(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
       {/* Resumo de adesão */}
@@ -135,6 +166,17 @@ export default function HistoryScreen() {
       )}
 
       <AdherenceChart data={weeklyAdherence} />
+
+      <TouchableOpacity
+        style={styles.consultationButton}
+        onPress={handleShareSummary}
+        disabled={sharingSummary}
+        accessibilityRole="button"
+        accessibilityLabel={t('history.shareConsultationSummary')}
+      >
+        <MaterialCommunityIcons name="file-document-outline" size={16} color={colors.brand} />
+        <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
+      </TouchableOpacity>
 
       {/* Filtros de status */}
       <ScrollView
@@ -273,6 +315,12 @@ function makeStyles(c: ThemeColors) {
     summaryValue: { fontSize: 22, fontWeight: '700', color: c.text },
     summaryLabel: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
+    consultationButton: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 10, marginHorizontal: 16, marginTop: 4, marginBottom: 8,
+      borderRadius: 10, borderWidth: 1, borderColor: c.border,
+    },
+    consultationButtonText: { color: c.brand, fontSize: 13, fontWeight: '600' },
     filterScroll: { maxHeight: 52 },
     filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
     filterChip: {
