@@ -23,6 +23,7 @@ const STEP_ICONS = ['account-group-outline', 'pill', 'bell-ring-outline'] as con
 export default function OnboardingScreen() {
   const { t } = useTranslation();
   const [step, setStep] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
   const router = useRouter();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
@@ -30,6 +31,8 @@ export default function OnboardingScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const setCompleted = useOnboardingStore((s) => s.setCompleted);
   const scrollRef = useRef<ScrollView>(null);
+
+  const slideWidth = containerWidth || (isWide ? Math.min(width, 520) : width);
 
   const steps = [
     { icon: STEP_ICONS[0], title: t('onboarding.step1Title'), text: t('onboarding.step1Text') },
@@ -49,23 +52,18 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)/');
   };
 
-  // Achado real testando no dispositivo (2026-08-13): a versão anterior
-  // só avançava pelo botão "Próximo" — não tinha nenhum gesto de swipe
-  // de verdade, mesmo tendo os pontinhos de página sugerindo isso.
-  // ScrollView com paginação nativa cobre swipe nos dois sentidos de
-  // graça; scrollTo sincroniza quando o avanço vem do botão/pontinho.
   function goToStep(next: number) {
     setStep(next);
-    scrollRef.current?.scrollTo({ x: next * width, animated: true });
+    scrollRef.current?.scrollTo({ x: next * slideWidth, animated: true });
   }
 
   function handleScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const next = Math.round(e.nativeEvent.contentOffset.x / width);
+    const next = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
     if (next !== step) setStep(next);
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
       <TouchableOpacity style={styles.skip} onPress={finish} accessibilityRole="button" accessibilityLabel={t('onboarding.skipLabel')}>
         <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </TouchableOpacity>
@@ -81,14 +79,10 @@ export default function OnboardingScreen() {
         {steps.map((s, i) => (
           <View
             key={i}
-            style={[styles.content, { width }]}
+            style={[styles.content, { width: slideWidth }]}
             accessible
             accessibilityLabel={t('onboarding.stepLabel', { current: i + 1, total: steps.length, title: s.title, text: s.text })}
           >
-            {/* Wrapper interno com maxWidth (2026-08-22) — a página em si
-                precisa ficar exatamente do tamanho da janela pro paging
-                funcionar, mas o CONTEÚDO não deveria esticar até a borda
-                numa tela larga (achado do Rilson, W2). */}
             <View style={[styles.contentInner, isWide && styles.contentInnerWide]}>
               <View style={styles.iconCircle}>
                 <MaterialCommunityIcons name={s.icon} size={56} color={colors.brand} />
