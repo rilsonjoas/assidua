@@ -38,6 +38,7 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::delete('/auth/account', [AuthController::class, 'destroyAccount']);

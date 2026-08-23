@@ -272,6 +272,15 @@ class AuthController extends Controller
         abort(400, 'Login com Google sem destino de retorno válido.');
     }
 
+    public function refresh(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->currentAccessToken()->delete();
+        $newToken = $user->createToken('mobile')->plainTextToken;
+
+        return response()->json(['token' => $newToken]);
+    }
+
     // 'account' é o mesmo ícone que o formulário de criação de perfil no
     // mobile já usa como padrão (`useState(...'account')` em profile.tsx)
     // — mantém consistência com o que a pessoa veria se criasse na mão.

@@ -302,4 +302,17 @@ class AuthTest extends TestCase
         // Dados intactos: sem perfil padrão extra
         $this->assertSame(1, $fresh->profiles()->count());
     }
+
+    public function test_renova_token_de_acesso_com_sucesso(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('test')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $token)
+            ->postJson('/api/auth/refresh');
+
+        $response->assertOk();
+        $this->assertNotNull($response->json('token'));
+        $this->assertNotEquals($token, $response->json('token'));
+    }
 }

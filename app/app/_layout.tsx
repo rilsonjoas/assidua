@@ -42,14 +42,19 @@ if (isNative) {
   }
 
   if (typeof document !== 'undefined') {
+    const iconFontUrl = require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf');
     const styleEl = document.createElement('style');
+    styleEl.setAttribute('id', 'expo-web-styles');
     styleEl.innerHTML = `
-      body, input, textarea, select, button, div, span, p {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+      @font-face {
+        font-family: 'MaterialCommunityIcons';
+        src: url('${iconFontUrl}');
+      }
+      body, input, textarea, select, button {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         text-rendering: optimizeLegibility;
-        letter-spacing: normal !important;
       }
     `;
     document.head.appendChild(styleEl);
