@@ -170,168 +170,177 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      {adherence !== null && (
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{takenCount}</Text>
-            <Text style={styles.summaryLabel}>{t('history.summaryTaken')}</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>{totalCount - takenCount}</Text>
-            <Text style={styles.summaryLabel}>{t('history.summaryMissed')}</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}>
-              {adherence}%
-            </Text>
-            <Text style={styles.summaryLabel}>{t('history.summaryAdherence')}</Text>
-          </View>
-        </View>
-      )}
-
-      <AdherenceChart data={weeklyAdherence} />
-
-      <View style={styles.consultationButtonsRow}>
-        <TouchableOpacity
-          style={styles.consultationButton}
-          onPress={handleShareSummary}
-          disabled={sharingSummary}
-          accessibilityRole="button"
-          accessibilityLabel={t('history.shareConsultationSummary')}
-        >
-          <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.brand} />
-          <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.consultationButton, styles.consultationPdfButton]}
-          onPress={handlePrintReport}
-          disabled={sharingSummary}
-          accessibilityRole="button"
-          accessibilityLabel={t('history.exportPdf')}
-        >
-          <MaterialCommunityIcons name="file-pdf-box" size={16} color="#fff" />
-          <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={styles.filterRow}
-      >
-        {STATUS_FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
-            onPress={() => setStatusFilter(f.key)}
-            accessibilityRole="button"
-            accessibilityLabel={t('history.filterLabel', { label: f.label })}
-            accessibilityState={{ selected: statusFilter === f.key }}
-          >
-            <Text style={[styles.filterChipText, statusFilter === f.key && styles.filterChipTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {medications.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterRow}
-        >
-          <TouchableOpacity
-            style={[styles.filterChip, medicationFilter === 'all' && styles.filterChipActive]}
-            onPress={() => setMedicationFilter('all')}
-            accessibilityRole="button"
-            accessibilityLabel={t('history.filterLabel', { label: t('history.filterAllMedications') })}
-            accessibilityState={{ selected: medicationFilter === 'all' }}
-          >
-            <Text style={[styles.filterChipText, medicationFilter === 'all' && styles.filterChipTextActive]}>
-              {t('history.filterAllMedications')}
-            </Text>
-          </TouchableOpacity>
-          {medications.map((m) => {
-            const maskedMedName = maskMedicationName(m.name, isPrivate);
-            return (
-              <TouchableOpacity
-                key={m.id}
-                style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
-                onPress={() => setMedicationFilter(m.id)}
-                accessibilityRole="button"
-                accessibilityLabel={t('history.filterLabel', { label: maskedMedName })}
-                accessibilityState={{ selected: medicationFilter === m.id }}
-              >
-                <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
-                <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
-                  {maskedMedName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      {isLoading ? (
-        <SkeletonList lines={2} />
-      ) : sections.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <MaterialCommunityIcons name="clipboard-text-outline" size={52} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>{t('history.emptyTitle')}</Text>
-          <Text style={styles.emptyText}>
-            {hasActiveFilter ? t('history.emptyFiltered') : t('history.emptyGeneric')}
-          </Text>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={[styles.list, isWide && styles.listWide]}
-          onRefresh={refetch}
-          refreshing={isRefetching}
-          renderSectionHeader={({ section }) => (
-            <Text style={styles.sectionHeader}>{section.title}</Text>
-          )}
-          renderItem={({ item }) => {
-            const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
-            const time = format(parseISO(item.scheduled_at), 'HH:mm');
-            const maskedName = maskMedicationName(item.medication.name, isPrivate);
-            return (
-              <View
-                style={styles.row}
-                accessible
-                accessibilityLabel={t('history.rowLabel', {
-                  name: maskedName,
-                  dosageUnit: formatDosageUnit(item.medication.dosage, item.medication.unit),
-                  time,
-                  status: cfg.label,
-                })}
-              >
-                <View style={styles.timeBox}>
-                  <Text style={styles.time}>{time}</Text>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={[styles.list, isWide && styles.listWide]}
+        onRefresh={refetch}
+        refreshing={isRefetching}
+        ListHeaderComponent={
+          <View style={styles.headerContainer}>
+            {adherence !== null && (
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryValue}>{takenCount}</Text>
+                  <Text style={styles.summaryLabel}>{t('history.summaryTaken')}</Text>
                 </View>
-                <View style={[styles.colorBar, { backgroundColor: item.medication.color }]} />
-                <View style={styles.rowBody}>
-                  <Text style={styles.medName}>{maskedName}</Text>
-                  <Text style={styles.dosage}>
-                    {formatDosageUnit(item.medication.dosage, item.medication.unit)}
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryValue}>{totalCount - takenCount}</Text>
+                  <Text style={styles.summaryLabel}>{t('history.summaryMissed')}</Text>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryItem}>
+                  <Text style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}>
+                    {adherence}%
                   </Text>
-                </View>
-                <View style={styles.statusBox}>
-                  <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
-                  <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                  <Text style={styles.summaryLabel}>{t('history.summaryAdherence')}</Text>
                 </View>
               </View>
-            );
-          }}
-        />
-      )}
+            )}
+
+            <AdherenceChart data={weeklyAdherence} />
+
+            <View style={styles.consultationButtonsRow}>
+              <TouchableOpacity
+                style={styles.consultationButton}
+                onPress={handleShareSummary}
+                disabled={sharingSummary}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.shareConsultationSummary')}
+              >
+                <MaterialCommunityIcons name="share-variant-outline" size={18} color={colors.brand} />
+                <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.consultationButton, styles.consultationPdfButton]}
+                onPress={handlePrintReport}
+                disabled={sharingSummary}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.exportPdf')}
+              >
+                <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
+                <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.filtersWrapper}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterScroll}
+                contentContainerStyle={styles.filterRow}
+              >
+                {STATUS_FILTERS.map((f) => (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
+                    onPress={() => setStatusFilter(f.key)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('history.filterLabel', { label: f.label })}
+                    accessibilityState={{ selected: statusFilter === f.key }}
+                  >
+                    <Text style={[styles.filterChipText, statusFilter === f.key && styles.filterChipTextActive]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {medications.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.filterScroll}
+                  contentContainerStyle={styles.filterRow}
+                >
+                  <TouchableOpacity
+                    style={[styles.filterChip, medicationFilter === 'all' && styles.filterChipActive]}
+                    onPress={() => setMedicationFilter('all')}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('history.filterLabel', { label: t('history.filterAllMedications') })}
+                    accessibilityState={{ selected: medicationFilter === 'all' }}
+                  >
+                    <Text style={[styles.filterChipText, medicationFilter === 'all' && styles.filterChipTextActive]}>
+                      {t('history.filterAllMedications')}
+                    </Text>
+                  </TouchableOpacity>
+                  {medications.map((m) => {
+                    const maskedMedName = maskMedicationName(m.name, isPrivate);
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
+                        onPress={() => setMedicationFilter(m.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('history.filterLabel', { label: maskedMedName })}
+                        accessibilityState={{ selected: medicationFilter === m.id }}
+                      >
+                        <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
+                        <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
+                          {maskedMedName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <SkeletonList lines={2} />
+          ) : (
+            <View style={styles.emptyBox}>
+              <MaterialCommunityIcons name="clipboard-text-outline" size={56} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>{t('history.emptyTitle')}</Text>
+              <Text style={styles.emptyText}>
+                {hasActiveFilter ? t('history.emptyFiltered') : t('history.emptyGeneric')}
+              </Text>
+            </View>
+          )
+        }
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeaderBox}>
+            <MaterialCommunityIcons name="calendar-month-outline" size={18} color={colors.brand} />
+            <Text style={styles.sectionHeader}>{section.title}</Text>
+          </View>
+        )}
+        renderItem={({ item }) => {
+          const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
+          const time = format(parseISO(item.scheduled_at), 'HH:mm');
+          const maskedName = maskMedicationName(item.medication.name, isPrivate);
+          return (
+            <View
+              style={styles.row}
+              accessible
+              accessibilityLabel={t('history.rowLabel', {
+                name: maskedName,
+                dosageUnit: formatDosageUnit(item.medication.dosage, item.medication.unit),
+                time,
+                status: cfg.label,
+              })}
+            >
+              <View style={styles.timeBox}>
+                <Text style={styles.time}>{time}</Text>
+              </View>
+              <View style={[styles.colorBar, { backgroundColor: item.medication.color }]} />
+              <View style={styles.rowBody}>
+                <Text style={styles.medName}>{maskedName}</Text>
+                <Text style={styles.dosage}>
+                  {formatDosageUnit(item.medication.dosage, item.medication.unit)}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: cfg.color + '1f' }]}>
+                <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
+                <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
+              </View>
+            </View>
+          );
+        }}
+      />
       {alertDialog}
     </View>
   );
@@ -340,13 +349,14 @@ export default function HistoryScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    headerContainer: { paddingBottom: 8 },
     summaryCard: {
       flexDirection: 'row',
       backgroundColor: c.surface,
       marginHorizontal: 16,
       marginTop: 16,
       borderRadius: 16,
-      paddingVertical: 16,
+      paddingVertical: 18,
       elevation: 2,
       shadowColor: '#000',
       shadowOpacity: 0.05,
@@ -354,73 +364,88 @@ function makeStyles(c: ThemeColors) {
       shadowOffset: { width: 0, height: 2 },
     },
     summaryItem: { flex: 1, alignItems: 'center' },
-    summaryValue: { fontSize: 22, fontWeight: '700', color: c.text },
-    summaryLabel: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    summaryValue: { fontSize: 26, fontWeight: '700', color: c.text },
+    summaryLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted, marginTop: 4 },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
     consultationButtonsRow: {
-      flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginHorizontal: 16, marginTop: 8, marginBottom: 8,
+      flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginHorizontal: 16, marginTop: 12, marginBottom: 12,
     },
     consultationButton: {
-      flex: 1, minWidth: 140,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      paddingVertical: 12, paddingHorizontal: 10, minHeight: 44,
-      borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface,
+      flex: 1, minWidth: 150,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      paddingVertical: 14, paddingHorizontal: 12, minHeight: 48,
+      borderRadius: 14, borderWidth: 1.5, borderColor: c.border, backgroundColor: c.surface,
     },
-    consultationButtonText: { color: c.brand, fontSize: 13, fontWeight: '600' },
+    consultationButtonText: { color: c.brand, fontSize: 14, fontWeight: '700', textAlign: 'center' },
     consultationPdfButton: { backgroundColor: c.brand, borderColor: c.brand },
-    consultationPdfButtonText: { color: c.onBrand, fontSize: 13, fontWeight: '600' },
-    filterScroll: { flexGrow: 0, marginBottom: 4 },
-    filterRow: { paddingHorizontal: 16, paddingVertical: 6, gap: 8, alignItems: 'center' },
+    consultationPdfButtonText: { color: c.onBrand, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+    filtersWrapper: { marginTop: 4, marginBottom: 4 },
+    filterScroll: { flexGrow: 0, marginBottom: 6 },
+    filterRow: { paddingHorizontal: 16, paddingVertical: 4, gap: 10, alignItems: 'center' },
     filterChip: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 22,
       backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
-      minHeight: 36,
+      minHeight: 42,
     },
     filterChipActive: { backgroundColor: c.brandSubtle, borderColor: c.brand },
-    filterChipText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
-    filterChipTextActive: { color: c.brand },
-    medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    medicationChipDot: { width: 8, height: 8, borderRadius: 4 },
-    list: { padding: 16, paddingTop: 4, gap: 6 },
-    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 4 },
+    filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
+    filterChipTextActive: { color: c.brand, fontWeight: '700' },
+    medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    medicationChipDot: { width: 10, height: 10, borderRadius: 5 },
+    list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 8 },
+    sectionHeaderBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingTop: 16,
+      paddingBottom: 8,
+      backgroundColor: c.background,
+    },
     sectionHeader: {
-      fontSize: 13,
+      fontSize: 15,
       fontWeight: '700',
       color: c.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      paddingTop: 12,
-      paddingBottom: 6,
+      letterSpacing: 0.2,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: c.surface,
-      borderRadius: 12,
+      borderRadius: 14,
       overflow: 'hidden',
-      elevation: 1,
+      elevation: 2,
       shadowColor: '#000',
-      shadowOpacity: 0.04,
-      shadowRadius: 4,
-      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      marginBottom: 10,
     },
-    timeBox: { paddingHorizontal: 12, alignItems: 'center', minWidth: 54 },
-    time: { fontSize: 14, fontWeight: '700', color: c.brand },
-    colorBar: { width: 4, alignSelf: 'stretch' },
-    rowBody: { flex: 1, paddingVertical: 14, paddingLeft: 12 },
-    medName: { fontSize: 14, fontWeight: '600', color: c.text },
-    dosage: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-    statusBox: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12 },
-    statusLabel: { fontSize: 12, fontWeight: '600' },
-    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 10 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary },
-    emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
+    timeBox: { paddingHorizontal: 14, alignItems: 'center', minWidth: 60 },
+    time: { fontSize: 16, fontWeight: '700', color: c.brand },
+    colorBar: { width: 5, alignSelf: 'stretch' },
+    rowBody: { flex: 1, paddingVertical: 16, paddingLeft: 14 },
+    medName: { fontSize: 16, fontWeight: '700', color: c.text },
+    dosage: { fontSize: 14, color: c.textMuted, marginTop: 4 },
+    statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginRight: 14,
+    },
+    statusLabel: { fontSize: 13, fontWeight: '700' },
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: c.textSecondary },
+    emptyText: { fontSize: 15, color: c.textMuted, textAlign: 'center', lineHeight: 22 },
   });
 }

@@ -129,6 +129,7 @@ export async function uploadMedicationPhoto(medicationId: number, imageUri: stri
 
   const { data } = await api.post(`/medications/${medicationId}/photo`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    transformRequest: (data) => data,
   });
   return data as Medication;
 }

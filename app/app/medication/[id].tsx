@@ -10,6 +10,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -143,6 +144,7 @@ export default function MedicationFormScreen() {
   // idoso/cuidador: reconhecer visualmente costuma valer mais que ler o
   // nome. Só disponível depois de criado (precisa de id pra anexar).
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [pausing, setPausing] = useState(false);
@@ -358,22 +360,11 @@ export default function MedicationFormScreen() {
   // (sair/excluir/remover horário) que viraram ConfirmDialog temático,
   // aqui o Alert.alert nativo continua um padrão razoável.
   function handlePhotoPress() {
-    // Web (W1, 2026-08-22): ActionSheet nativo não existe no browser —
-    // vai direto pra galeria, que o expo-image-picker resolve com
-    // <input type="file"> (a câmera é que não existe na web).
     if (Platform.OS === 'web') {
       pickPhoto('gallery');
       return;
     }
-    const options: any[] = [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('medicationForm.photoCamera'), onPress: () => pickPhoto('camera') },
-      { text: t('medicationForm.photoGallery'), onPress: () => pickPhoto('gallery') },
-    ];
-    if (photoUrl) {
-      options.push({ text: t('medicationForm.photoRemove'), style: 'destructive', onPress: removePhoto });
-    }
-    Alert.alert(t('medicationForm.photoActionTitle'), undefined, options);
+    setPhotoModalVisible(true);
   }
 
   async function pickPhoto(source: 'camera' | 'gallery') {
@@ -411,7 +402,13 @@ export default function MedicationFormScreen() {
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
+      console.error('[uploadPhoto error]', err);
+      const serverMsg =
+        err.response?.data?.message ??
+        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??
+        err.message ??
+        t('medicationForm.errorPhoto');
+      showAlert(t('common.error'), serverMsg);
     } finally {
       setUploadingPhoto(false);
     }
@@ -424,7 +421,13 @@ export default function MedicationFormScreen() {
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPhoto'));
+      console.error('[removePhoto error]', err);
+      const serverMsg =
+        err.response?.data?.message ??
+        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??
+        err.message ??
+        t('medicationForm.errorPhoto');
+      showAlert(t('common.error'), serverMsg);
     } finally {
       setUploadingPhoto(false);
     }
@@ -1179,6 +1182,66 @@ export default function MedicationFormScreen() {
       onCancel={() => setScheduleToRemove(null)}
       onConfirm={confirmRemoveSchedule}
     />
+    <Modal
+      visible={photoModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setPhotoModalVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setPhotoModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{t('medicationForm.photoActionTitle')}</Text>
+
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => {
+              setPhotoModalVisible(false);
+              pickPhoto('camera');
+            }}
+          >
+            <MaterialCommunityIcons name="camera-outline" size={22} color={colors.brand} />
+            <Text style={styles.modalOptionText}>{t('medicationForm.photoCamera')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => {
+              setPhotoModalVisible(false);
+              pickPhoto('gallery');
+            }}
+          >
+            <MaterialCommunityIcons name="image-outline" size={22} color={colors.brand} />
+            <Text style={styles.modalOptionText}>{t('medicationForm.photoGallery')}</Text>
+          </TouchableOpacity>
+
+          {photoUrl && (
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                setPhotoModalVisible(false);
+                removePhoto();
+              }}
+            >
+              <MaterialCommunityIcons name="trash-can-outline" size={22} color={colors.error} />
+              <Text style={[styles.modalOptionText, { color: colors.error }]}>
+                {t('medicationForm.photoRemove')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.modalCancelButton}
+            onPress={() => setPhotoModalVisible(false)}
+          >
+            <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
     {alertDialog}
     </>
   );
@@ -1306,5 +1369,56 @@ function makeStyles(c: ThemeColors) {
     cancelBtnText: { color: c.textSecondary, fontWeight: '600' },
     confirmBtn: { flex: 1, backgroundColor: c.brand, padding: 12, borderRadius: 10, alignItems: 'center' },
     confirmBtnText: { color: c.onBrand, fontWeight: '600' },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: c.surface,
+      borderRadius: 20,
+      padding: 20,
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: c.text,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    modalOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 12,
+      backgroundColor: c.surfaceSecondary,
+      marginBottom: 10,
+    },
+    modalOptionText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.text,
+    },
+    modalCancelButton: {
+      marginTop: 4,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    modalCancelText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: c.textMuted,
+    },
   });
 }

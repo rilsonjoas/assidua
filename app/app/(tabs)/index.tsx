@@ -8,7 +8,7 @@ import {
 
   Image,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +42,7 @@ const DATE_FORMAT: Record<string, string> = {
 };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { t, i18n } = useTranslation();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -369,7 +370,12 @@ export default function HomeScreen() {
                   <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
                   {missed && <Text style={styles.missedLabel}>{t('home.delayed')}</Text>}
                 </View>
-                <View style={styles.cardBody}>
+                <TouchableOpacity
+                  style={styles.cardBody}
+                  onPress={() => router.push(`/medication/${item.medication_id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('medications.editLabel', { name: maskedName })}
+                >
                   <Text style={styles.medName}>{maskedName}</Text>
                   <Text style={styles.medDosage}>{formatDosageUnit(item.medication.dosage, item.medication.unit)}</Text>
                   {item._pendingSync && (
@@ -378,7 +384,7 @@ export default function HomeScreen() {
                       <Text style={styles.pendingSyncText}>{t('home.pendingSync')}</Text>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
                 {!taken && !skipped && (
                   <View style={styles.actions}>
                     <TouchableOpacity

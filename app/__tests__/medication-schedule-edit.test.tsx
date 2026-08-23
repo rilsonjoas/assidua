@@ -785,10 +785,7 @@ describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
     renderScreen();
     fireEvent.press(await screen.findByLabelText('Adicionar foto'));
 
-    // Alert.alert com as opções — simula o toque em "Escolher da galeria".
-    const alertOptions = (Alert.alert as jest.Mock).mock.calls[0][2] as any[];
-    const galleryOption = alertOptions.find((o) => o.text === 'Escolher da galeria');
-    await galleryOption.onPress();
+    fireEvent.press(screen.getByText('Escolher da galeria'));
 
     await waitFor(() => {
       expect(mockedMedications.uploadMedicationPhoto).toHaveBeenCalledWith(10, 'file:///tmp/foto.jpg');
@@ -802,9 +799,7 @@ describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
     renderScreen();
     fireEvent.press(await screen.findByLabelText('Adicionar foto'));
 
-    const alertOptions = (Alert.alert as jest.Mock).mock.calls[0][2] as any[];
-    const galleryOption = alertOptions.find((o) => o.text === 'Escolher da galeria');
-    await galleryOption.onPress();
+    fireEvent.press(screen.getByText('Escolher da galeria'));
 
     expect(mockedMedications.uploadMedicationPhoto).not.toHaveBeenCalled();
   });
@@ -815,8 +810,7 @@ describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
     renderScreen();
     fireEvent.press(await screen.findByLabelText('Trocar foto'));
 
-    const alertOptions = (Alert.alert as jest.Mock).mock.calls[0][2] as any[];
-    expect(alertOptions.some((o) => o.text === 'Remover foto')).toBe(true);
+    expect(screen.getByText('Remover foto')).toBeTruthy();
   });
 
   it('remover foto chama deleteMedicationPhoto e volta pro placeholder', async () => {
@@ -826,9 +820,7 @@ describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
     renderScreen();
     fireEvent.press(await screen.findByLabelText('Trocar foto'));
 
-    const alertOptions = (Alert.alert as jest.Mock).mock.calls[0][2] as any[];
-    const removeOption = alertOptions.find((o) => o.text === 'Remover foto');
-    await removeOption.onPress();
+    fireEvent.press(screen.getByText('Remover foto'));
 
     await waitFor(() => {
       expect(mockedMedications.deleteMedicationPhoto).toHaveBeenCalledWith(10);

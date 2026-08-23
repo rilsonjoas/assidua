@@ -76,17 +76,45 @@ class DataExportController extends Controller
             'Data/Hora Agendada',
             'Data/Hora Tomado',
             'Status Dose',
-        ]);
+        ], ';');
+
+        $statusMap = [
+            'taken' => 'Tomado',
+            'skipped' => 'Pulado',
+            'missed' => 'Não tomado',
+            'pending' => 'Pendente',
+        ];
+
+        $dayMap = [
+            0 => 'Dom',
+            1 => 'Seg',
+            2 => 'Ter',
+            3 => 'Qua',
+            4 => 'Qui',
+            5 => 'Sex',
+            6 => 'Sáb',
+        ];
 
         foreach ($user->profiles as $profile) {
             foreach ($profile->medications as $medication) {
-                $schedulesText = $medication->schedules->map(function ($s) {
-                    $days = $s->days_of_week ? implode(',', $s->days_of_week) : 'Todos';
-                    return "{$s->time} ({$days})";
+                $schedulesText = $medication->schedules->map(function ($s) use ($dayMap) {
+                    if ($s->interval_hours !== null) {
+                        return "{$s->time} (A cada {$s->interval_hours}h)";
+                    }
+                    if (!$s->days_of_week || count($s->days_of_week) === 7) {
+                        $daysStr = 'Todos os dias';
+                    } else {
+                        $daysStr = implode(', ', array_map(fn($d) => $dayMap[$d] ?? $d, $s->days_of_week));
+                    }
+                    return "{$s->time} ({$daysStr})";
                 })->implode('; ');
 
                 if ($medication->doseLogs->count() > 0) {
                     foreach ($medication->doseLogs as $log) {
+                        $scheduledAtFormatted = $log->scheduled_at ? date('d/m/Y H:i', strtotime($log->scheduled_at)) : '';
+                        $takenAtFormatted = $log->taken_at ? date('d/m/Y H:i', strtotime($log->taken_at)) : '';
+                        $statusFormatted = $statusMap[$log->status] ?? $log->status ?? '';
+
                         fputcsv($handle, [
                             $profile->name,
                             $medication->name,
@@ -97,10 +125,10 @@ class DataExportController extends Controller
                             $medication->is_paused ? 'Sim' : 'Não',
                             $medication->stock ? $medication->stock->current_quantity : '',
                             $schedulesText,
-                            $log->scheduled_at ?? '',
-                            $log->taken_at ?? '',
-                            $log->status ?? '',
-                        ]);
+                            $scheduledAtFormatted,
+                            $takenAtFormatted,
+                            $statusFormatted,
+                        ], ';');
                     }
                 } else {
                     fputcsv($handle, [
@@ -116,7 +144,7 @@ class DataExportController extends Controller
                         '',
                         '',
                         '',
-                    ]);
+                    ], ';');
                 }
             }
         }

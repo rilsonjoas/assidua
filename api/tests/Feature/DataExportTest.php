@@ -134,9 +134,9 @@ class DataExportTest extends TestCase
             ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
 
         $content = $download->getContent();
-        $this->assertStringContainsString('Perfil,Medicamento,Dosagem', $content);
+        $this->assertStringContainsString('Perfil;Medicamento;Dosagem', $content);
         $this->assertStringContainsString('Maria', $content);
         $this->assertStringContainsString('Dipirona', $content);
-        $this->assertStringContainsString('taken', $content);
+        $this->assertStringContainsString('Tomado', $content);
     }
 }

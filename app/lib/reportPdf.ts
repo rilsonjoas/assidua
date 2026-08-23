@@ -27,15 +27,22 @@ export async function exportConsultationReportPdf(data: ReportData): Promise<str
     throw new Error('Recurso de impressão em PDF indisponível nesta versão do app. Atualize o aplicativo.');
   }
 
-  const { uri } = await Print.printToFileAsync({ html });
+  try {
+    const { uri } = await Print.printToFileAsync({ html });
 
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      UTI: '.pdf',
-      mimeType: 'application/pdf',
-      dialogTitle: 'Relatório de Adesão - Assídua',
-    });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: 'Relatório de Adesão - Assídua',
+      });
+    }
+
+    return uri;
+  } catch (err: any) {
+    if (err?.message?.includes('Cannot find native module') || err?.message?.includes('ExpoPrint')) {
+      throw new Error('A geração de arquivo PDF requer uma atualização da versão do aplicativo na loja. Enquanto isso, utilize a opção "Compartilhar resumo pra consulta".');
+    }
+    throw err;
   }
-
-  return uri;
 }
