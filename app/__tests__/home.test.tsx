@@ -182,7 +182,7 @@ describe('HomeScreen — refill alert inteligente', () => {
   });
 });
 
-describe('HomeScreen — status automático "Perdido"', () => {
+describe('HomeScreen — status automático "Não tomado"', () => {
   const missedDose = {
     id: 42,
     dose_schedule_id: 5,

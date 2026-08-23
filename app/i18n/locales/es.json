@@ -122,7 +122,7 @@
     "filterAllMedications": "Todas las medicinas",
     "filterTaken": "Tomado",
     "filterSkipped": "Omitido",
-    "filterMissed": "Perdido",
+    "filterMissed": "No tomado",
     "filterPending": "Pendiente",
     "filterLabel": "Filtrar por {{label}}",
     "today": "Hoy",
@@ -358,7 +358,7 @@
     },
     "doseStatus": {
       "title": "¿Qué significa cada estado de dosis?",
-      "text": "Tomado: marcaste que la tomaste. Perdido: pasó la hora y nadie la marcó — no pasa nada, es solo un aviso. Omitido: decidiste a propósito no tomar esa dosis. Pendiente: todavía no llega la hora."
+      "text": "Tomado: marcaste que la tomaste. No tomado: pasó la hora y nadie la marcó — no pasa nada, es solo un aviso. Omitido: decidiste a propósito no tomar esa dosis. Pendiente: todavía no llega la hora."
     },
     "sharedCare": {
       "title": "¿Cómo funciona el cuidado compartido?",

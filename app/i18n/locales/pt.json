@@ -122,7 +122,7 @@
     "filterAllMedications": "Todos os remédios",
     "filterTaken": "Tomado",
     "filterSkipped": "Pulado",
-    "filterMissed": "Perdido",
+    "filterMissed": "Não tomado",
     "filterPending": "Pendente",
     "filterLabel": "Filtrar por {{label}}",
     "today": "Hoje",
@@ -358,7 +358,7 @@
     },
     "doseStatus": {
       "title": "O que significa cada status de dose?",
-      "text": "Tomado: você marcou que tomou. Perdido: passou da hora e ninguém marcou — não tem problema, é só um aviso. Pulado: você decidiu não tomar essa dose de propósito. Pendente: ainda não chegou a hora."
+      "text": "Tomado: você marcou que tomou. Não tomado: passou da hora e ninguém marcou — não tem problema, é só um aviso. Pulado: você decidiu não tomar essa dose de propósito. Pendente: ainda não chegou a hora."
     },
     "sharedCare": {
       "title": "Como funciona o cuidado compartilhado?",
@@ -379,6 +379,6 @@
     "shareButton": "Compartilhar guia",
     "shareLabel": "Compartilhar um guia rápido em texto",
     "shareHint": "Manda um resumo simples por WhatsApp (ou qualquer outro app), pra deixar junto de quem vai usar o Assídua no dia a dia.",
-    "shareText": "Guia rápido — Assídua\n\n1. Quando tomar o remédio no horário certo, toque em \"Tomei\".\n2. Se aparecer \"Perdido\", é só porque passou da hora sem marcar — não é erro, é um aviso.\n3. Pra ver quantos remédios ainda restam, vá na aba Estoque.\n4. Se tiver dúvida, é só abrir Perfil → Ajuda dentro do app."
+    "shareText": "Guia rápido — Assídua\n\n1. Quando tomar o remédio no horário certo, toque em \"Tomei\".\n2. Se aparecer \"Não tomado\", é só porque passou da hora sem marcar — não é erro, é um aviso.\n3. Pra ver quantos remédios ainda restam, vá na aba Estoque.\n4. Se tiver dúvida, é só abrir Perfil → Ajuda dentro do app."
   }
 }
