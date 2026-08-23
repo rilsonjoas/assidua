@@ -28,7 +28,7 @@ import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
-import { showAlert } from '../../lib/alert';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 // Mesmo mapa de locale do date-fns usado no Histórico.
 const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
@@ -46,6 +46,7 @@ export default function HomeScreen() {
   // is_owner ausente em respostas antigas trata como dono (ver comentário
   // no tipo Profile), então só é colaborador quando explicitamente false.
   const isCaregiverView = activeProfile?.is_owner === false;
+  const { showAlert, alertDialog } = useAlertDialog();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -474,6 +475,7 @@ export default function HomeScreen() {
           }}
         />
       )}
+      {alertDialog}
     </View>
   );
 }

@@ -21,7 +21,7 @@ import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';
-import { showAlert } from '../../lib/alert';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
 
@@ -117,6 +117,7 @@ export default function HistoryScreen() {
   // Não é o histórico completo (isso já existe na tela) — é o recorte
   // que interessa numa consulta.
   const [sharingSummary, setSharingSummary] = useState(false);
+  const { showAlert, alertDialog } = useAlertDialog();
   async function handleShareSummary() {
     if (!activeProfile) return;
     setSharingSummary(true);
@@ -291,6 +292,7 @@ export default function HistoryScreen() {
           }}
         />
       )}
+      {alertDialog}
     </View>
   );
 }

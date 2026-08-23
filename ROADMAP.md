@@ -107,12 +107,16 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 
 ### 🟡 Média Prioridade / Evolução
 
-- [ ] **Versão Web do Meus Remédios** — plano completo na seção abaixo (2026-08-21).
+- [x] **Versão Web do Meus Remédios — item desatualizado (2026-08-23)**,
+      checkbox nunca foi marcado apesar do trabalho estar praticamente
+      pronto (W1/W2, WebTopNav, chips, onboarding wide, logo tema-aware
+      — tudo feito na sessão de renomeação/Assídua). Ver seção própria
+      pra detalhe fino ainda em aberto, se algum.
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
-- [ ] **`EXPO_PUBLIC_API_URL` não existe no ambiente `production` do EAS**
-      (achado 2026-08-22, `eas env:list production`) — só tem a chave
-      do RevenueCat. Adicionar ANTES do primeiro `eas build --profile
-      production`, senão repete o mesmo bug do ambiente `preview`
+- [x] **`EXPO_PUBLIC_API_URL` no ambiente `production` do EAS —
+      corrigido 2026-08-23** (`eas env:create production`, confirmado
+      via `eas env:list`). Antes só tinha a chave do RevenueCat, senão
+      repetiria o mesmo bug do ambiente `preview`
       (login quebrado por apontar pro domínio errado/vazio).
 
 > [!WARNING] Variáveis do EAS não são tocadas por `git`/find-replace —
@@ -505,22 +509,23 @@ porta de entrada.
       2026-08-22: causa era `width: '48%'` fixo (pensado pra grade 2x2
       do celular) nunca liberado em wide; `languageBtnWide` troca pra
       `flex: 1` como os outros seletores quando `isWide`.
-- [ ] **Alert de erro feio, não combina com o resto do design** (achado
-      do Rilson, 2026-08-22, testando envio de link/login) — `showAlert`
-      usa `window.alert()` cru na web (`Alert.alert` nativo no mobile),
-      sem nenhum estilo do app. Já existe `ConfirmDialog` estilizado e
-      cross-platform pra confirmações sim/não; vale estender esse mesmo
-      padrão pra alertas simples de erro/info em vez do alert do
-      navegador/SO.
-- [ ] **Seleção de perfil não persiste entre telas** (achado 2026-08-22,
-      durante automação de screenshot) — trocar de perfil (chips na tela
-      Hoje) funciona, mas ao navegar pra outra aba (Remédios, Histórico)
-      volta sozinho pro primeiro perfil (`profileStore.setProfiles`
-      reseta `activeProfile` pra `profiles[0]` toda vez que a lista de
-      perfis é buscada de novo — parece acontecer a cada troca de rota).
-      Reproduzido de forma consistente. Precisa de `activeProfile`
-      persistido (ou pelo menos preservado) entre re-fetches, não
-      sempre voltar pro primeiro da lista.
+- [x] **Alert de erro feio, não combina com o resto do design — feito
+      2026-08-23** (achado do Rilson, 2026-08-22, testando envio de
+      link/login). `AlertDialog` já existia e estava em uso só no
+      `profile.tsx`; estendido (via novo hook `hooks/useAlertDialog.tsx`,
+      mesmo padrão do `useState` + JSX que já existia lá) pros outros 7
+      lugares que ainda usavam `showAlert`/`window.alert`/`Alert.alert`
+      cru: `login.tsx`, `register.tsx`, `stock.tsx`, `history.tsx`,
+      `index.tsx`, `pro.tsx`, `medication/[id].tsx`. O único
+      `Alert.alert` nativo que sobrou de propósito é o action-sheet de
+      foto (opções com botões, não é um alerta simples de uma mensagem
+      só).
+- [x] **Seleção de perfil não persiste entre telas — feito 2026-08-23**
+      (achado 2026-08-22, durante automação de screenshot). Causa
+      confirmada: `profileStore.setProfiles` resetava `activeProfile`
+      pra `profiles[0]` toda vez que a lista de perfis era buscada de
+      novo. Corrigido pra preservar a seleção atual quando ela ainda
+      existe na lista nova.
 - [ ] **Botão "Baixar o app" no site** — só DEPOIS da publicação na Play
       Store (L0): badge/link do Google Play no rodapé e/ou navbar web.
       Antes disso seria botão morto. Pedir pro Rilson lembrar ao fechar

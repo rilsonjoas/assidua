@@ -10,7 +10,7 @@ import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from '../components/AppText';
 import { getCurrentOffering, isPurchasesConfigured, purchasePackage, restorePurchases } from '../services/purchases';
 import { getMe } from '../services/auth';
-import { showAlert } from '../lib/alert';
+import { useAlertDialog } from '../hooks/useAlertDialog';
 
 // "Plano Pro" (2026-08-13, fluxo de compra real ligado em 2026-08-21) —
 // decisão registrada: L1 (cobrança de verdade) continua sendo tratado
@@ -41,6 +41,7 @@ export default function ProScreen() {
   const [loadingOffering, setLoadingOffering] = useState(true);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const { showAlert, alertDialog } = useAlertDialog();
 
   useEffect(() => {
     if (isPro) {
@@ -155,6 +156,7 @@ export default function ProScreen() {
           <Text style={styles.comingSoonText}>{t('pro.comingSoon')}</Text>
         </View>
       )}
+      {alertDialog}
     </ScrollView>
   );
 }

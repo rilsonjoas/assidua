@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import LoginScreen from '../app/(auth)/login';
@@ -34,7 +33,6 @@ describe('LoginScreen', () => {
   });
 
   it('mostra alerta genérico quando o envio falha', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedAuth.requestMagicLink.mockRejectedValueOnce(new Error('erro de rede'));
 
     render(<LoginScreen />);
@@ -42,9 +40,10 @@ describe('LoginScreen', () => {
     fireEvent.changeText(screen.getByPlaceholderText('Email'), 'rilson@example.com');
     fireEvent.press(screen.getByText('Enviar link de acesso'));
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Erro', 'Não conseguimos enviar o link. Verifique o e-mail e tente de novo.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo —
+    // achado do Rilson testando o app de verdade: o alerta cru destoava
+    // do resto do design.
+    expect(await screen.findByText('Não conseguimos enviar o link. Verifique o e-mail e tente de novo.')).toBeTruthy();
     expect(useAuthStore.getState().user).toBeNull();
   });
 

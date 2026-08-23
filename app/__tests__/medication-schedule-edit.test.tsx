@@ -191,8 +191,6 @@ describe('MedicationFormScreen — frequência de horário: fixo vs intervalo (2
   });
 
   it('intervalo fora de 1-168 mostra erro e não salva', async () => {
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-
     renderScreen();
 
     fireEvent.press(await screen.findByLabelText('Adicionar horário'));
@@ -200,9 +198,8 @@ describe('MedicationFormScreen — frequência de horário: fixo vs intervalo (2
     fireEvent.changeText(screen.getByLabelText('Intervalo em horas entre as doses'), '200');
     fireEvent.press(screen.getByText('Adicionar'));
 
-    await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Informe um intervalo entre 1 e 168 horas.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Informe um intervalo entre 1 e 168 horas.')).toBeTruthy();
     expect(mockedMedications.createSchedule).not.toHaveBeenCalled();
   });
 
@@ -419,9 +416,8 @@ describe('MedicationFormScreen — criar medicamento sem dosagem (2026-08-14)', 
 
     fireEvent.press(await screen.findByText('Cadastrar medicamento'));
 
-    await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Preencha o nome do remédio.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Preencha o nome do remédio.')).toBeTruthy();
     expect(mockedMedications.createMedication).not.toHaveBeenCalled();
   });
 
@@ -550,9 +546,8 @@ describe('MedicationFormScreen — duração do tratamento (2026-08-14)', () => 
     fireEvent.changeText(screen.getByLabelText('Duração do tratamento em dias'), '0');
     fireEvent.press(screen.getByText('Cadastrar medicamento'));
 
-    await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Informe um número de dias válido, maior que zero.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Informe um número de dias válido, maior que zero.')).toBeTruthy();
     expect(mockedMedications.createMedication).not.toHaveBeenCalled();
   });
 
@@ -681,9 +676,8 @@ describe('MedicationFormScreen — múltiplos horários no cadastro (2026-08-21)
     fireEvent.press(screen.getByLabelText('Remover horário das 08:00, Todos os dias'));
     fireEvent.press(screen.getByText('Cadastrar medicamento'));
 
-    await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Adicione ao menos um horário antes de salvar.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Adicione ao menos um horário antes de salvar.')).toBeTruthy();
     expect(mockedMedications.createMedication).not.toHaveBeenCalled();
   });
 

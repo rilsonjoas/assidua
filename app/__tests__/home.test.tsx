@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -251,7 +250,6 @@ describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
   });
 
   it('celebra quando a resposta de logDose traz streak_milestone', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 6, best_streak: 6 });
     mockedDoses.logDose.mockResolvedValueOnce({ ...pendingDose, status: 'taken', streak_milestone: 7 });
@@ -260,13 +258,12 @@ describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
 
     fireEvent.press(await screen.findByText('Tomei'));
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Uma semana completa', expect.stringContaining('não faltou'));
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Uma semana completa')).toBeTruthy();
+    expect(screen.getByText('Você não faltou nenhum dia. Continue assim.')).toBeTruthy();
   });
 
   it('não celebra quando logDose não traz streak_milestone', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 3, best_streak: 6 });
     mockedDoses.logDose.mockResolvedValueOnce({ ...pendingDose, status: 'taken' });
@@ -278,7 +275,7 @@ describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
     await waitFor(() => {
       expect(mockedDoses.logDose).toHaveBeenCalled();
     });
-    expect(alertSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText('Uma semana completa')).toBeNull();
   });
 });
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import RegisterScreen from '../app/(auth)/register';
@@ -33,7 +32,6 @@ describe('RegisterScreen', () => {
   });
 
   it('mostra a mensagem de erro vinda da API quando o envio falha', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedAuth.requestMagicLink.mockRejectedValueOnce({
       response: { data: { message: 'Já existe uma conta com esse e-mail.' } },
     });
@@ -44,9 +42,8 @@ describe('RegisterScreen', () => {
     fireEvent.changeText(screen.getByPlaceholderText('Email'), 'rilson@example.com');
     fireEvent.press(screen.getByRole('button', { name: 'Criar conta' }));
 
-    await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('Erro', 'Já existe uma conta com esse e-mail.');
-    });
+    // AlertDialog estilizado (2026-08-23), não mais Alert.alert nativo.
+    expect(await screen.findByText('Já existe uma conta com esse e-mail.')).toBeTruthy();
   });
 
   it('não chama o serviço se nome ou email estiverem vazios', () => {

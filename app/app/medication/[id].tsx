@@ -38,7 +38,7 @@ import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppText as Text } from '../../components/AppText';
-import { showAlert } from '../../lib/alert';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -184,6 +184,7 @@ export default function MedicationFormScreen() {
   // destoava do resto do app (achado real testando no dispositivo).
   const [scheduleToRemove, setScheduleToRemove] = useState<DoseSchedule | null>(null);
   const [removingSchedule, setRemovingSchedule] = useState(false);
+  const { showAlert, alertDialog } = useAlertDialog();
 
   useEffect(() => {
     if (!isNew) {
@@ -1169,6 +1170,7 @@ export default function MedicationFormScreen() {
       onCancel={() => setScheduleToRemove(null)}
       onConfirm={confirmRemoveSchedule}
     />
+    {alertDialog}
     </>
   );
 }

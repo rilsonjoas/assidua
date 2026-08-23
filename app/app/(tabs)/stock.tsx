@@ -20,7 +20,7 @@ import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
 import { SkeletonList } from '../../components/Skeleton';
-import { showAlert } from '../../lib/alert';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 export default function StockScreen() {
   const { t } = useTranslation();
@@ -31,6 +31,7 @@ export default function StockScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<number | null>(null);
   const [qty, setQty] = useState('');
+  const { showAlert, alertDialog } = useAlertDialog();
 
   const { data: medications = [], isLoading } = useQuery({
     queryKey: ['medications', activeProfile?.id],
@@ -154,6 +155,7 @@ export default function StockScreen() {
           }}
         />
       )}
+      {alertDialog}
     </KeyboardAvoidingView>
   );
 }

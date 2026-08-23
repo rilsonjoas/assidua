@@ -19,7 +19,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
-import { showAlert } from '../../lib/alert';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/privacidade`;
 const TERMS_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api').replace(/\/api\/?$/, '')}/termos`;
@@ -34,6 +34,7 @@ export default function RegisterScreen() {
   const setUser = useAuthStore((s) => s.setUser);
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { showAlert, alertDialog } = useAlertDialog();
 
   async function handleGoogleLogin() {
     setGoogleLoading(true);
@@ -80,6 +81,7 @@ export default function RegisterScreen() {
             <Text style={styles.linkText}>{t('register.sentBack')}</Text>
           </TouchableOpacity>
         </View>
+        {alertDialog}
       </View>
     );
   }
@@ -162,6 +164,7 @@ export default function RegisterScreen() {
           .
         </Text>
       </ScrollView>
+      {alertDialog}
     </KeyboardAvoidingView>
   );
 }
