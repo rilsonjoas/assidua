@@ -261,7 +261,7 @@ describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
     fireEvent.press(await screen.findByText('Tomei'));
 
     await waitFor(() => {
-      expect(alertSpy).toHaveBeenCalledWith('🎉 Parabéns!', expect.stringContaining('7 dias seguidos'));
+      expect(alertSpy).toHaveBeenCalledWith('Uma semana completa', expect.stringContaining('não faltou'));
     });
   });
 

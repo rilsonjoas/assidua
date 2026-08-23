@@ -2142,12 +2142,12 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       mensagem diferente ("Essa semana, {nome} tomou X de Y doses —
       você está fazendo diferença"), não o mesmo relatório percentual
       que o dono recebe. Testado.
-- [ ] **Marcos de significado, não números arbitrários** (ideia
-      2026-08-22, aprovada pelo Rilson) — em vez de gamificação
-      genérica (pontos, ranking — evitar completamente, público
-      idoso/perda de autonomia não combina com competição), marcar em
-      frase discreta "primeira semana completa", "primeiro mês sem
-      faltar". Reforço positivo sobre hábito formado, não placar.
+- [x] **Marcos de significado, não números arbitrários — implementado
+      2026-08-23.** O marco de streak (7/30/60) já existia; trocado o
+      "🎉 Parabéns! X dias seguidos" genérico por frase própria por
+      marco ("Uma semana completa" / "Um mês completo" / "Dois meses
+      seguidos" + texto que celebra hábito formado, não placar). Sem
+      pontos/ranking, como decidido.
 - [ ] **"Resumo pra consulta"** (ideia 2026-08-22, aprovada pelo
       Rilson) — evolução do já planejado "Exportar histórico em PDF",
       mas com outro enquadramento: não é feature Pro bacana, é o que

@@ -92,8 +92,12 @@
     "alreadyReacted": "Ya enviaste un corazón",
     "reactedByLabel": "{{name}} envió un corazón",
     "streakLabel": "{{count}} días seguidos de adherencia",
-    "streakMilestoneTitle": "🎉 ¡Felicidades!",
-    "streakMilestoneText": "{{count}} días seguidos tomando tus dosis. ¡Sigue así!",
+    "milestone7Title": "Una semana completa",
+    "milestone7Text": "No faltaste ni un día. Sigue así.",
+    "milestone30Title": "Un mes completo",
+    "milestone30Text": "Eso ya es un hábito real, no suerte.",
+    "milestone60Title": "Dos meses seguidos",
+    "milestone60Text": "Rutina de verdad. Tu cuidado está funcionando.",
     "pendingSync": "Esperando conexión"
   },
   "medications": {
@@ -140,7 +144,11 @@
     "chartTitle": "Adherencia semanal",
     "chartWeekLabel": "{{percentage}}% de adherencia esa semana",
     "chartNoData": "Sin datos esa semana",
-    "chartEmptyState": "Todavía no hay dosis registradas en este período. El gráfico aparece en cuanto empieces a marcar Tomado/Omitido."
+    "chartEmptyState": "Todavía no hay dosis registradas en este período. El gráfico aparece en cuanto empieces a marcar Tomado/Omitido.",
+    "shareConsultationSummary": "Compartir resumen para la consulta",
+    "consultationSummaryText": "Resumen de {{profileName}} — últimos 30 días\n\nAdherencia: {{percentage}}% ({{taken}} de {{due}} dosis tomadas)\n\nDosis no tomadas:\n{{missedList}}\n\nGenerado por la app Assídua.",
+    "consultationSummaryNoMissed": "Ninguna — todas las dosis fueron tomadas.",
+    "consultationSummaryError": "No se pudo generar el resumen. Intenta de nuevo."
   },
   "profile": {
     "pro": "Pro",
