@@ -2119,6 +2119,39 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       budget de ads)
 - [ ] **Ângulo de diferenciação real** — decisão tomada em 2026-08-09:
       cuidador↔paciente remoto (ver Fase 1.5 acima, em construção)
+
+#### Duas ideias novas de produto (aprovadas pelo Rilson, 2026-08-22 — não é código ainda, é conceito registrado)
+
+> Pergunta que gerou isto: "se você fosse usuário, o que faria desse
+> app um dos seus favoritos?". A resposta comum foi: o diferencial de
+> cuidador↔paciente hoje é só vigilância (checkmark de tomou/não
+> tomou) — falta virar **vínculo**, não só monitoramento.
+
+- [x] **Reação rápida do cuidador — implementado 2026-08-22.**
+      `dose_logs.reacted_by_user_id`/`reacted_at`, endpoint
+      `POST /dose-logs/{id}/react` (`ReactToDoseLog`), notifica o dono
+      do perfil ("Alguém pensou em você"), não notifica quem reage à
+      própria dose. Testado (`DoseLogReactionTest`). **Falta a UI**
+      (botão no app) — backend pronto, frontend ainda não.
+- [x] **Resumo semanal como afirmação — implementado 2026-08-22.**
+      A infra já existia (`SendWeeklyAdherenceSummary`, rodava só pro
+      dono); estendida pra também notificar colaboradores aceitos com
+      mensagem diferente ("Essa semana, {nome} tomou X de Y doses —
+      você está fazendo diferença"), não o mesmo relatório percentual
+      que o dono recebe. Testado.
+- [ ] **Marcos de significado, não números arbitrários** (ideia
+      2026-08-22, aprovada pelo Rilson) — em vez de gamificação
+      genérica (pontos, ranking — evitar completamente, público
+      idoso/perda de autonomia não combina com competição), marcar em
+      frase discreta "primeira semana completa", "primeiro mês sem
+      faltar". Reforço positivo sobre hábito formado, não placar.
+- [ ] **"Resumo pra consulta"** (ideia 2026-08-22, aprovada pelo
+      Rilson) — evolução do já planejado "Exportar histórico em PDF",
+      mas com outro enquadramento: não é feature Pro bacana, é o que
+      faz um médico levar o app a sério. Resumo de 30/60/90 dias (% de
+      adesão, quais doses foram perdidas e quando) que o paciente ou
+      cuidador leva pra consulta — ponte entre o app e o cuidado
+      clínico real, não só relatório de uso.
 - [ ] **Analytics de aquisição real** — hoje não existe nada disso
       (Sentry cobre erro, não uso). Firebase Analytics ou similar antes
       de gastar esforço tentando crescer às cegas

@@ -18,6 +18,8 @@ class DoseLog extends Model
         'taken_at',
         'status',
         'notes',
+        'reacted_by_user_id',
+        'reacted_at',
     ];
 
     protected function casts(): array
@@ -25,6 +27,7 @@ class DoseLog extends Model
         return [
             'scheduled_at' => 'datetime',
             'taken_at' => 'datetime',
+            'reacted_at' => 'datetime',
         ];
     }
 
@@ -65,5 +68,10 @@ class DoseLog extends Model
     public function profile(): BelongsTo
     {
         return $this->belongsTo(Profile::class);
+    }
+
+    public function reactedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reacted_by_user_id');
     }
 }

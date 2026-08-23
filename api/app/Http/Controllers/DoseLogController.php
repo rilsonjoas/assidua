@@ -6,6 +6,7 @@ use App\Actions\CalculateAdherenceStreak;
 use App\Actions\CalculateWeeklyAdherence;
 use App\Actions\GenerateScheduleOccurrences;
 use App\Actions\MarkDoseMissedAndNotifyCollaborators;
+use App\Actions\ReactToDoseLog;
 use App\Models\DoseLog;
 use App\Models\DoseSchedule;
 use App\Models\Profile;
@@ -235,6 +236,18 @@ class DoseLogController extends Controller
         $doseLog->delete();
 
         return response()->json(null, 204);
+    }
+
+    // "Reação do cuidador" (2026-08-22) — 1 toque pra reagir a uma dose
+    // já tomada, sem virar chat. Ver ReactToDoseLog pra regra de quem é
+    // notificado.
+    public function react(Request $request, DoseLog $doseLog, ReactToDoseLog $reactToDoseLog): JsonResponse
+    {
+        Gate::authorize('react', $doseLog);
+
+        $reactToDoseLog->handle($doseLog, $request->user());
+
+        return response()->json($doseLog->fresh(['reactedBy']));
     }
 
     // "Gráfico de adesão" (Fase 2, 2026-08-13) — reaproveita

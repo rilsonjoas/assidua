@@ -24,4 +24,12 @@ class DoseLogPolicy
     {
         return $doseLog->profile->isAccessibleBy($user);
     }
+
+    // Mesma regra de acesso das outras ações — dono ou colaborador
+    // aceito. Reagir à própria dose é permitido no controller (só não
+    // dispara notificação nesse caso), não é bloqueado aqui.
+    public function react(User $user, DoseLog $doseLog): bool
+    {
+        return $doseLog->profile->isAccessibleBy($user);
+    }
 }
