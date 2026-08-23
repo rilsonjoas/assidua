@@ -121,6 +121,7 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
 - [x] **Correção no PDF de Consulta (Alinhamento de Fuso Horário)**: Alinhamento da busca de doses em UTC e fuso local no backend para garantir contagem 100% precisa das doses tomadas. → **Implementado e testado 2026-08-23** (`GenerateConsultationSummary.php` + `DoseLogController.php`)
 - [x] **Assets de Alta Definição e Suavização na Web**: Logotipo vetorial em alta resolução 1024x1024 px no modo escuro e suavização de fonte antialiased no CSS global da Web. → **Implementado e testado 2026-08-23** (`logo-mark-white.png` + `_layout.tsx`)
 - [x] **Envio de Foto de Medicamento na Web**: Suporte a conversão automática de imagens `blob:`/`data:` para objeto `File` no navegador. → **Implementado e testado 2026-08-23** (`services/medications.ts`)
+- [x] **Otimização de Armazenamento e Conversão WebP**: Conversão automática de fotos de medicamentos enviadas para `.webp` compactado com 80% de qualidade no backend PHP/Laravel, reduzindo em ~80% o uso de disco na VPS. → **Implementado e testado 2026-08-23** (`MedicationController.php` + `MedicationPhotoTest.php`)
 
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
 - [x] **`EXPO_PUBLIC_API_URL` no ambiente `production` do EAS —
