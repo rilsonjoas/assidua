@@ -56,7 +56,8 @@ class DoseLogController extends Controller
                     // (horário exato, não só o dia — com múltiplas doses
                     // por dia, "o log de hoje" deixou de identificar uma
                     // ocorrência sozinho).
-                    $log = DoseLog::where('dose_schedule_id', $schedule->id)
+                    $log = DoseLog::with('reactedBy:id,name')
+                        ->where('dose_schedule_id', $schedule->id)
                         ->where('scheduled_at', $scheduledAt->format('Y-m-d H:i:s'))
                         ->first();
 
@@ -88,6 +89,11 @@ class DoseLogController extends Controller
                         'taken_at' => $log?->taken_at,
                         'status' => $log?->status ?? 'pending',
                         'notes' => $log?->notes,
+                        // "Reação do cuidador" (2026-08-22) — só existe
+                        // depois de a dose já ter um log de verdade
+                        // (não faz sentido reagir a uma dose pendente).
+                        'reacted_at' => $log?->reacted_at,
+                        'reacted_by_name' => $log?->reactedBy?->name,
                         'medication' => $medication->only(['id', 'name', 'dosage', 'unit', 'color', 'days_remaining']),
                         'dose_schedule' => $schedule->only(['id', 'time', 'days_of_week', 'interval_hours']),
                     ];

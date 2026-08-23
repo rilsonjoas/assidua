@@ -16,7 +16,8 @@ import { format, parseISO } from 'date-fns';
 import { ptBR, enUS, es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
-import { getTodayDoses, getAdherenceStreak, logDose, undoDose, DoseLog } from '../../services/doses';
+import { useAuthStore } from '../../store/authStore';
+import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
@@ -40,6 +41,11 @@ const DATE_FORMAT: Record<string, string> = {
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
+  const currentUser = useAuthStore((s) => s.user);
+  // "Reação do cuidador" (2026-08-22) — só o cuidador (não o dono) reage;
+  // is_owner ausente em respostas antigas trata como dono (ver comentário
+  // no tipo Profile), então só é colaborador quando explicitamente false.
+  const isCaregiverView = activeProfile?.is_owner === false;
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -191,6 +197,21 @@ export default function HomeScreen() {
       if (result.queued || dose._pendingSync) return; // nada mais a fazer agora
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
+    },
+  });
+
+  // "Reação do cuidador" (2026-08-22) — 1 toque, otimista (não espera
+  // resposta pra virar coração preenchido; sem fila offline própria,
+  // diferente de marcar dose — é um extra, não uma ação crítica que
+  // precise sobreviver sem internet).
+  const reactMutation = useMutation({
+    mutationFn: (dose: DoseLog) => reactToDose(dose.id as number),
+    onMutate: async (dose) => {
+      queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
+        old?.map((d) =>
+          d.id === dose.id ? { ...d, reacted_at: new Date().toISOString(), reacted_by_name: currentUser?.name } : d,
+        ),
+      );
     },
   });
 
@@ -404,6 +425,34 @@ export default function HomeScreen() {
                     <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
                   </TouchableOpacity>
                 )}
+                {/* "Reação do cuidador" (2026-08-22) — cuidador reage a
+                    dose já tomada; dono só vê que alguém reagiu, não
+                    reage à própria dose. Ver ROADMAP pra intenção de
+                    produto (vínculo, não só vigilância). */}
+                {taken && isCaregiverView && (
+                  <TouchableOpacity
+                    style={styles.reactButton}
+                    onPress={() => reactMutation.mutate(item)}
+                    disabled={!!item.reacted_at || reactMutation.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      item.reacted_at
+                        ? t('home.alreadyReacted')
+                        : t('home.reactLabel', { name: item.medication.name })
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name={item.reacted_at ? 'heart' : 'heart-outline'}
+                      size={18}
+                      color={item.reacted_at ? colors.brand : colors.textMuted}
+                    />
+                  </TouchableOpacity>
+                )}
+                {taken && !isCaregiverView && !!item.reacted_at && (
+                  <View style={styles.reactedIndicator} accessible accessibilityLabel={t('home.reactedByLabel', { name: item.reacted_by_name })}>
+                    <MaterialCommunityIcons name="heart" size={14} color={colors.brand} />
+                  </View>
+                )}
                 {skipped && (
                   <TouchableOpacity
                     style={styles.statusBadge}
@@ -503,6 +552,8 @@ function makeStyles(c: ThemeColors) {
     skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4 },
     undoIcon: { marginLeft: 2, opacity: 0.6 },
+    reactButton: { paddingHorizontal: 12, paddingVertical: 8 },
+    reactedIndicator: { paddingRight: 14 },
     takenText: { color: c.success, fontWeight: '600', fontSize: 13 },
     skippedText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
   });

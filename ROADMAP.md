@@ -2131,8 +2131,11 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       `dose_logs.reacted_by_user_id`/`reacted_at`, endpoint
       `POST /dose-logs/{id}/react` (`ReactToDoseLog`), notifica o dono
       do perfil ("Alguém pensou em você"), não notifica quem reage à
-      própria dose. Testado (`DoseLogReactionTest`). **Falta a UI**
-      (botão no app) — backend pronto, frontend ainda não.
+      própria dose. Testado (`DoseLogReactionTest`). **UI implementada
+      2026-08-22**: coração tocável em Hoje pro cuidador (`isCaregiverView`,
+      `activeProfile.is_owner === false`), coração informativo (não
+      tocável) pro dono quando alguém já reagiu. `reacted_at`/
+      `reacted_by_name` agora vêm na resposta de `doses/today`.
 - [x] **Resumo semanal como afirmação — implementado 2026-08-22.**
       A infra já existia (`SendWeeklyAdherenceSummary`, rodava só pro
       dono); estendida pra também notificar colaboradores aceitos com

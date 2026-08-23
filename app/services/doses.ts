@@ -20,6 +20,10 @@ export interface DoseLog {
   // nunca vem da API. Marca uma dose que foi marcada/desmarcada sem
   // internet e ainda está na fila esperando sincronizar.
   _pendingSync?: boolean;
+  // "Reação do cuidador" (2026-08-22) — presente só quando alguém já
+  // reagiu a essa dose específica.
+  reacted_at?: string | null;
+  reacted_by_name?: string | null;
 }
 
 export interface AdherenceStreak {
@@ -85,4 +89,10 @@ export async function logDose(payload: {
 // chamado nesse caso.
 export async function undoDose(doseLogId: number): Promise<void> {
   await api.delete(`/dose-logs/${doseLogId}`);
+}
+
+// "Reação do cuidador" (2026-08-22) — 1 toque, sem chat.
+export async function reactToDose(doseLogId: number): Promise<DoseLog> {
+  const { data } = await api.post(`/dose-logs/${doseLogId}/react`);
+  return data;
 }
