@@ -23,6 +23,7 @@ import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
+export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';

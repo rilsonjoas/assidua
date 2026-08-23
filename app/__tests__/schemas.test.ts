@@ -50,4 +50,13 @@ describe('Zod Schemas', () => {
 
     expect(() => parseMedication(invalid)).toThrow();
   });
+
+  it('valida formato de e-mail com Zod (isValidEmail)', () => {
+    const { isValidEmail } = require('../lib/schemas');
+    expect(isValidEmail('usuario@exemplo.com')).toBe(true);
+    expect(isValidEmail('  usuario@exemplo.com  ')).toBe(true);
+    expect(isValidEmail('invalido')).toBe(false);
+    expect(isValidEmail('usuario@')).toBe(false);
+    expect(isValidEmail('')).toBe(false);
+  });
 });

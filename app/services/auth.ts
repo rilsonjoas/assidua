@@ -33,13 +33,21 @@ export async function requestMagicLink(email: string, name?: string): Promise<vo
 }
 
 export async function logout() {
-  await api.post('/auth/logout');
-  await deleteAuthToken();
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // Ignora erro de rede/servidor no logout
+  } finally {
+    await deleteAuthToken();
+  }
 }
 
 export async function deleteAccount(password?: string) {
-  await api.delete('/auth/account', { data: password ? { password } : undefined });
-  await deleteAuthToken();
+  try {
+    await api.delete('/auth/account', { data: password ? { password } : undefined });
+  } finally {
+    await deleteAuthToken();
+  }
 }
 
 export async function getMe(): Promise<User | null> {

@@ -19,6 +19,8 @@ import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
+import { isValidEmail } from '../../lib/schemas';
+
 export default function LoginScreen() {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
@@ -45,10 +47,18 @@ export default function LoginScreen() {
   }
 
   async function handleSendLink() {
-    if (!email) return;
+    const trimmed = email.trim();
+    if (!trimmed) {
+      showAlert(t('common.error'), t('login.errorEmptyEmail'));
+      return;
+    }
+    if (!isValidEmail(trimmed)) {
+      showAlert(t('common.error'), t('login.errorInvalidEmail'));
+      return;
+    }
     setLoading(true);
     try {
-      await requestMagicLink(email);
+      await requestMagicLink(trimmed);
       setSent(true);
     } catch (err: any) {
       // Mostra a mensagem real do backend (ex.: "Não encontramos uma

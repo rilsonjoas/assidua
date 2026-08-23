@@ -213,9 +213,11 @@ export default function ProfileScreen() {
     setLoggingOut(true);
     try {
       await logout();
+    } catch {
+      // Ignora erro
+    } finally {
       queryClient.clear();
       setUser(null);
-    } finally {
       setLoggingOut(false);
       setConfirmingLogout(false);
     }

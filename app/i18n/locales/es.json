@@ -21,6 +21,8 @@
     "title": "Medicina"
   },
   "login": {
+    "errorEmptyEmail": "Escribe tu correo electrónico para recibir el enlace de acceso.",
+    "errorInvalidEmail": "Por favor, introduce un correo electrónico válido (ej.: usuario@ejemplo.com).",
     "title": "Assídua",
     "subtitle": "Recordatorios de medicamentos y cuidado a distancia. Ingresa tu correo para recibir un enlace de acceso.",
     "emailLabel": "Correo electrónico",

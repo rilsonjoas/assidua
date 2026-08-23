@@ -19,7 +19,19 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+
+    // Se for erro de rede (offline, timeout, ENOTFOUND), JAMAIS apaga o token!
+    if (!error.response) {
+      return Promise.reject(error);
+    }
+
+    if (error.response.status === 401 && originalRequest && !originalRequest._retry) {
+      // Evita loop no /auth/refresh ou /auth/logout
+      if (originalRequest.url?.includes('/auth/refresh') || originalRequest.url?.includes('/auth/logout')) {
+        await deleteAuthToken();
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
       try {
         const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, {
@@ -30,11 +42,11 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${data.token}`;
           return api(originalRequest);
         }
-      } catch {
-        await deleteAuthToken();
+      } catch (refreshError: any) {
+        if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+          await deleteAuthToken();
+        }
       }
-    } else if (error.response?.status === 401) {
-      await deleteAuthToken();
     }
     return Promise.reject(error);
   }

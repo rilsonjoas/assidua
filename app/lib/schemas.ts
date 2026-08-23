@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const EmailSchema = z.string().trim().email();
+
+export function isValidEmail(email: string): boolean {
+  return EmailSchema.safeParse(email).success;
+}
+
 export const DoseScheduleSchema = z.object({
   id: z.number(),
   medication_id: z.number(),

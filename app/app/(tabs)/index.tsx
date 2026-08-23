@@ -23,6 +23,7 @@ import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, Dose
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
+export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { isNetworkError } from '../../services/sync';
 import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay } from '../../services/offlineQueue';
 import { useTheme } from '../../hooks/useTheme';

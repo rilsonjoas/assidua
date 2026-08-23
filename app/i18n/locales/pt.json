@@ -21,6 +21,8 @@
     "title": "Medicamento"
   },
   "login": {
+    "errorEmptyEmail": "Digite seu e-mail para receber o link de acesso.",
+    "errorInvalidEmail": "Por favor, digite um e-mail válido (ex.: usuario@exemplo.com).",
     "title": "Assídua",
     "subtitle": "Lembretes de remédio e cuidado a distância. Digite seu e-mail para receber um link de acesso.",
     "emailLabel": "Email",

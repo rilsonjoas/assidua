@@ -21,6 +21,8 @@
     "title": "Medicine"
   },
   "login": {
+    "errorEmptyEmail": "Enter your email address to receive the magic link.",
+    "errorInvalidEmail": "Please enter a valid email address (e.g. user@example.com).",
     "title": "Assídua",
     "subtitle": "Medication reminders and remote caregiving. Enter your email to get a sign-in link.",
     "emailLabel": "Email",

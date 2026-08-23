@@ -47,12 +47,23 @@ describe('LoginScreen', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('não chama o serviço se o email estiver vazio', () => {
+  it('exibe mensagem de alerta se o email estiver vazio', async () => {
     render(<LoginScreen />);
 
     fireEvent.press(screen.getByText('Enviar link de acesso'));
 
     expect(mockedAuth.requestMagicLink).not.toHaveBeenCalled();
+    expect(await screen.findByText('Digite seu e-mail para receber o link de acesso.')).toBeTruthy();
+  });
+
+  it('exibe mensagem de alerta se o email for inválido', async () => {
+    render(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Email'), 'email-invalido');
+    fireEvent.press(screen.getByText('Enviar link de acesso'));
+
+    expect(mockedAuth.requestMagicLink).not.toHaveBeenCalled();
+    expect(await screen.findByText('Por favor, digite um e-mail válido (ex.: usuario@exemplo.com).')).toBeTruthy();
   });
 
   it('permite voltar da tela de confirmação pra tentar outro e-mail', async () => {
