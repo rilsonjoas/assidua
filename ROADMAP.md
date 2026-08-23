@@ -1,34 +1,26 @@
 # Roadmap — Meus Remédios
 
-## 🛑 PROJETO PAUSADO (2026-08-22) — decisão estratégica de marca
+## ✅ Renomeação pra "Assídua" concluída (2026-08-22/23) — gate liberado
 
-> **Motivo**: colisão de nome confirmada — "Meus Remedios" já existe na
-> App Store desde 11/2025 com feature set quase espelho, além de
-> homônimo no Play e painel B2B "Meu Remédio" (análise completa na
-> seção ⚖️ abaixo). Renomear AGORA (pré-L0) custa dias; depois, caro e
-> juridicamente arriscado. Decisão do Rilson: pausar tudo e resolver
-> identidade primeiro.
+> **Histórico**: colisão de nome confirmada ("Meus Remedios" já existia
+> na App Store/Play, mais homônimo B2B) levou à pausa de 2026-08-22 e
+> à decisão de renomear pra **Assídua** antes do L0 (análise completa
+> na seção ⚖️ abaixo, processo/checklist em `NAMING.md`). A renomeação
+> foi executada de ponta a ponta: código, infra (Docker/Traefik/DNS),
+> painéis externos (GCloud OAuth, EAS env vars), merge de contas
+> duplicadas verificado (nenhuma duplicata real encontrada), container
+> órfão do nome antigo removido, todos os itens "fácil" da lista de
+> pendências (alerta feio, seleção de perfil) resolvidos.
 >
-> **O que fica congelado e funcionando**: web no ar
-> (meusremedios.narniano.com), API estável (**217/217** backend ·
-> 145/145 mobile), CI/CD verde com drift check, OTA publicado, fix de
-> vinculação Google×e-mail pronto.
+> **No ar hoje**: web em `assidua.narniano.com`, API em
+> `api-assidua.narniano.com` (Laravel + Postgres + Docker no VPS
+> Hetzner), app mobile via OTA no canal `preview`. CI/CD verde
+> (145/145 mobile, backend com suíte passando via branch+PR).
 >
-> **Gate de retomada**: nome novo decidido (processo em `NAMING.md`)
-> → renomeação executada (checklist completo no mesmo arquivo) → L0
-> retoma o plano original. Nada mais entra aqui até lá.
-
-**Pendências congeladas junto** (na retomada, nesta ordem):
-1. 🔴 Merge das contas duplicadas do Rilson — comando pronto
-   (`meusremedios:merge-duplicate-accounts`); falta backup do banco +
-   dry-run + --execute em produção
-2. W2 visual web (logo real, onboarding desktop, chips)
-3. GCloud callback localhost · Sentry validação · TalkBack manual
-4. Botão "Baixar o app" pós-L0 (registrado abaixo)
-
----
-
-**Status técnico (congelado em 2026-08-22):** No ar em `api-remedios.narniano.com` (Laravel 13 + Postgres + Docker no VPS Hetzner) + Web SPA em `meusremedios.narniano.com` + App Mobile Expo. P0-P7 de infraestrutura e qualidade 100% concluídos. Suíte mobile: 145/145 · backend: 216/216 (+1 teste de vinculação = 20/20 auth).
+> **Único bloqueio real que resta**: L0 (Google Play Console),
+> travado pela taxa de $25 da conta de desenvolvedor — tudo o que não
+> depende disso já foi feito ou está no backlog abaixo, não represado
+> por gate nenhum.
 
 ---
 
@@ -270,6 +262,31 @@ pessoal.
 > GD). **Resolução: rodar pelo Sail** (`./vendor/bin/sail artisan test`),
 > que tem GD — verificado nesta data: **216/216 passando**, incluindo
 > os 5 novos do DataExport. Nenhuma mudança de código foi necessária.
+
+## Estado na pausa (2026-08-23)
+
+Sessão encerrada com tudo publicado — continuação direta da pausa de
+2026-08-22 abaixo, já com a renomeação pra Assídua fechada:
+
+- **Web**: commit `e8e1dd3` em `main`, deploy automático confirmado
+  verde (CI + Deploy VPS + smoke test) em `assidua.narniano.com`.
+- **Mobile**: OTA publicado no canal `preview` (update group
+  `27fc79ab`), mesmo commit. 145/145 testes · TypeScript limpo.
+- **O que entrou nesta sessão**: fim do alerta nativo feio (todas as
+  telas agora usam `AlertDialog` estilizado via `hooks/useAlertDialog`),
+  fix da seleção de perfil não persistindo entre abas, duas features de
+  "calor humano" aprovadas e implementadas (reação do cuidador na dose,
+  resumo pra consulta compartilhável), limpeza do container órfão
+  `remedios-api`, `NAMING.md` e `ROADMAP.md` com o registro real do que
+  foi feito x o que ainda falta.
+- **Pendências abertas** (nada represado por esquecimento): L0
+  (Google Play, US$25) segue sendo o único bloqueio de verdade; depois
+  dele vêm os itens "médios" já aprovados e ainda não atacados —
+  TalkBack/VoiceOver manual, edge cases de font-scale, analytics de
+  aquisição real, PDF do resumo pra consulta, LGPD export mais
+  completo.
+
+---
 
 ## Estado na pausa (2026-08-22)
 

@@ -107,8 +107,9 @@ pra frente.
 - [x] Repositório GitHub renomeado → github.com/rilsonjoas/assidua
 - [x] VPS: `/opt/meus-remedios` → `/opt/cuidia` → `/opt/assidua`
       (precisou `sudo`)
-- [ ] Nada commitado ainda em nenhum dos 2 repositórios — revisar
-      `git diff` antes
+- [x] Commitado e pushed nos 2 repositórios (renome visível no log; PRs
+      #1 e #2 merged) — a nota original ("nada commitado") ficou defasada
+      no mesmo dia
 
 ### Não tocado de propósito (recursos vivos, não é texto)
 
@@ -136,9 +137,9 @@ O ícone (coração + relógio) não tem texto embutido em nenhuma versão
    `167.233.254.53`. Traefik + Let's Encrypt (HTTP-01) fazem o resto
    sozinhos assim que o deploy subir os containers com os labels novos
    — não precisa de passo manual de certificado.
-2. **GCloud OAuth** — ainda pendente. Client/redirect URI pro domínio
-   novo. Login Google já está ao vivo hoje, então fazer antes/junto do
-   próximo deploy, não depois.
+2. [x] **GCloud OAuth** — feito 2026-08-22. Redirect URI do domínio
+   novo (`api-assidua.narniano.com`) adicionada no console; login
+   Google confirmado funcionando em produção depois da troca.
 
 ### Deploy — é automático, não é `make deploy` na mão
 
@@ -227,6 +228,8 @@ B; **Laudes** descartado (religioso demais), **Vésper(a)** descartado
 ## Status
 
 - [x] Nome decidido e aplicado no código — 2026-08-22
-- [ ] Checklist oficial (stores/domínio/handles) — pendente
-- [ ] Painéis externos (ordem acima) — pendente
+- [x] Painéis externos (DNS, GCloud OAuth, EAS env vars) — feito 2026-08-22
+- [x] Container órfão `remedios-api` (nome antigo) removido — 2026-08-22
+- [x] Checklist da web (deploy, domínio, smoke test) — feito 2026-08-23
+- [ ] Ficha da loja (ASO) e checklist de stores — só na hora do L0 (Play Console)
 - [ ] Retoma projeto pelo gate no topo do ROADMAP
