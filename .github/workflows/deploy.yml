@@ -116,8 +116,8 @@ jobs:
             git pull --ff-only origin master
             make deploy service=assidua
             # Prune total pós-deploy (INCIDENTES.md 2026-08-23): sem filtro de
-            # tempo — filtros semanais não pegam rajadas; e o prune simples (-f)
-            # deixa registros compartilhados no disco (17,9GB invisíveis).
+            # tempo — filtros semanais n\u00e3o pegam rajadas; e o prune simples (-f)
+            # deixa registros compartilhados no disco (17,9GB invis\u00edveis).
             docker builder prune -af >/dev/null
             docker image prune -f >/dev/null
             USO=$(df --output=pcent / | tail -1 | tr -dc '0-9')
