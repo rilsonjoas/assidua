@@ -2148,13 +2148,15 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
       marco ("Uma semana completa" / "Um mês completo" / "Dois meses
       seguidos" + texto que celebra hábito formado, não placar). Sem
       pontos/ranking, como decidido.
-- [ ] **"Resumo pra consulta"** (ideia 2026-08-22, aprovada pelo
-      Rilson) — evolução do já planejado "Exportar histórico em PDF",
-      mas com outro enquadramento: não é feature Pro bacana, é o que
-      faz um médico levar o app a sério. Resumo de 30/60/90 dias (% de
-      adesão, quais doses foram perdidas e quando) que o paciente ou
-      cuidador leva pra consulta — ponte entre o app e o cuidado
-      clínico real, não só relatório de uso.
+- [x] **"Resumo pra consulta" — implementado 2026-08-23** (versão texto
+      compartilhável, não PDF ainda). `GenerateConsultationSummary`
+      (30/60/90 dias, % de adesão + lista de doses perdidas com
+      nome+data/hora; pulado de propósito não conta como perdida),
+      endpoint com o mesmo paywall de profundidade do `weekly-adherence`,
+      botão "Compartilhar resumo pra consulta" no Histórico via Share
+      nativo. PDF de verdade (formatação, layout pra imprimir) fica
+      como evolução futura, não bloqueia o valor real (o texto já é
+      levável pra consulta como está).
 - [ ] **Analytics de aquisição real** — hoje não existe nada disso
       (Sentry cobre erro, não uso). Firebase Analytics ou similar antes
       de gastar esforço tentando crescer às cegas
