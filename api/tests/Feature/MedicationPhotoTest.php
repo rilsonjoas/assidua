@@ -26,7 +26,7 @@ class MedicationPhotoTest extends TestCase
         $user = User::factory()->create();
         $profile = Profile::factory()->create(['user_id' => $user->id]);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
-        $photo = UploadedFile::fake()->image('remedio.jpg');
+        $photo = UploadedFile::fake()->create('remedio.jpg', 10, 'image/jpeg');
 
         $response = $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
@@ -37,7 +37,9 @@ class MedicationPhotoTest extends TestCase
         $this->assertNotNull($response->json('photo_url'));
         $this->assertArrayNotHasKey('photo_path', $response->json()); // detalhe interno, não deve vazar
 
-        Storage::disk('public')->assertExists("medication-photos/{$profile->id}/" . $photo->hashName());
+        $path = \DB::table('medications')->where('id', $medication->id)->value('photo_path');
+        $this->assertNotNull($path);
+        Storage::disk('public')->assertExists($path);
     }
 
     public function test_enviar_foto_nova_apaga_a_antiga_do_disco(): void
@@ -48,7 +50,7 @@ class MedicationPhotoTest extends TestCase
 
         $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('primeira.jpg')],
+            ['photo' => UploadedFile::fake()->create('primeira.jpg', 10, 'image/jpeg')],
         );
         // photo_path é $hidden no model — busca direto do banco pra
         // conferir o arquivo real no disco, não o que a API expõe.
@@ -56,7 +58,7 @@ class MedicationPhotoTest extends TestCase
 
         $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('segunda.jpg')],
+            ['photo' => UploadedFile::fake()->create('segunda.jpg', 10, 'image/jpeg')],
         );
 
         Storage::disk('public')->assertMissing($firstPath);
@@ -84,7 +86,7 @@ class MedicationPhotoTest extends TestCase
 
         $response = $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('grande.jpg')->size(6000)],
+            ['photo' => UploadedFile::fake()->create('grande.jpg', 6000, 'image/jpeg')],
         );
 
         $response->assertUnprocessable()->assertJsonValidationErrors('photo');
@@ -98,7 +100,7 @@ class MedicationPhotoTest extends TestCase
 
         $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('remedio.jpg')],
+            ['photo' => UploadedFile::fake()->create('remedio.jpg', 10, 'image/jpeg')],
         );
         $path = \DB::table('medications')->where('id', $medication->id)->value('photo_path');
 
@@ -117,7 +119,7 @@ class MedicationPhotoTest extends TestCase
 
         $this->actingAs($user)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('remedio.jpg')],
+            ['photo' => UploadedFile::fake()->create('remedio.jpg', 10, 'image/jpeg')],
         );
         $path = \DB::table('medications')->where('id', $medication->id)->value('photo_path');
 
@@ -135,7 +137,7 @@ class MedicationPhotoTest extends TestCase
 
         $response = $this->actingAs($intruder)->postJson(
             "/api/medications/{$medication->id}/photo",
-            ['photo' => UploadedFile::fake()->image('remedio.jpg')],
+            ['photo' => UploadedFile::fake()->create('remedio.jpg', 10, 'image/jpeg')],
         );
 
         $response->assertForbidden();

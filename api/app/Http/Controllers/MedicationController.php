@@ -133,18 +133,17 @@ class MedicationController extends Controller
 
                 $hash = \Illuminate\Support\Str::random(40);
                 $filename = "{$directory}/{$hash}.webp";
-                $fullStoragePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filename);
 
-                $dirPath = dirname($fullStoragePath);
-                if (! is_dir($dirPath)) {
-                    mkdir($dirPath, 0755, true);
-                }
-
-                imagewebp($gdImage, $fullStoragePath, 80);
+                ob_start();
+                imagewebp($gdImage, null, 80);
+                $webpData = ob_get_clean();
                 imagedestroy($gdImage);
 
-                $medication->update(['photo_path' => $filename]);
-                return response()->json($medication->load(['schedules', 'stock']));
+                if ($webpData !== false) {
+                    Storage::disk('public')->put($filename, $webpData);
+                    $medication->update(['photo_path' => $filename]);
+                    return response()->json($medication->load(['schedules', 'stock']));
+                }
             }
         }
 
