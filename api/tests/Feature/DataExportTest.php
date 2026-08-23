@@ -95,4 +95,48 @@ class DataExportTest extends TestCase
         $this->assertSame([], $payload['shared_profiles_as_caregiver']);
         $this->assertStringNotContainsString('Remedio Alheio', json_encode($payload));
     }
+
+    public function test_export_csv_link_e_download(): void
+    {
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Maria',
+            'color' => '#6366f1',
+            'avatar_emoji' => 'account',
+            'timezone' => 'America/Recife',
+        ]);
+        $medication = $profile->medications()->create([
+            'name' => 'Dipirona',
+            'dosage' => '500',
+            'unit' => 'mg',
+            'color' => '#ef4444',
+            'is_active' => true,
+        ]);
+        $schedule = $medication->schedules()->create([
+            'time' => '08:00',
+            'is_active' => true,
+        ]);
+        $medication->doseLogs()->create([
+            'profile_id' => $profile->id,
+            'dose_schedule_id' => $schedule->id,
+            'scheduled_at' => '2026-08-23 08:00:00',
+            'taken_at' => '2026-08-23 08:05:00',
+            'status' => 'taken',
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/me/export-link', ['format' => 'csv']);
+        $response->assertOk()->assertJsonStructure(['url']);
+        $this->assertStringContainsString('format=csv', $response->json('url'));
+
+        $download = $this->get($response->json('url'));
+        $download->assertOk()
+            ->assertHeader('Content-Disposition', 'attachment; filename="assidua-dados.csv"')
+            ->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+
+        $content = $download->getContent();
+        $this->assertStringContainsString('Perfil,Medicamento,Dosagem', $content);
+        $this->assertStringContainsString('Maria', $content);
+        $this->assertStringContainsString('Dipirona', $content);
+        $this->assertStringContainsString('taken', $content);
+    }
 }

@@ -26,23 +26,109 @@ class DataExportController extends Controller
 {
     public function link(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'format' => 'nullable|string|in:json,csv',
+        ]);
+        $format = $validated['format'] ?? 'json';
+
         return response()->json([
             'url' => URL::temporarySignedRoute('me.export', now()->addMinutes(10), [
                 'user' => $request->user()->id,
+                'format' => $format,
             ]),
         ]);
     }
 
-    public function download(Request $request): JsonResponse
+    public function download(Request $request)
     {
         // Rota assinada não passa por auth:sanctum — a identidade vem do
         // id embutido na própria URL, cuja assinatura só pode ter sido
         // gerada pelo endpoint autenticado do dono dessa conta. Trocar o
         // id na query invalida a assinatura (403 antes de chegar aqui).
         $user = User::findOrFail((int) $request->query('user'));
+        $format = $request->query('format', 'json');
+
+        if ($format === 'csv') {
+            return $this->downloadCsv($user);
+        }
 
         return response()->json($this->payloadFor($user))
             ->header('Content-Disposition', 'attachment; filename="assidua-dados.json"');
+    }
+
+    private function downloadCsv(User $user)
+    {
+        $user->load(['profiles.medications.schedules', 'profiles.medications.doseLogs', 'profiles.medications.stock']);
+
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, "\xEF\xBB\xBF");
+
+        fputcsv($handle, [
+            'Perfil',
+            'Medicamento',
+            'Dosagem',
+            'Unidade',
+            'Instruções',
+            'Observações',
+            'Pausado',
+            'Estoque Atual',
+            'Horários',
+            'Data/Hora Agendada',
+            'Data/Hora Tomado',
+            'Status Dose',
+        ]);
+
+        foreach ($user->profiles as $profile) {
+            foreach ($profile->medications as $medication) {
+                $schedulesText = $medication->schedules->map(function ($s) {
+                    $days = $s->days_of_week ? implode(',', $s->days_of_week) : 'Todos';
+                    return "{$s->time} ({$days})";
+                })->implode('; ');
+
+                if ($medication->doseLogs->count() > 0) {
+                    foreach ($medication->doseLogs as $log) {
+                        fputcsv($handle, [
+                            $profile->name,
+                            $medication->name,
+                            $medication->dosage ?? '',
+                            $medication->unit ?? '',
+                            $medication->instructions ?? '',
+                            $medication->notes ?? '',
+                            $medication->is_paused ? 'Sim' : 'Não',
+                            $medication->stock ? $medication->stock->current_quantity : '',
+                            $schedulesText,
+                            $log->scheduled_at ?? '',
+                            $log->taken_at ?? '',
+                            $log->status ?? '',
+                        ]);
+                    }
+                } else {
+                    fputcsv($handle, [
+                        $profile->name,
+                        $medication->name,
+                        $medication->dosage ?? '',
+                        $medication->unit ?? '',
+                        $medication->instructions ?? '',
+                        $medication->notes ?? '',
+                        $medication->is_paused ? 'Sim' : 'Não',
+                        $medication->stock ? $medication->stock->current_quantity : '',
+                        $schedulesText,
+                        '',
+                        '',
+                        '',
+                    ]);
+                }
+            }
+        }
+
+        rewind($handle);
+        $csvContent = stream_get_contents($handle);
+        fclose($handle);
+
+        return response($csvContent, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="assidua-dados.csv"',
+        ]);
     }
 
     private function payloadFor(User $user): array

@@ -11,6 +11,7 @@ import {
   Platform,
   Image,
   Linking,
+  Modal,
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
@@ -118,11 +119,15 @@ export default function ProfileScreen() {
   // baixa o JSON como anexo. Sem módulos nativos novos (Linking já vem
   // com o RN): instalar expo-file-system/Sharing exigiria build novo.
   const [exporting, setExporting] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
+
   async function handleExport() {
     setExporting(true);
     try {
-      const { data } = await api.post('/me/export-link');
+      const { data } = await api.post('/me/export-link', { format: exportFormat });
       await Linking.openURL(data.url);
+      setExportModalVisible(false);
     } catch (err: any) {
       showAlert(t('common.error'), t('profile.exportError'));
     } finally {
@@ -583,7 +588,7 @@ export default function ProfileScreen() {
           Ajuda; hint explica o que sai no arquivo. */}
       <TouchableOpacity
         style={styles.helpBtn}
-        onPress={handleExport}
+        onPress={() => setExportModalVisible(true)}
         disabled={exporting}
         accessibilityRole="button"
         accessibilityLabel={`${t('profile.exportData')}. ${t('profile.exportHint')}`}
@@ -711,6 +716,69 @@ export default function ProfileScreen() {
       okLabel="OK"
       onDismiss={() => setAlertInfo(null)}
     />
+    <Modal
+      visible={exportModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setExportModalVisible(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setExportModalVisible(false)}
+      >
+        <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
+          <Text style={styles.createTitle}>{t('profile.exportData')}</Text>
+          <Text style={styles.createLabel}>{t('profile.exportFormatTitle')}</Text>
+
+          <TouchableOpacity
+            style={[styles.formatOption, exportFormat === 'json' && styles.formatOptionActive]}
+            onPress={() => setExportFormat('json')}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: exportFormat === 'json' }}
+          >
+            <MaterialCommunityIcons
+              name={exportFormat === 'json' ? 'radiobox-marked' : 'radiobox-blank'}
+              size={20}
+              color={exportFormat === 'json' ? colors.brand : colors.textMuted}
+            />
+            <Text style={styles.formatText}>{t('profile.exportJson')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.formatOption, exportFormat === 'csv' && styles.formatOptionActive]}
+            onPress={() => setExportFormat('csv')}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: exportFormat === 'csv' }}
+          >
+            <MaterialCommunityIcons
+              name={exportFormat === 'csv' ? 'radiobox-marked' : 'radiobox-blank'}
+              size={20}
+              color={exportFormat === 'csv' ? colors.brand : colors.textMuted}
+            />
+            <Text style={styles.formatText}>{t('profile.exportCsv')}</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.createActions, { marginTop: 16 }]}>
+            <TouchableOpacity
+              onPress={() => setExportModalVisible(false)}
+              style={styles.cancelBtn}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleExport}
+              style={styles.saveBtn}
+              disabled={exporting}
+              accessibilityRole="button"
+            >
+              <Text style={styles.saveBtnText}>{exporting ? t('profile.exportLoading') : t('common.save')}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
     </>
   );
 }
@@ -832,5 +900,21 @@ function makeStyles(c: ThemeColors) {
     brandFooterLogo: { width: 30, height: 30, opacity: 0.55 },
     brandFooterName: { fontSize: 14, fontWeight: '700', color: c.textMuted, letterSpacing: 0.3 },
     brandFooterVersion: { fontSize: 11, color: c.textMuted, opacity: 0.8 },
+    modalOverlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'center', alignItems: 'center', padding: 20,
+    },
+    modalContent: {
+      width: '100%', maxWidth: 400, backgroundColor: c.surface,
+      borderRadius: 16, padding: 20,
+      elevation: 5, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+    },
+    formatOption: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: c.border,
+      marginTop: 8,
+    },
+    formatOptionActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
+    formatText: { fontSize: 14, color: c.text, fontWeight: '500' },
   });
 }

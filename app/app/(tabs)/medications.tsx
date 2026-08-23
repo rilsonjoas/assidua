@@ -11,6 +11,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { maskMedicationName } from '../../lib/privacy';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
@@ -21,6 +23,7 @@ import { AppText as Text } from '../../components/AppText';
 export default function MedicationsScreen() {
   const { t } = useTranslation();
   const { activeProfile } = useProfileStore();
+  const { isPrivate } = usePrivacyStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -38,43 +41,36 @@ export default function MedicationsScreen() {
       ) : (
         <FlatList
           data={medications}
-          // Grid 2 colunas no desktop (W1 web): remount via key é
-          // obrigatório ao mudar numColumns dinamicamente.
           key={isWide ? 'grid' : 'list'}
           numColumns={isWide ? 2 : 1}
           columnWrapperStyle={isWide ? styles.gridRow : undefined}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={[styles.list, isWide && styles.listWide]}
           ListEmptyComponent={<Text style={styles.empty}>{t('medications.empty')}</Text>}
-          renderItem={({ item }) => (
-            <Link href={`/medication/${item.id}`} asChild>
-              <TouchableOpacity
-                // Achado real testando no dispositivo (2026-08-13):
-                // expo-router's <Slot> (por trás do asChild do Link)
-                // reclama de estilo em array no filho direto — precisa
-                // vir achatado num objeto só, StyleSheet.flatten resolve.
-                style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  item.is_paused
-                    ? `${t('medicationForm.pausedNotice')} ${t('medications.cardLabel', { count: item.schedules.length, name: item.name, dosageUnit: formatDosageUnit(item.dosage, item.unit) })}`
-                    : t('medications.cardLabel', { count: item.schedules.length, name: item.name, dosageUnit: formatDosageUnit(item.dosage, item.unit) })
-                }
-              >
-                {/* Foto (2026-08-13) — reconhecer visualmente vale mais
-                    que ler o nome pro público idoso/cuidador; sem foto,
-                    cai pra bolinha colorida de sempre. */}
-                {item.photo_url ? (
-                  <Image
-                    source={{ uri: item.photo_url }}
-                    style={[styles.photoThumb, item.is_paused && styles.colorDotPaused]}
-                  />
-                ) : (
-                  <View style={[styles.colorDot, { backgroundColor: item.color }, item.is_paused && styles.colorDotPaused]} />
-                )}
-                <View style={styles.info}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.name}>{item.name}</Text>
+          renderItem={({ item }) => {
+            const maskedName = maskMedicationName(item.name, isPrivate);
+            return (
+              <Link href={`/medication/${item.id}`} asChild>
+                <TouchableOpacity
+                  style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    item.is_paused
+                      ? `${t('medicationForm.pausedNotice')} ${t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })}`
+                      : t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })
+                  }
+                >
+                  {item.photo_url ? (
+                    <Image
+                      source={{ uri: item.photo_url }}
+                      style={[styles.photoThumb, item.is_paused && styles.colorDotPaused]}
+                    />
+                  ) : (
+                    <View style={[styles.colorDot, { backgroundColor: item.color }, item.is_paused && styles.colorDotPaused]} />
+                  )}
+                  <View style={styles.info}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.name}>{maskedName}</Text>
                     {item.is_paused && (
                       <View style={styles.pausedBadge}>
                         <MaterialCommunityIcons name="pause" size={11} color={colors.textMuted} />
@@ -90,15 +86,18 @@ export default function MedicationsScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </Link>
-          )}
+          );
+        }}
         />
       )}
 
-      <Link href="/medication/new" asChild>
-        <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
-          <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-        </TouchableOpacity>
-      </Link>
+      {activeProfile?.is_owner !== false && (
+        <Link href="/medication/new" asChild>
+          <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
+            <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+          </TouchableOpacity>
+        </Link>
+      )}
     </View>
   );
 }

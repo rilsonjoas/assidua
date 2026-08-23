@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getAuthToken, deleteAuthToken } from './tokenStorage';
+import { getAuthToken, setAuthToken, deleteAuthToken } from './tokenStorage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost/api';
 
@@ -18,7 +18,22 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
-    if (error.response?.status === 401) {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, {}, {
+          headers: { Authorization: originalRequest.headers.Authorization },
+        });
+        if (data?.token) {
+          await setAuthToken(data.token);
+          originalRequest.headers.Authorization = `Bearer ${data.token}`;
+          return api(originalRequest);
+        }
+      } catch {
+        await deleteAuthToken();
+      }
+    } else if (error.response?.status === 401) {
       await deleteAuthToken();
     }
     return Promise.reject(error);

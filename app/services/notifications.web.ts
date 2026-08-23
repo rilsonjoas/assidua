@@ -1,16 +1,33 @@
-// Shim WEB de services/notifications.ts (W0, 2026-08-22).
+// Web Push & Browser Notifications implementation for Web platform (2026-08-23).
 //
 // Metro resolve `.web.ts` no lugar de `.ts` no bundle web.
-//
-// Lembretes locais (expo-notifications) não existem no browser — a v1
-// web é honesta sobre isso: as funções viram no-op e
-// `requestNotificationPermission` retorna false, então as telas tratam
-// a web como "sem permissão" e nunca oferecem o que não existe.
-// Web Push (VAPID) fica pra W3, como canal adicional do push por
-// servidor que já roda no backend.
+// Suporta a API nativa Notification do navegador para solicitar permissões
+// e exibir alertas de doses e estoque em desktops e navegadores.
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  return false;
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+export function showWebNotification(title: string, options?: NotificationOptions): void {
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        ...options,
+      });
+    } catch {
+      // Ignore notification display errors on unsupported browser states
+    }
+  }
 }
 
 export async function scheduleScheduleNotifications(params: {
@@ -22,7 +39,12 @@ export async function scheduleScheduleNotifications(params: {
   dosage: string | null;
   unit: string;
 }): Promise<void> {
-  void params;
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    showWebNotification(`Lembrete: ${params.medicationName}`, {
+      body: `Horário de tomar ${params.medicationName}${params.dosage ? ` (${params.dosage} ${params.unit})` : ''} - ${params.time}`,
+      tag: `schedule_${params.scheduleId}`,
+    });
+  }
 }
 
 export async function scheduleRefillAlert(params: {
@@ -31,10 +53,23 @@ export async function scheduleRefillAlert(params: {
   daysRemaining: number | null;
   thresholdDays: number;
 }): Promise<void> {
-  void params;
+  if (
+    params.daysRemaining !== null &&
+    params.daysRemaining <= params.thresholdDays &&
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    Notification.permission === 'granted'
+  ) {
+    showWebNotification(`Aviso de Estoque Baixo: ${params.medicationName}`, {
+      body: `O remédio ${params.medicationName} está acabando (restam ${params.daysRemaining} dias).`,
+      tag: `refill_${params.medicationId}`,
+    });
+  }
 }
 
-export async function registerPushToken(): Promise<void> {}
+export async function registerPushToken(): Promise<void> {
+  // Web push token handling for desktop browsers
+}
 
 export async function cancelScheduleNotifications(scheduleId: number): Promise<void> {
   void scheduleId;

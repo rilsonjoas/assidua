@@ -160,4 +160,9 @@ jest.mock('expo-sqlite', () => {
   };
 });
 
+jest.mock('@sentry/react', () => ({
+  init: jest.fn(),
+  captureException: jest.fn(),
+}));
+
 

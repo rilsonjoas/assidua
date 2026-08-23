@@ -7,7 +7,8 @@
     "add": "Añadir",
     "edit": "Editar",
     "confirm": "Confirmar",
-    "or": "o"
+    "or": "o",
+    "offlineBanner": "Estás sin conexión. Tus acciones se sincronizarán al reconectarte."
   },
   "tabs": {
     "today": "Hoy",
@@ -103,6 +104,7 @@
   "medications": {
     "empty": "Ninguna medicina registrada.",
     "addLabel": "Añadir medicina",
+    "caregiverReadOnlyNotice": "Modo Cuidador — Solo lectura (edición restringida al propietario).",
     "pausedBadge": "Pausada",
     "cardLabel_one": "{{name}}, {{dosageUnit}}, {{count}} horario",
     "cardLabel_other": "{{name}}, {{dosageUnit}}, {{count}} horarios",
@@ -146,6 +148,7 @@
     "chartNoData": "Sin datos esa semana",
     "chartEmptyState": "Todavía no hay dosis registradas en este período. El gráfico aparece en cuanto empieces a marcar Tomado/Omitido.",
     "shareConsultationSummary": "Compartir resumen para la consulta",
+    "exportPdf": "Generar Informe Médico (PDF)",
     "consultationSummaryText": "Resumen de {{profileName}} — últimos 30 días\n\nAdherencia: {{percentage}}% ({{taken}} de {{due}} dosis tomadas)\n\nDosis no tomadas:\n{{missedList}}\n\nGenerado por la app Assídua.",
     "consultationSummaryNoMissed": "Ninguna — todas las dosis fueron tomadas.",
     "consultationSummaryError": "No se pudo generar el resumen. Intenta de nuevo."
@@ -217,9 +220,14 @@
     "errorDelete": "No se pudo eliminar la cuenta.",
     "version": "Versión {{version}}",
     "exportData": "Exportar mis datos",
-    "exportHint": "Descarga una copia en JSON de todo lo que registraste",
+    "exportHint": "Descarga una copia de tus datos en JSON o CSV",
     "exportLoading": "Generando archivo...",
-    "exportError": "No se pudo generar la exportación. Inténtalo de nuevo."
+    "exportError": "No se pudo generar la exportación. Inténtalo de nuevo.",
+    "exportFormatTitle": "Formato del archivo",
+    "exportJson": "JSON (Portabilidad LGPD)",
+    "exportCsv": "CSV (Planilla Excel / Google Sheets)",
+    "privacyMode": "Modo Privacidad",
+    "privacyToggle": "Alternar modo privacidad"
   },
   "pro": {
     "headerTitle": "Plan Pro",
@@ -391,5 +399,10 @@
     "shareLabel": "Compartir una guía rápida en texto",
     "shareHint": "Envía un resumen simple por WhatsApp (o cualquier otro app), para dejar con quien vaya a usar Assídua en el día a día.",
     "shareText": "Guía rápida — Assídua\n\n1. Cuando tomes tu medicamento a tiempo, toca \"Tomado\".\n2. Si aparece \"Perdido\", es solo porque pasó la hora sin marcarlo — no es un error, es solo un aviso.\n3. Para ver cuánto medicamento queda, ve a la pestaña Existencia.\n4. Si tienes dudas, abre Perfil → Ayuda dentro del app."
+  },
+  "errorBoundary": {
+    "title": "¡Ups! Algo salió mal",
+    "subtitle": "Ocurrió un error inesperado al mostrar esta pantalla.",
+    "retry": "Reintentar"
   }
 }

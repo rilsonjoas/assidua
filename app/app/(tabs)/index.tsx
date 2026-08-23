@@ -17,6 +17,8 @@ import { ptBR, enUS, es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { maskMedicationName } from '../../lib/privacy';
 import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
 import { api } from '../../services/api';
@@ -41,6 +43,7 @@ const DATE_FORMAT: Record<string, string> = {
 export default function HomeScreen() {
   const { t, i18n } = useTranslation();
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
+  const { isPrivate, togglePrivacy } = usePrivacyStore();
   const currentUser = useAuthStore((s) => s.user);
   // "Reação do cuidador" (2026-08-22) — só o cuidador (não o dono) reage;
   // is_owner ausente em respostas antigas trata como dono (ver comentário
@@ -120,12 +123,6 @@ export default function HomeScreen() {
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
 
-      // Streak (Fase 2) — o backend só manda streak_milestone quando esta
-      // ação específica fechou o dia num número redondo (7/30/60).
-      // Marcos de significado (2026-08-23, ideia de produto aprovada):
-      // frase própria por marco, não "X dias seguidos!" genérico com
-      // confete — celebra o hábito formado, não o placar. Público
-      // idoso/perda de autonomia não combina com gamificação de pontos.
       if (log.streak_milestone === 7 || log.streak_milestone === 30 || log.streak_milestone === 60) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const key = log.streak_milestone as 7 | 30 | 60;
@@ -161,13 +158,8 @@ export default function HomeScreen() {
     },
   });
 
-  // Corrigir dose (Fase 1) — desmarcar "Tomei"/"Pulei" feito por engano.
   const undoMutation = useMutation({
     mutationFn: async (dose: DoseLog) => {
-      // Dose marcada offline e ainda não sincronizada — desfazer não
-      // precisa contatar o servidor, só cancela a ação enfileirada
-      // (senão o servidor chegaria a saber de uma dose que, do ponto de
-      // vista de quem usa, nunca existiu de verdade).
       if (dose._pendingSync) {
         await cancelPendingLog(dose.dose_schedule_id, dose.scheduled_at);
         return { queued: false };
@@ -197,16 +189,12 @@ export default function HomeScreen() {
             : d,
         ),
       );
-      if (result.queued || dose._pendingSync) return; // nada mais a fazer agora
+      if (result.queued || dose._pendingSync) return;
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
     },
   });
 
-  // "Reação do cuidador" (2026-08-22) — 1 toque, otimista (não espera
-  // resposta pra virar coração preenchido; sem fila offline própria,
-  // diferente de marcar dose — é um extra, não uma ação crítica que
-  // precise sobreviver sem internet).
   const reactMutation = useMutation({
     mutationFn: (dose: DoseLog) => reactToDose(dose.id as number),
     onMutate: async (dose) => {
@@ -223,8 +211,6 @@ export default function HomeScreen() {
   const today = format(new Date(), dateFormat, { locale });
   const takenCount = doses.filter((d) => d.status === 'taken').length;
 
-  // Refill alert inteligente (Fase 1) — nomes únicos com estoque baixo
-  // entre os medicamentos que têm dose hoje, pra um banner compacto.
   const lowStockNames = Array.from(
     new Set(
       doses
@@ -232,22 +218,13 @@ export default function HomeScreen() {
           const days = d.medication.days_remaining;
           return days !== null && days <= LOW_STOCK_DAYS_THRESHOLD;
         })
-        .map((d) => d.medication.name),
+        .map((d) => maskMedicationName(d.medication.name, isPrivate)),
     ),
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {/* Marca d'água (2026-08-21) — feedback do Rilson: o mark de 30px
-            do header passou despercebido ("cadê o logo?"). O coração com
-            relógio grande e translúcido, atrás do conteúdo, dá presença
-            de marca sem competir com data/título — a leitura continua
-            sendo "que remédios tenho hoje", não "que logo é esse".
-            Escondida em wide (W2, 2026-08-22): a WebTopNav já carrega a
-            identidade ali — repetir aqui também virava "logo demais na
-            mesma tela" (achado do Rilson). Header interno vira só
-            tipografia quando tem navbar. */}
         {!isWide && (
           <Image
             source={require('../../assets/android-icon-monochrome.png')}
@@ -257,14 +234,6 @@ export default function HomeScreen() {
           />
         )}
         <View style={styles.headerTop}>
-          {/* Marca (2026-08-14): feedback do Rilson — o app tinha o
-              ícone novo, mas nenhum ponto de ancoragem *dentro* das
-              telas. Um só lugar (aqui, a primeira tela que a pessoa vê)
-              é de propósito — espalhar o logo em toda tela lê como
-              inseguro, não como identidade. Usa a silhueta monocromática
-              branca, já pensada pra ficar sobre uma cor sólida.
-              Mesma lógica acima: em wide, a navbar já é o único ponto
-              de marca. */}
           {!isWide && (
             <Image
               source={require('../../assets/android-icon-monochrome.png')}
@@ -273,7 +242,7 @@ export default function HomeScreen() {
               importantForAccessibility="no"
             />
           )}
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.date}>{today}</Text>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{t('home.dosesToday')}</Text>
@@ -288,6 +257,18 @@ export default function HomeScreen() {
               <Text style={styles.progress}>{t('home.progress', { count: takenCount, total: doses.length })}</Text>
             )}
           </View>
+          <TouchableOpacity
+            onPress={togglePrivacy}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.privacyToggle')}
+            style={{ padding: 8 }}
+          >
+            <MaterialCommunityIcons
+              name={isPrivate ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color="#fff"
+            />
+          </TouchableOpacity>
         </View>
         {profiles.length > 0 && (
           <FlatList
@@ -345,9 +326,6 @@ export default function HomeScreen() {
           <MaterialCommunityIcons name="pill-off" size={56} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>{t('home.noDosesTitle')}</Text>
           <Text style={styles.emptyText}>{t('home.noDosesText')}</Text>
-          {/* Achado real de uso, anotado no Obsidian (2026-08-14): o
-              botão levava pra lista de Remédios, não pro cadastro
-              direto — mais um toque do que precisava. */}
           <Link href="/medication/new" asChild>
             <TouchableOpacity style={styles.emptyBtn} accessibilityRole="button">
               <Text style={styles.emptyBtnText}>{t('home.addMedication')}</Text>
@@ -372,6 +350,7 @@ export default function HomeScreen() {
             const skipped = item.status === 'skipped';
             const missed = item.status === 'missed';
             const time = format(parseISO(item.scheduled_at), 'HH:mm');
+            const maskedName = maskMedicationName(item.medication.name, isPrivate);
             return (
               <View style={[styles.card, (taken || skipped) && styles.cardDone, isWide && { flex: 1 }]}>
                 <View style={[styles.colorBar, { backgroundColor: missed ? colors.warning : item.medication.color }]} />
@@ -380,10 +359,8 @@ export default function HomeScreen() {
                   {missed && <Text style={styles.missedLabel}>{t('home.delayed')}</Text>}
                 </View>
                 <View style={styles.cardBody}>
-                  <Text style={styles.medName}>{item.medication.name}</Text>
+                  <Text style={styles.medName}>{maskedName}</Text>
                   <Text style={styles.medDosage}>{formatDosageUnit(item.medication.dosage, item.medication.unit)}</Text>
-                  {/* Offline support (2026-08-17) — só aparece quando a
-                      ação ainda está na fila local, esperando conexão. */}
                   {item._pendingSync && (
                     <View style={styles.pendingSyncRow}>
                       <MaterialCommunityIcons name="cloud-off-outline" size={12} color={colors.textMuted} />
@@ -398,7 +375,7 @@ export default function HomeScreen() {
                       onPress={() => markDose.mutate(item)}
                       disabled={markDose.isPending}
                       accessibilityRole="button"
-                      accessibilityLabel={t('home.markTakenLabel', { name: item.medication.name, time })}
+                      accessibilityLabel={t('home.markTakenLabel', { name: maskedName, time })}
                     >
                       <MaterialCommunityIcons name="check" size={18} color="#fff" />
                       <Text style={styles.takeButtonText}>{t('home.take')}</Text>
@@ -408,7 +385,7 @@ export default function HomeScreen() {
                       onPress={() => skipDose.mutate(item)}
                       disabled={skipDose.isPending}
                       accessibilityRole="button"
-                      accessibilityLabel={t('home.skipLabel', { name: item.medication.name, time })}
+                      accessibilityLabel={t('home.skipLabel', { name: maskedName, time })}
                     >
                       <MaterialCommunityIcons name="close" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
@@ -420,7 +397,7 @@ export default function HomeScreen() {
                     onPress={() => undoMutation.mutate(item)}
                     disabled={undoMutation.isPending}
                     accessibilityRole="button"
-                    accessibilityLabel={t('home.takenLabel', { name: item.medication.name, time })}
+                    accessibilityLabel={t('home.takenLabel', { name: maskedName, time })}
                     accessibilityHint={t('home.undoHint')}
                   >
                     <MaterialCommunityIcons name="check-circle" size={18} color={colors.success} />
@@ -428,10 +405,6 @@ export default function HomeScreen() {
                     <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
                   </TouchableOpacity>
                 )}
-                {/* "Reação do cuidador" (2026-08-22) — cuidador reage a
-                    dose já tomada; dono só vê que alguém reagiu, não
-                    reage à própria dose. Ver ROADMAP pra intenção de
-                    produto (vínculo, não só vigilância). */}
                 {taken && isCaregiverView && (
                   <TouchableOpacity
                     style={styles.reactButton}
@@ -441,7 +414,7 @@ export default function HomeScreen() {
                     accessibilityLabel={
                       item.reacted_at
                         ? t('home.alreadyReacted')
-                        : t('home.reactLabel', { name: item.medication.name })
+                        : t('home.reactLabel', { name: maskedName })
                     }
                   >
                     <MaterialCommunityIcons

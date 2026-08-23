@@ -738,6 +738,13 @@ export default function MedicationFormScreen() {
     >
     <ScrollView style={styles.container} contentContainerStyle={[styles.inner, isWide && styles.innerWide]} keyboardShouldPersistTaps="handled">
 
+      {activeProfile?.is_owner === false && (
+        <View style={styles.caregiverNotice}>
+          <MaterialCommunityIcons name="shield-outline" size={18} color={colors.brand} />
+          <Text style={styles.caregiverNoticeText}>{t('medications.caregiverReadOnlyNotice')}</Text>
+        </View>
+      )}
+
       {/* Foto (2026-08-13) — só depois de criado, precisa de id pra anexar */}
       {!isNew && (
         <TouchableOpacity
@@ -1141,19 +1148,21 @@ export default function MedicationFormScreen() {
         <Text style={styles.pausedNotice}>{t('medicationForm.pausedNotice')}</Text>
       )}
 
-      <TouchableOpacity
-        style={styles.saveBtn}
-        onPress={saveMedication}
-        disabled={saving}
-        accessibilityRole="button"
-        accessibilityLabel={isNew ? t('medicationForm.createMedication') : t('medicationForm.saveChanges')}
-        accessibilityState={{ busy: saving }}
-      >
-        {saving
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.saveBtnText}>{isNew ? t('medicationForm.createMedication') : t('medicationForm.saveChanges')}</Text>
-        }
-      </TouchableOpacity>
+      {activeProfile?.is_owner !== false && (
+        <TouchableOpacity
+          style={styles.saveBtn}
+          onPress={saveMedication}
+          disabled={saving}
+          accessibilityRole="button"
+          accessibilityLabel={isNew ? t('medicationForm.createMedication') : t('medicationForm.saveChanges')}
+          accessibilityState={{ busy: saving }}
+        >
+          {saving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.saveBtnText}>{isNew ? t('medicationForm.createMedication') : t('medicationForm.saveChanges')}</Text>
+          }
+        </TouchableOpacity>
+      )}
 
       <View style={{ height: 32 }} />
     </ScrollView>
@@ -1180,6 +1189,12 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.background },
     inner: { padding: 20, paddingBottom: 48 },
     innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
+    caregiverNotice: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.brandSubtle, borderRadius: 12, padding: 12, marginBottom: 16,
+      borderWidth: 1, borderColor: c.brand,
+    },
+    caregiverNoticeText: { color: c.brand, fontSize: 13, fontWeight: '600', flex: 1 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 12 },
     photoCircle: {
       width: 96, height: 96, borderRadius: 48, alignSelf: 'center', marginBottom: 20,

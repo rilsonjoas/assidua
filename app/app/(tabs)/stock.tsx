@@ -13,6 +13,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { maskMedicationName } from '../../lib/privacy';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
@@ -25,6 +27,7 @@ import { useAlertDialog } from '../../hooks/useAlertDialog';
 export default function StockScreen() {
   const { t } = useTranslation();
   const { activeProfile } = useProfileStore();
+  const { isPrivate } = usePrivacyStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -43,9 +46,6 @@ export default function StockScreen() {
     mutationFn: ({ id, quantity }: { id: number; quantity: number }) =>
       updateStock(id, { current_quantity: quantity }),
     onSuccess: async (_stock, { id }) => {
-      // Espera o refetch terminar (não só invalidar) pra pegar o
-      // days_remaining recalculado no backend antes de (re)agendar o
-      // aviso — evita duplicar a conta de doses/dia aqui no frontend.
       await queryClient.invalidateQueries({ queryKey: ['medications', activeProfile?.id] });
       const fresh = queryClient.getQueryData<Medication[]>(['medications', activeProfile?.id]);
       const medication = fresh?.find((m) => m.id === id);
@@ -71,11 +71,6 @@ export default function StockScreen() {
   }
 
   return (
-    // Achado real de uso (2026-08-14): editar quantidade de estoque de
-    // um item mais abaixo na lista deixava o campo coberto pelo
-    // teclado — mesmo bug do formulário de medicamento, aqui sem o
-    // tratamento (a linha do item pode estar em qualquer altura da
-    // FlatList, diferente de um formulário curto).
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -95,14 +90,13 @@ export default function StockScreen() {
           renderItem={({ item }) => {
             const stock = item.stock;
             const daysRemaining = item.days_remaining;
-            // "Baixo" agora é sobre tempo, não só quantidade absoluta —
-            // 5 comprimidos é muito diferente entre 1x/dia e 4x/dia.
             const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
+            const maskedName = maskMedicationName(item.name, isPrivate);
             return (
               <View style={[styles.card, isLow && styles.cardAlert, isWide && { flex: 1 }]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
                 <View style={styles.info}>
-                  <Text style={styles.name}>{item.name}</Text>
+                  <Text style={styles.name}>{maskedName}</Text>
                   {isLow && (
                     <View style={styles.alertRow}>
                       <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
@@ -122,7 +116,7 @@ export default function StockScreen() {
                         keyboardType="decimal-pad"
                         placeholder={t('stock.quantityPlaceholder')}
                         placeholderTextColor={colors.textMuted}
-                        accessibilityLabel={t('stock.quantityLabel', { name: item.name })}
+                        accessibilityLabel={t('stock.quantityLabel', { name: maskedName })}
                       />
                       <Text style={styles.unit}>{stock?.unit}</Text>
                       <TouchableOpacity
@@ -145,7 +139,7 @@ export default function StockScreen() {
                   onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
                   style={styles.editBtn}
                   accessibilityRole="button"
-                  accessibilityLabel={t('stock.editLabel', { name: item.name })}
+                  accessibilityLabel={t('stock.editLabel', { name: maskedName })}
                 >
                   <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textMuted} />
                   <Text style={styles.editBtnText}>{t('stock.edit')}</Text>

@@ -2,6 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { logDose, undoDose } from './doses';
 import { listPending, removePending, LogActionPayload, UndoActionPayload } from './offlineQueue';
 import { queryClient } from './queryClient';
+import { useSyncStore } from '../store/syncStore';
 
 // Offline support (2026-08-17) — drena a fila local quando a conexão
 // volta. Cada ação é reenviada exatamente como seria enviada online —
@@ -24,6 +25,7 @@ export function isNetworkError(error: unknown): boolean {
 export async function drainQueue(): Promise<{ synced: number; failed: number }> {
   if (syncing) return { synced: 0, failed: 0 };
   syncing = true;
+  useSyncStore.getState().setSyncing(true);
   let synced = 0;
   let failed = 0;
 
@@ -65,6 +67,7 @@ export async function drainQueue(): Promise<{ synced: number; failed: number }> 
     }
   } finally {
     syncing = false;
+    useSyncStore.getState().recordSyncResult(synced, failed);
   }
 
   if (synced > 0 || failed > 0) {

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   Share,
+  Platform,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
@@ -13,6 +14,10 @@ import { ptBR, enUS, es } from 'date-fns/locale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { maskMedicationName } from '../../lib/privacy';
+import { generateConsultationReportHtml } from '../../lib/reportHtml';
+import { exportConsultationReportPdf } from '../../lib/reportPdf';
 import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, DoseLog, HistoryFilters } from '../../services/doses';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
@@ -25,8 +30,6 @@ import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
 
-// date-fns não tem locale pt/en/es "genérico" — usa a variante regional
-// mais comum pra cada idioma suportado pelo app.
 const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
 const DATE_FORMAT: Record<string, string> = {
   pt: "EEEE, d 'de' MMMM",
@@ -45,7 +48,7 @@ function sectionTitle(dateStr: string, lang: string, t: (key: string) => string)
 function groupByDate(logs: DoseLog[], lang: string, t: (key: string) => string): { title: string; data: DoseLog[] }[] {
   const map = new Map<string, DoseLog[]>();
   for (const log of logs) {
-    const key = log.scheduled_at.slice(0, 10); // YYYY-MM-DD
+    const key = log.scheduled_at.slice(0, 10);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(log);
   }
@@ -58,13 +61,11 @@ function groupByDate(logs: DoseLog[], lang: string, t: (key: string) => string):
 export default function HistoryScreen() {
   const { t, i18n } = useTranslation();
   const { activeProfile } = useProfileStore();
+  const { isPrivate } = usePrivacyStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  // Filtro por medicamento (Fase 2, 2026-08-12) — backend já suportava
-  // `medication_id` desde sempre (getDoseHistory/HistoryFilters), só
-  // faltava a UI pra usar.
   const [medicationFilter, setMedicationFilter] = useState<number | 'all'>('all');
 
   const { data: medications = [] } = useQuery({
@@ -73,7 +74,6 @@ export default function HistoryScreen() {
     enabled: !!activeProfile,
   });
 
-  // "Gráfico de adesão" (Fase 2, 2026-08-13).
   const { data: weeklyAdherence = [] } = useQuery({
     queryKey: ['weekly-adherence', activeProfile?.id],
     queryFn: () => getWeeklyAdherence(activeProfile!.id),
@@ -112,10 +112,6 @@ export default function HistoryScreen() {
   const totalCount = logs.length;
   const adherence = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : null;
 
-  // "Resumo pra consulta" (2026-08-23) — texto pronto pra levar/mandar
-  // pro médico: % do período + quais doses faltaram, com data e hora.
-  // Não é o histórico completo (isso já existe na tela) — é o recorte
-  // que interessa numa consulta.
   const [sharingSummary, setSharingSummary] = useState(false);
   const { showAlert, alertDialog } = useAlertDialog();
   async function handleShareSummary() {
@@ -125,7 +121,7 @@ export default function HistoryScreen() {
       const summary = await getConsultationSummary(activeProfile.id, 30);
       const dateLocale = DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR;
       const missedLines = summary.missed
-        .map((m) => `• ${m.medication_name} — ${format(parseISO(m.scheduled_at), "d 'de' MMMM, HH:mm", { locale: dateLocale })}`)
+        .map((m) => `• ${maskMedicationName(m.medication_name, isPrivate)} — ${format(parseISO(m.scheduled_at), "d 'de' MMMM, HH:mm", { locale: dateLocale })}`)
         .join('\n');
       const message = t('history.consultationSummaryText', {
         profileName: activeProfile.name,
@@ -142,9 +138,37 @@ export default function HistoryScreen() {
     }
   }
 
+  async function handlePrintReport() {
+    if (!activeProfile) return;
+    setSharingSummary(true);
+    try {
+      const summary = await getConsultationSummary(activeProfile.id, 30);
+      await exportConsultationReportPdf({
+        profileName: activeProfile.name,
+        periodDays: 30,
+        percentage: summary.percentage,
+        taken: summary.taken,
+        due: summary.due,
+        missed: summary.missed.map((m) => ({
+          ...m,
+          medication_name: maskMedicationName(m.medication_name, isPrivate),
+        })),
+        medications: medications.map((m) => ({
+          name: maskMedicationName(m.name, isPrivate),
+          dosage: m.dosage,
+          unit: m.unit,
+          schedules: m.schedules,
+        })),
+      });
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('history.consultationSummaryError'));
+    } finally {
+      setSharingSummary(false);
+    }
+  }
+
   return (
     <View style={styles.container}>
-      {/* Resumo de adesão */}
       {adherence !== null && (
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
@@ -168,18 +192,30 @@ export default function HistoryScreen() {
 
       <AdherenceChart data={weeklyAdherence} />
 
-      <TouchableOpacity
-        style={styles.consultationButton}
-        onPress={handleShareSummary}
-        disabled={sharingSummary}
-        accessibilityRole="button"
-        accessibilityLabel={t('history.shareConsultationSummary')}
-      >
-        <MaterialCommunityIcons name="file-document-outline" size={16} color={colors.brand} />
-        <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
-      </TouchableOpacity>
+      <View style={styles.consultationButtonsRow}>
+        <TouchableOpacity
+          style={[styles.consultationButton, { flex: 1 }]}
+          onPress={handleShareSummary}
+          disabled={sharingSummary}
+          accessibilityRole="button"
+          accessibilityLabel={t('history.shareConsultationSummary')}
+        >
+          <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.brand} />
+          <Text style={styles.consultationButtonText} numberOfLines={1}>{t('history.shareConsultationSummary')}</Text>
+        </TouchableOpacity>
 
-      {/* Filtros de status */}
+        <TouchableOpacity
+          style={[styles.consultationButton, styles.consultationPdfButton, { flex: 1 }]}
+          onPress={handlePrintReport}
+          disabled={sharingSummary}
+          accessibilityRole="button"
+          accessibilityLabel={t('history.exportPdf')}
+        >
+          <MaterialCommunityIcons name="file-pdf-box" size={16} color="#fff" />
+          <Text style={styles.consultationPdfButtonText} numberOfLines={1}>{t('history.exportPdf')}</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -202,7 +238,6 @@ export default function HistoryScreen() {
         ))}
       </ScrollView>
 
-      {/* Filtro por medicamento */}
       {medications.length > 0 && (
         <ScrollView
           horizontal
@@ -221,21 +256,24 @@ export default function HistoryScreen() {
               {t('history.filterAllMedications')}
             </Text>
           </TouchableOpacity>
-          {medications.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
-              onPress={() => setMedicationFilter(m.id)}
-              accessibilityRole="button"
-              accessibilityLabel={t('history.filterLabel', { label: m.name })}
-              accessibilityState={{ selected: medicationFilter === m.id }}
-            >
-              <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
-              <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
-                {m.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {medications.map((m) => {
+            const maskedMedName = maskMedicationName(m.name, isPrivate);
+            return (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
+                onPress={() => setMedicationFilter(m.id)}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.filterLabel', { label: maskedMedName })}
+                accessibilityState={{ selected: medicationFilter === m.id }}
+              >
+                <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
+                <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
+                  {maskedMedName}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -262,12 +300,13 @@ export default function HistoryScreen() {
           renderItem={({ item }) => {
             const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
             const time = format(parseISO(item.scheduled_at), 'HH:mm');
+            const maskedName = maskMedicationName(item.medication.name, isPrivate);
             return (
               <View
                 style={styles.row}
                 accessible
                 accessibilityLabel={t('history.rowLabel', {
-                  name: item.medication.name,
+                  name: maskedName,
                   dosageUnit: formatDosageUnit(item.medication.dosage, item.medication.unit),
                   time,
                   status: cfg.label,
@@ -278,7 +317,7 @@ export default function HistoryScreen() {
                 </View>
                 <View style={[styles.colorBar, { backgroundColor: item.medication.color }]} />
                 <View style={styles.rowBody}>
-                  <Text style={styles.medName}>{item.medication.name}</Text>
+                  <Text style={styles.medName}>{maskedName}</Text>
                   <Text style={styles.dosage}>
                     {formatDosageUnit(item.medication.dosage, item.medication.unit)}
                   </Text>
@@ -317,12 +356,17 @@ function makeStyles(c: ThemeColors) {
     summaryValue: { fontSize: 22, fontWeight: '700', color: c.text },
     summaryLabel: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
+    consultationButtonsRow: {
+      flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 4, marginBottom: 8,
+    },
     consultationButton: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      paddingVertical: 10, marginHorizontal: 16, marginTop: 4, marginBottom: 8,
-      borderRadius: 10, borderWidth: 1, borderColor: c.border,
+      paddingVertical: 10, paddingHorizontal: 10,
+      borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface,
     },
     consultationButtonText: { color: c.brand, fontSize: 13, fontWeight: '600' },
+    consultationPdfButton: { backgroundColor: c.brand, borderColor: c.brand },
+    consultationPdfButtonText: { color: c.onBrand, fontSize: 13, fontWeight: '600' },
     filterScroll: { maxHeight: 52 },
     filterRow: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
     filterChip: {

@@ -7,7 +7,8 @@
     "add": "Adicionar",
     "edit": "Editar",
     "confirm": "Confirmar",
-    "or": "ou"
+    "or": "ou",
+    "offlineBanner": "Você está offline. Suas ações serão sincronizadas ao reconectar."
   },
   "tabs": {
     "today": "Hoje",
@@ -103,6 +104,7 @@
   "medications": {
     "empty": "Nenhum medicamento cadastrado.",
     "addLabel": "Adicionar medicamento",
+    "caregiverReadOnlyNotice": "Modo Cuidador — Visualização do cadastro (edição restrita ao proprietário).",
     "pausedBadge": "Pausado",
     "cardLabel_one": "{{name}}, {{dosageUnit}}, {{count}} horário",
     "cardLabel_other": "{{name}}, {{dosageUnit}}, {{count}} horários",
@@ -146,6 +148,7 @@
     "chartNoData": "Sem dados nessa semana",
     "chartEmptyState": "Ainda não há doses registradas nesse período. O gráfico aparece assim que você começar a marcar Tomei/Pulei.",
     "shareConsultationSummary": "Compartilhar resumo pra consulta",
+    "exportPdf": "Gerar Relatório Médico (PDF)",
     "consultationSummaryText": "Resumo de {{profileName}} — últimos 30 dias\n\nAdesão: {{percentage}}% ({{taken}} de {{due}} doses tomadas)\n\nDoses não tomadas:\n{{missedList}}\n\nGerado pelo app Assídua.",
     "consultationSummaryNoMissed": "Nenhuma — todas as doses foram tomadas.",
     "consultationSummaryError": "Não foi possível gerar o resumo. Tente de novo."
@@ -217,9 +220,14 @@
     "errorDelete": "Não foi possível excluir a conta.",
     "version": "Versão {{version}}",
     "exportData": "Exportar meus dados",
-    "exportHint": "Baixa uma cópia em JSON de tudo que você cadastrou",
+    "exportHint": "Baixa uma cópia dos seus dados em JSON ou CSV",
     "exportLoading": "Gerando arquivo...",
-    "exportError": "Não foi possível gerar a exportação. Tente de novo."
+    "exportError": "Não foi possível gerar a exportação. Tente de novo.",
+    "exportFormatTitle": "Formato do arquivo",
+    "exportJson": "JSON (Portabilidade LGPD)",
+    "exportCsv": "CSV (Planilha Excel / Google Sheets)",
+    "privacyMode": "Modo Privacidade",
+    "privacyToggle": "Alternar modo privacidade"
   },
   "pro": {
     "headerTitle": "Plano Pro",
@@ -391,5 +399,10 @@
     "shareLabel": "Compartilhar um guia rápido em texto",
     "shareHint": "Manda um resumo simples por WhatsApp (ou qualquer outro app), pra deixar junto de quem vai usar o Assídua no dia a dia.",
     "shareText": "Guia rápido — Assídua\n\n1. Quando tomar o remédio no horário certo, toque em \"Tomei\".\n2. Se aparecer \"Não tomado\", é só porque passou da hora sem marcar — não é erro, é um aviso.\n3. Pra ver quantos remédios ainda restam, vá na aba Estoque.\n4. Se tiver dúvida, é só abrir Perfil → Ajuda dentro do app."
+  },
+  "errorBoundary": {
+    "title": "Ops! Algo deu errado",
+    "subtitle": "Ocorreu um erro inesperado na exibição desta tela.",
+    "retry": "Tentar novamente"
   }
 }

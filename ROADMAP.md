@@ -104,6 +104,20 @@ SPA separada; fases W0→W3; backend já pronto (só CORS novo).
       pronto (W1/W2, WebTopNav, chips, onboarding wide, logo tema-aware
       — tudo feito na sessão de renomeação/Assídua). Ver seção própria
       pra detalhe fino ainda em aberto, se algum.
+
+## 🛡️ Segurança e Tratamento de Erros — Backlog (2026-08-23)
+
+- [x] **React Error Boundary Global**: Criar componente `<ErrorBoundary>` fallback visual em React Native e Web para capturar erros em tempo de renderização com botão de recuperação. → **Implementado e testado 2026-08-23** (`components/ErrorBoundary.tsx` + `_layout.tsx`)
+- [x] **Mascaramento no App Switcher (Privacy Blur)**: Proteger o app no alternador de tarefas (background) ocultando a tela com overlay/blur ao minimizar para evitar vazamento de dados de saúde. → **Implementado e testado 2026-08-23** (`components/PrivacyBlur.tsx`)
+- [x] **Resiliência e Status na Fila Offline**: Exibir feedback e tratar itens com falha permanente na fila offline com rastreamento em tempo real. → **Implementado e testado 2026-08-23** (`store/syncStore.ts` + `services/sync.ts`)
+- [x] **Validação de Contratos com Zod**: Adicionar Schemas de validação Zod para respostas de endpoints e formulários de remédios/doses. → **Implementado e testado 2026-08-23** (`lib/schemas.ts`)
+- [x] **Autenticação Local por Biometria / PIN**: Oferecer camada de segurança biométrica (FaceID / TouchID) para desbloqueio da lista de medicamentos. → **Implementado e testado 2026-08-23** (`services/biometrics.ts` + `store/privacyStore.ts`)
+- [x] **Renovação Transparente de Token (Refresh Token)**: Implementar interceptor para renovação de sessão sem deslogar o usuário durante o uso. → **Implementado e testado 2026-08-23** (`services/api.ts`)
+- [x] **Sentry na Web**: Integrar `@sentry/react` para captura de exceções em navegação desktop/mobile web. → **Implementado e testado 2026-08-23** (`_layout.tsx`)
+- [x] **Exportação de Relatório em PDF**: Gerar relatórios em PDF para acompanhamento médico com `expo-print` e `expo-sharing`. → **Implementado e testado 2026-08-23** (`lib/reportPdf.ts` + `history.tsx`)
+- [x] **Telemetria / Analytics Anônimo (sem PII)**: Registrador local de eventos anônimos de engajamento. → **Implementado e testado 2026-08-23** (`services/analytics.ts`)
+- [x] **Atalhos de Teclado no Desktop (Web)**: Hook para capturar atalhos (`Esc`, `Cmd+N` / `Ctrl+N`) no browser. → **Implementado e testado 2026-08-23** (`hooks/useKeyboardShortcuts.ts`)
+
 - [ ] **Fluxo de L0 (Google Play)** — aguardando taxa de $25 para conta de desenvolvedor. Quando destravar: `eas build --profile production` → submeter → 14 dias de teste fechado (12 testadores).
 - [x] **`EXPO_PUBLIC_API_URL` no ambiente `production` do EAS —
       corrigido 2026-08-23** (`eas env:create production`, confirmado
@@ -2394,3 +2408,26 @@ trouxe e que nunca tinham sido feitas antes.
 
 ---
 
+---
+
+---
+
+---
+
+## Recursos Estratégicos de Experiência e Privacidade (Aprovados 2026-08-23)
+
+> Recursos estratégicos para elevar o uso prático do paciente, relatórios médicos e soberania de dados.
+
+- [x] **Relatório de Adesão ao Tratamento para Consulta Médica (PDF em 1 clique)** (2026-08-23):
+  - Botão no Histórico de doses para gerar relatório formatado dos últimos 30 dias.
+  - Layout limpo em HTML (`lib/reportHtml.ts`) para visualização/impressão PDF com taxa de adesão %, doses tomadas vs. agendadas, tabela de ocorrências não tomadas e grade de medicamentos ativos.
+- [x] **Modo Privacidade (Mascarar Nomes no Dashboard)** (2026-08-23):
+  - Alternador rápido no topo do dashboard (ícone de olho 👁️) para ocultar ou mascarar os nomes dos remédios (`••••••••`), com Zustand store persistente localmente (`privacyStore.ts`) e aplicação global em todas as telas (Hoje, Remédios, Histórico e Estoque).
+- [x] **Notificações Web Push Nativas (`assidua.narniano.com`)** (2026-08-23):
+  - Integração com a API nativa de notificações do navegador (`services/notifications.web.ts`) permitindo solicitar permissões e emitir alertas de medicação/estoque diretamente no sistema operacional (desktop/notebook).
+- [x] **Ocultar Ações Restritas para Cuidadores (Perfil Compartilhado)** (2026-08-23):
+  - Ocultados os botões de criação (`+` FAB) e alteração estrutural de cadastro para cuidadores (`activeProfile.is_owner === false`), exibindo um selo discreto de "Modo Cuidador".
+- [x] **Banner Indicador de Conexão Offline** (2026-08-23):
+  - Componente global `OfflineBanner.tsx` montado no layout raiz do app, exibindo um alerta informativo via `@react-native-community/netinfo` sempre que o dispositivo estiver sem internet.
+- [x] **Soberania dos Dados do Paciente (Exportação Total JSON/CSV)** (2026-08-23):
+  - Suporte à geração e download do histórico completo em JSON e CSV (tabela compatível com Excel/Google Sheets com BOM UTF-8) no backend Laravel e modal de seleção na tela de Perfil.

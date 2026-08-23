@@ -16,21 +16,26 @@ import { useTheme } from '../hooks/useTheme';
 import { useLanguage } from '../hooks/useLanguage';
 import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { queryClient } from '../services/queryClient';
+import { OfflineBanner } from '../components/OfflineBanner';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { PrivacyBlur } from '../components/PrivacyBlur';
+
+import * as SentryWeb from '@sentry/react';
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
-// enabled: false sem DSN — SDK vira no-op, não tenta mandar nada.
-// Mesmo padrão do backend (config/sentry.php lê de env, sem quebrar
-// sem a chave configurada).
-// Web (W0, 2026-08-22): @sentry/react-native é nativo — na web o init
-// e o wrap ficam no-op por ora. Sentry web de verdade (@sentry/react)
-// é decisão própria pra depois do spike.
 const isNative = Platform.OS !== 'web';
 
 if (isNative) {
   Sentry.init({
     dsn: sentryDsn,
     enabled: !!sentryDsn,
+    tracesSampleRate: 1.0,
+  });
+} else if (sentryDsn) {
+  SentryWeb.init({
+    dsn: sentryDsn,
+    enabled: true,
     tracesSampleRate: 1.0,
   });
 }
@@ -137,6 +142,8 @@ function ThemedLayout() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <OfflineBanner />
+      <PrivacyBlur />
       {/* Frame responsivo: SÓ auth/onboarding ficam na coluna estreita
           centralizada no desktop (formulário esticado fica feio, e são
           telas de passagem única). Todo o resto controla a própria
@@ -195,10 +202,12 @@ function ThemedLayout() {
 
 function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthGuard />
-      <ThemedLayout />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthGuard />
+        <ThemedLayout />
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
