@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { generateConsultationReportHtml, ReportData } from './reportHtml';
 
 export async function exportConsultationReportPdf(data: ReportData): Promise<string | void> {
@@ -17,6 +17,13 @@ export async function exportConsultationReportPdf(data: ReportData): Promise<str
     return;
   }
 
+  // Checagem segura para verificar se o módulo nativo ExpoPrint existe no binário APK/IPA instalado (ou ambiente de testes)
+  const hasExpoPrintModule = process.env.NODE_ENV === 'test' || !!(NativeModules && NativeModules.ExpoPrint);
+
+  if (!hasExpoPrintModule) {
+    throw new Error('A geração de relatórios em arquivo PDF requer a atualização do aplicativo baixado da loja (L0). Enquanto isso, utilize a opção "Compartilhar resumo pra consulta".');
+  }
+
   let Print: typeof import('expo-print');
   let Sharing: typeof import('expo-sharing');
 
@@ -24,7 +31,7 @@ export async function exportConsultationReportPdf(data: ReportData): Promise<str
     Print = require('expo-print');
     Sharing = require('expo-sharing');
   } catch {
-    throw new Error('Recurso de impressão em PDF indisponível nesta versão do app. Atualize o aplicativo.');
+    throw new Error('Recurso de impressão em PDF indisponível nesta versão do app. Utilize a opção "Compartilhar resumo pra consulta".');
   }
 
   try {
@@ -40,9 +47,6 @@ export async function exportConsultationReportPdf(data: ReportData): Promise<str
 
     return uri;
   } catch (err: any) {
-    if (err?.message?.includes('Cannot find native module') || err?.message?.includes('ExpoPrint')) {
-      throw new Error('A geração de arquivo PDF requer uma atualização da versão do aplicativo na loja. Enquanto isso, utilize a opção "Compartilhar resumo pra consulta".');
-    }
-    throw err;
+    throw new Error(err?.message ?? 'Não foi possível gerar o arquivo PDF.');
   }
 }

@@ -12,6 +12,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -403,6 +404,9 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
       console.error('[uploadPhoto error]', err);
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(err);
+      }
       const serverMsg =
         err.response?.data?.message ??
         (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??
@@ -422,6 +426,9 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['medications'] });
     } catch (err: any) {
       console.error('[removePhoto error]', err);
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(err);
+      }
       const serverMsg =
         err.response?.data?.message ??
         (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??

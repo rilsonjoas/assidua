@@ -8,6 +8,7 @@ import {
   Share,
   Platform,
 } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { ptBR, enUS, es } from 'date-fns/locale';
@@ -133,7 +134,11 @@ export default function HistoryScreen() {
       });
       await Share.share({ message });
     } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('history.consultationSummaryError'));
+      console.error('[shareSummary error]', err);
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(err);
+      }
+      showAlert(t('common.error'), err.response?.data?.message ?? err.message ?? t('history.consultationSummaryError'));
     } finally {
       setSharingSummary(false);
     }
@@ -162,7 +167,11 @@ export default function HistoryScreen() {
         })),
       });
     } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('history.consultationSummaryError'));
+      console.error('[printReport error]', err);
+      if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+        Sentry.captureException(err);
+      }
+      showAlert(t('common.error'), err.response?.data?.message ?? err.message ?? t('history.consultationSummaryError'));
     } finally {
       setSharingSummary(false);
     }
@@ -201,7 +210,18 @@ export default function HistoryScreen() {
 
             <AdherenceChart data={weeklyAdherence} />
 
-            <View style={styles.consultationButtonsRow}>
+            <View style={[styles.consultationButtonsRow, isWide && styles.consultationButtonsRowWide]}>
+              <TouchableOpacity
+                style={[styles.consultationButton, styles.consultationPdfButton]}
+                onPress={handlePrintReport}
+                disabled={sharingSummary}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.exportPdf')}
+              >
+                <MaterialCommunityIcons name="file-pdf-box" size={20} color={colors.onBrand} />
+                <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.consultationButton}
                 onPress={handleShareSummary}
@@ -212,26 +232,10 @@ export default function HistoryScreen() {
                 <MaterialCommunityIcons name="share-variant-outline" size={18} color={colors.brand} />
                 <Text style={styles.consultationButtonText}>{t('history.shareConsultationSummary')}</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.consultationButton, styles.consultationPdfButton]}
-                onPress={handlePrintReport}
-                disabled={sharingSummary}
-                accessibilityRole="button"
-                accessibilityLabel={t('history.exportPdf')}
-              >
-                <MaterialCommunityIcons name="file-pdf-box" size={18} color={colors.onBrand} />
-                <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
-              </TouchableOpacity>
             </View>
 
             <View style={styles.filtersWrapper}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filterScroll}
-                contentContainerStyle={styles.filterRow}
-              >
+              <View style={styles.filterWrapGroup}>
                 {STATUS_FILTERS.map((f) => (
                   <TouchableOpacity
                     key={f.key}
@@ -246,15 +250,10 @@ export default function HistoryScreen() {
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
 
               {medications.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.filterScroll}
-                  contentContainerStyle={styles.filterRow}
-                >
+                <View style={[styles.filterWrapGroup, { marginTop: 10 }]}>
                   <TouchableOpacity
                     style={[styles.filterChip, medicationFilter === 'all' && styles.filterChipActive]}
                     onPress={() => setMedicationFilter('all')}
@@ -284,7 +283,7 @@ export default function HistoryScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </View>
               )}
             </View>
           </View>
@@ -368,31 +367,46 @@ function makeStyles(c: ThemeColors) {
     summaryLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted, marginTop: 4 },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
     consultationButtonsRow: {
-      flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginHorizontal: 16, marginTop: 12, marginBottom: 12,
+      flexDirection: 'column',
+      gap: 10,
+      marginHorizontal: 16,
+      marginTop: 14,
+      marginBottom: 14,
+    },
+    consultationButtonsRowWide: {
+      flexDirection: 'row',
     },
     consultationButton: {
-      flex: 1, minWidth: 150,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      paddingVertical: 14, paddingHorizontal: 12, minHeight: 48,
-      borderRadius: 14, borderWidth: 1.5, borderColor: c.border, backgroundColor: c.surface,
+      width: '100%',
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      minHeight: 50,
+      borderRadius: 14,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      backgroundColor: c.surface,
     },
-    consultationButtonText: { color: c.brand, fontSize: 14, fontWeight: '700', textAlign: 'center' },
+    consultationButtonText: { color: c.brand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
     consultationPdfButton: { backgroundColor: c.brand, borderColor: c.brand },
-    consultationPdfButtonText: { color: c.onBrand, fontSize: 14, fontWeight: '700', textAlign: 'center' },
-    filtersWrapper: { marginTop: 4, marginBottom: 4 },
-    filterScroll: { flexGrow: 0, marginBottom: 6 },
-    filterRow: { paddingHorizontal: 16, paddingVertical: 4, gap: 10, alignItems: 'center' },
+    consultationPdfButtonText: { color: c.onBrand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    filtersWrapper: { marginHorizontal: 16, marginTop: 4, marginBottom: 12 },
+    filterWrapGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
     filterChip: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 18,
+      paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 22,
       backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
-      minHeight: 42,
+      minHeight: 44,
     },
     filterChipActive: { backgroundColor: c.brandSubtle, borderColor: c.brand },
     filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },

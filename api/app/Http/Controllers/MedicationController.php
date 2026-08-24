@@ -118,39 +118,56 @@ class MedicationController extends Controller
             'photo' => 'required|image|max:5120', // 5MB
         ]);
 
-        $this->deletePhotoFile($medication);
+        try {
+            $this->deletePhotoFile($medication);
 
-        $file = $request->file('photo');
-        $directory = "medication-photos/{$medication->profile_id}";
+            $file = $request->file('photo');
+            $directory = "medication-photos/{$medication->profile_id}";
+            Storage::disk('public')->makeDirectory($directory);
 
-        if (function_exists('imagecreatefromstring') && function_exists('imagewebp')) {
-            $imageContent = file_get_contents($file->getRealPath());
-            $gdImage = @imagecreatefromstring($imageContent);
+            if (function_exists('imagecreatefromstring') && function_exists('imagewebp')) {
+                try {
+                    $imageContent = file_get_contents($file->getRealPath());
+                    if ($imageContent !== false) {
+                        $gdImage = @imagecreatefromstring($imageContent);
 
-            if ($gdImage !== false) {
-                imagealphablending($gdImage, true);
-                imagesavealpha($gdImage, true);
+                        if ($gdImage !== false) {
+                            imagealphablending($gdImage, true);
+                            imagesavealpha($gdImage, true);
 
-                $hash = \Illuminate\Support\Str::random(40);
-                $filename = "{$directory}/{$hash}.webp";
+                            $hash = \Illuminate\Support\Str::random(40);
+                            $filename = "{$directory}/{$hash}.webp";
 
-                ob_start();
-                imagewebp($gdImage, null, 80);
-                $webpData = ob_get_clean();
-                imagedestroy($gdImage);
+                            ob_start();
+                            imagewebp($gdImage, null, 80);
+                            $webpData = ob_get_clean();
+                            imagedestroy($gdImage);
 
-                if ($webpData !== false) {
-                    Storage::disk('public')->put($filename, $webpData);
-                    $medication->update(['photo_path' => $filename]);
-                    return response()->json($medication->load(['schedules', 'stock']));
+                            if ($webpData !== false) {
+                                Storage::disk('public')->put($filename, $webpData);
+                                $medication->update(['photo_path' => $filename]);
+                                return response()->json($medication->load(['schedules', 'stock']));
+                            }
+                        }
+                    }
+                } catch (\Throwable $gdError) {
+                    \Illuminate\Support\Facades\Log::warning('WebP conversion fallback: ' . $gdError->getMessage());
                 }
             }
+
+            $path = $file->store($directory, 'public');
+            $medication->update(['photo_path' => $path]);
+
+            return response()->json($medication->load(['schedules', 'stock']));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Upload medication photo failed: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Erro ao salvar a foto do medicamento no servidor: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $path = $file->store($directory, 'public');
-        $medication->update(['photo_path' => $path]);
-
-        return response()->json($medication->load(['schedules', 'stock']));
     }
 
     public function deletePhoto(Request $request, Medication $medication): JsonResponse
