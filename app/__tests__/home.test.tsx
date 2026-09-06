@@ -308,3 +308,36 @@ describe('HomeScreen — botão "Adicionar" abre o cadastro direto (2026-08-14)'
     expect(screen.UNSAFE_getByProps({ href: '/medication/new' })).toBeTruthy();
   });
 });
+
+// Achado real de uso (2026-09-02): "+" só existia em Remédios — pedido
+// explícito de também ter em Hoje, sem obrigar trocar de aba.
+describe('HomeScreen — "+" também na Home, não só em Remédios (2026-09-02)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+  });
+
+  it('com dose(s) na lista, mostra o FAB "+" linkando pro cadastro', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
+
+    renderHome();
+
+    const fab = await screen.findByLabelText('Adicionar medicamento');
+    expect(fab).toBeTruthy();
+    expect(screen.UNSAFE_getByProps({ href: '/medication/new' })).toBeTruthy();
+  });
+
+  it('cuidador (perfil não-dono) não vê o FAB — não cadastra remédio', async () => {
+    const collaborator = { ...profile, is_owner: false };
+    useProfileStore.setState({ profiles: [collaborator], activeProfile: collaborator });
+    mockedApi.get.mockResolvedValue({ data: [collaborator] });
+    mockedDoses.getTodayDoses.mockResolvedValue([{ ...pendingDose, profile_id: collaborator.id }]);
+
+    renderHome();
+
+    await screen.findByText('Losartana');
+    expect(screen.queryByLabelText('Adicionar medicamento')).toBeNull();
+  });
+});

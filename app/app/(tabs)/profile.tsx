@@ -103,6 +103,11 @@ export default function ProfileScreen() {
   // Confirmação de sair/excluir (2026-08-13) — Alert.alert nativo
   // destoava do resto do app (achado real testando no dispositivo).
   const [confirmingLogout, setConfirmingLogout] = useState(false);
+  // Achado real de uso (2026-09-06): "funcionou, mas seria bom um modal
+  // de confirmação pra ninguém clicar sem querer" — troca de paleta é
+  // uma mudança visual grande de uma hora pra outra, então confirma nos
+  // dois sentidos (ligar e desligar), não só ao ativar.
+  const [confirmingHighContrast, setConfirmingHighContrast] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Achado real (2026-08-14): a mesma reclamação valia pra avisos de
   // uma mensagem só, não só pras confirmações sim/não — `Alert.alert`
@@ -605,7 +610,7 @@ export default function ProfileScreen() {
           motivo documentado em `lib/alert.ts` no passado). */}
       <TouchableOpacity
         style={[styles.helpBtn, { marginTop: 14 }]}
-        onPress={toggleHighContrast}
+        onPress={() => setConfirmingHighContrast(true)}
         accessibilityRole="switch"
         accessibilityLabel={t('profile.highContrast')}
         accessibilityHint={t('profile.highContrastHint')}
@@ -754,6 +759,18 @@ export default function ProfileScreen() {
       busy={loggingOut}
       onCancel={() => setConfirmingLogout(false)}
       onConfirm={handleLogout}
+    />
+    <ConfirmDialog
+      visible={confirmingHighContrast}
+      title={t('profile.highContrastConfirmTitle')}
+      message={isHighContrast ? t('profile.highContrastConfirmMessageOff') : t('profile.highContrastConfirmMessageOn')}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('common.confirm')}
+      onCancel={() => setConfirmingHighContrast(false)}
+      onConfirm={() => {
+        toggleHighContrast();
+        setConfirmingHighContrast(false);
+      }}
     />
     <ConfirmDialog
       visible={confirmingDelete}

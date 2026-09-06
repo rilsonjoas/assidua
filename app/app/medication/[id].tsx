@@ -106,6 +106,25 @@ function formatDays(days: number[] | null, t: TFunction, intervalHours?: number 
   return days.map((d) => t(`medicationForm.days.${DAY_KEYS[d]}`)).join(', ');
 }
 
+// Achado real de uso (2026-09-06): erro de upload de foto chegava na
+// tela como "Error request failed with status code 500" cru — sem
+// contexto nenhum, confuso pro público idoso do app. Um 413 (nginx
+// rejeitando payload grande) ou um 500 sem corpo JSON (PHP-FPM/Laravel
+// nem chegou a processar) não têm `response.data.message` nenhum pra
+// mostrar — cai direto no fallback genérico antes. Dá um passo
+// acionável em vez de só nomear o código HTTP.
+export function photoErrorMessage(err: any, t: TFunction): string {
+  const status = err.response?.status;
+  const serverMsg =
+    err.response?.data?.message ??
+    (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null);
+  if (serverMsg) return serverMsg;
+  if (status === 413) return t('medicationForm.errorPhotoTooLarge');
+  if (status && status >= 500) return t('medicationForm.errorPhotoServer');
+  if (!err.response) return t('medicationForm.errorPhotoNetwork');
+  return err.message ?? t('medicationForm.errorPhoto');
+}
+
 export default function MedicationFormScreen() {
   const { t, i18n } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -408,9 +427,31 @@ export default function MedicationFormScreen() {
 
     if (result.canceled || !result.assets?.[0]) return;
 
+    // Achado real de uso (2026-09-06): câmera de celular moderno produz
+    // foto de vários MB mesmo só com o quality:0.7 acima (isso comprime,
+    // não redimensiona) — já bateu um 500 no servidor por causa disso
+    // (ver docker/uploads.ini). Redimensionar aqui pra um tamanho
+    // generoso o bastante pra "foto de referência da caixa do remédio"
+    // deixa a imagem tipicamente abaixo de 1MB, bem confortável mesmo
+    // que o limite do servidor mude de novo no futuro — resolve a causa
+    // (upload gigante), não só o sintoma (limite do servidor). Mesmo
+    // padrão de degradação graciosa do ImagePicker acima: sem o módulo
+    // nativo linkado ainda, sobe a foto original em vez de travar a
+    // funcionalidade inteira.
+    let uploadUri = result.assets[0].uri;
+    try {
+      const ImageManipulator = require('expo-image-manipulator');
+      const context = ImageManipulator.ImageManipulator.manipulate(uploadUri).resize({ width: 1280 });
+      const image = await context.renderAsync();
+      const resized = await image.saveAsync({ compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
+      uploadUri = resized.uri;
+    } catch (err) {
+      console.warn('[resizePhoto] seguindo com a imagem original:', err);
+    }
+
     setUploadingPhoto(true);
     try {
-      const med = await uploadMedicationPhoto(Number(id), result.assets[0].uri);
+      const med = await uploadMedicationPhoto(Number(id), uploadUri);
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
       showToast(t('medicationForm.photoSavedToast'));
@@ -419,12 +460,7 @@ export default function MedicationFormScreen() {
       if (typeof Sentry !== 'undefined' && Sentry.captureException) {
         Sentry.captureException(err);
       }
-      const serverMsg =
-        err.response?.data?.message ??
-        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??
-        err.message ??
-        t('medicationForm.errorPhoto');
-      showAlert(t('common.error'), serverMsg);
+      showAlert(t('common.error'), photoErrorMessage(err, t));
     } finally {
       setUploadingPhoto(false);
     }
@@ -442,12 +478,7 @@ export default function MedicationFormScreen() {
       if (typeof Sentry !== 'undefined' && Sentry.captureException) {
         Sentry.captureException(err);
       }
-      const serverMsg =
-        err.response?.data?.message ??
-        (err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join('\n') : null) ??
-        err.message ??
-        t('medicationForm.errorPhoto');
-      showAlert(t('common.error'), serverMsg);
+      showAlert(t('common.error'), photoErrorMessage(err, t));
     } finally {
       setUploadingPhoto(false);
     }

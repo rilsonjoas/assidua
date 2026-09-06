@@ -258,10 +258,23 @@ describe('ProfileScreen — Alto Contraste (v1.3, aprovado 2026-09-02)', () => {
     expect(screen.getByText('Desativado')).toBeTruthy();
   });
 
-  it('tocar liga o modo e atualiza o texto de estado', async () => {
+  // Achado real de uso (2026-09-06): "funcionou, mas seria bom um modal
+  // de confirmação pra ninguém clicar sem querer" — tocar no toggle
+  // agora abre confirmação em vez de trocar na hora.
+  it('tocar abre confirmação em vez de trocar na hora', async () => {
     renderProfile();
 
     fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+
+    expect(useHighContrastStore.getState().isHighContrast).toBe(false);
+    expect(await screen.findByText('As cores do app vão mudar pra um visual de contraste bem mais forte. Quer ativar?')).toBeTruthy();
+  });
+
+  it('confirmar liga o modo e atualiza o texto de estado', async () => {
+    renderProfile();
+
+    fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+    fireEvent.press(await screen.findByLabelText('Confirmar'));
 
     expect(useHighContrastStore.getState().isHighContrast).toBe(true);
     const toggle = await screen.findByLabelText('Alto Contraste');
@@ -269,11 +282,25 @@ describe('ProfileScreen — Alto Contraste (v1.3, aprovado 2026-09-02)', () => {
     expect(screen.getByText('Ativado')).toBeTruthy();
   });
 
-  it('tocar de novo desliga (é um toggle, não só liga)', async () => {
+  it('cancelar na confirmação não muda nada', async () => {
     renderProfile();
 
     fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+    fireEvent.press(await screen.findByLabelText('Cancelar'));
+
+    expect(useHighContrastStore.getState().isHighContrast).toBe(false);
+    const toggle = await screen.findByLabelText('Alto Contraste');
+    expect(toggle.props.accessibilityState.checked).toBe(false);
+  });
+
+  it('confirmar de novo desliga (é um toggle, não só liga) — mensagem muda pra "desativar"', async () => {
+    useHighContrastStore.setState({ isHighContrast: true });
+    renderProfile();
+
     fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+
+    expect(await screen.findByText('As cores do app vão voltar ao normal. Quer desativar o Alto Contraste?')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Confirmar'));
 
     expect(useHighContrastStore.getState().isHighContrast).toBe(false);
   });

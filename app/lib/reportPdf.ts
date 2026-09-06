@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { generateConsultationReportHtml, ReportData } from './reportHtml';
 
 export async function exportConsultationReportPdf(data: ReportData): Promise<string | void> {
@@ -15,13 +15,6 @@ export async function exportConsultationReportPdf(data: ReportData): Promise<str
       }
     }
     return;
-  }
-
-  // Checagem segura para verificar se o módulo nativo ExpoPrint existe no binário APK/IPA instalado (ou ambiente de testes)
-  const hasExpoPrintModule = process.env.NODE_ENV === 'test' || !!(NativeModules && NativeModules.ExpoPrint);
-
-  if (!hasExpoPrintModule) {
-    throw new Error('A geração de relatórios em arquivo PDF requer a atualização do aplicativo baixado da loja (L0). Enquanto isso, utilize a opção "Compartilhar resumo pra consulta".');
   }
 
   let Print: typeof import('expo-print');

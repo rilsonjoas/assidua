@@ -490,6 +490,19 @@ export default function HomeScreen() {
           }}
         />
       )}
+      {/* Achado real de uso (2026-09-02): "+" só existia em Remédios —
+          pedido explícito de também ter em Hoje, pra não obrigar trocar
+          de aba pra adicionar (ação constante). Só quando já há algo na
+          tela — lista vazia já tem seu próprio CTA "Adicionar
+          medicamento" acima, o FAB ali seria redundante. Cuidador não
+          cadastra remédio (mesma regra já aplicada em medications.tsx). */}
+      {doses.length > 0 && !isCaregiverView && (
+        <Link href="/medication/new" asChild>
+          <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
+            <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+          </TouchableOpacity>
+        </Link>
+      )}
       {alertDialog}
     </View>
   );
@@ -578,5 +591,13 @@ function makeStyles(c: ThemeColors) {
     reactedIndicator: { paddingRight: 14 },
     takenText: { color: c.success, fontWeight: '600', fontSize: 13 },
     skippedText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
+    // Mesmo estilo do FAB de Remédios (2026-09-02) — "+" também na Home,
+    // pedido explícito pra não obrigar trocar de aba pra adicionar.
+    fab: {
+      position: 'absolute', right: 24, bottom: 24,
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center',
+      elevation: 6, shadowColor: c.brand, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    },
   });
 }
