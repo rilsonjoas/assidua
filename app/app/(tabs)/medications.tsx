@@ -46,7 +46,29 @@ export default function MedicationsScreen() {
           columnWrapperStyle={isWide ? styles.gridRow : undefined}
           keyExtractor={(m) => String(m.id)}
           contentContainerStyle={[styles.list, isWide && styles.listWide]}
-          ListEmptyComponent={<Text style={styles.empty}>{t('medications.empty')}</Text>}
+          ListEmptyComponent={
+            // Achado real de uso (2026-09-05): lista vazia era só um
+            // texto cinza, sem convite claro — pra quem abre o app pela
+            // primeira vez, um beco sem saída visual em vez de um
+            // próximo passo óbvio (mesmo padrão já validado na Home,
+            // ver `home.noDosesTitle`). Cuidador não cadastra remédio
+            // (FAB também já fica oculto pra ele), então mantém só o
+            // texto simples nesse caso.
+            activeProfile?.is_owner !== false ? (
+              <View style={styles.emptyBox}>
+                <MaterialCommunityIcons name="pill" size={56} color={colors.textMuted} />
+                <Text style={styles.emptyTitle}>{t('medications.emptyTitle')}</Text>
+                <Text style={styles.emptyText}>{t('medications.emptyText')}</Text>
+                <Link href="/medication/new" asChild>
+                  <TouchableOpacity style={styles.emptyBtn} accessibilityRole="button">
+                    <Text style={styles.emptyBtnText}>{t('medications.addLabel')}</Text>
+                  </TouchableOpacity>
+                </Link>
+              </View>
+            ) : (
+              <Text style={styles.empty}>{t('medications.empty')}</Text>
+            )
+          }
           renderItem={({ item }) => {
             const maskedName = maskMedicationName(item.name, isPrivate);
             return (
@@ -109,6 +131,13 @@ function makeStyles(c: ThemeColors) {
     listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
     gridRow: { gap: 12 },
     empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
+    // Mesmo padrão visual do estado vazio da Home (emptyBox/emptyTitle/
+    // emptyText/emptyBtn) — ícone, título, texto de apoio e CTA.
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
+    emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
+    emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
+    emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 },
+    emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
     card: {
       backgroundColor: c.surface, borderRadius: 16,
       flexDirection: 'row', alignItems: 'center', padding: 16,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
-import { lightColors, darkColors, ThemeColors } from '../constants/theme';
+import { lightColors, darkColors, highContrastLightColors, highContrastDarkColors, ThemeColors } from '../constants/theme';
+import { contrastRatio, bestTextColor } from '../lib/contrast';
 
 // Auditoria de contraste WCAG AA (2026-08-14, pedido direto do Rilson
 // por um app o mais "elderly friendly" possível — catarata/baixa visão
@@ -9,30 +10,13 @@ import { lightColors, darkColors, ThemeColors } from '../constants/theme';
 // como ver isso só olhando o hex.
 //
 // Fórmula de luminância relativa e razão de contraste, direto da spec
-// do WCAG 2.1 (não depende de nenhuma lib nova).
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-}
-
-function relativeLuminance([r, g, b]: [number, number, number]): number {
-  const chan = (c: number) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
-}
-
-function contrastRatio(hex1: string, hex2: string): number {
-  const l1 = relativeLuminance(hexToRgb(hex1));
-  const l2 = relativeLuminance(hexToRgb(hex2));
-  const [lighter, darker] = l1 > l2 ? [l1, l2] : [l2, l1];
-  return (lighter + 0.05) / (darker + 0.05);
-}
+// do WCAG 2.1 — extraída pra `lib/contrast.ts` (2026-09-05) quando o
+// Calendário de Adesão passou a precisar da mesma conta em runtime, não
+// só em teste.
 
 const AA_NORMAL = 4.5;
 const AA_LARGE = 3.0; // texto grande (18pt+/14pt+negrito) e componentes de UI
+const AAA_NORMAL = 7.0;
 
 function checkPairs(colors: ThemeColors, pairs: [keyof ThemeColors, keyof ThemeColors, number][]) {
   for (const [fg, bg, minRatio] of pairs) {
@@ -86,5 +70,36 @@ describe('Contraste de cor — WCAG AA (auditoria 2026-08-14)', () => {
       ['textMuted', 'background', AA_LARGE],
       ['textMuted', 'surface', AA_LARGE],
     ]);
+  });
+});
+
+// Modo Alto Contraste (v1.3, aprovado 2026-09-02) — mira AAA (7:1), não
+// só AA. Mesma razão da suíte acima: sem isso, ninguém percebe uma
+// paleta "quase lá" só olhando o hex.
+const AAA_PAIRS: [keyof ThemeColors, keyof ThemeColors, number][] = [
+  ['text', 'background', AAA_NORMAL],
+  ['text', 'surface', AAA_NORMAL],
+  ['textSecondary', 'background', AAA_NORMAL],
+  ['textSecondary', 'surface', AAA_NORMAL],
+  // Alto contraste não tem exceção pro textMuted — é o próprio ponto do
+  // modo: nada fica abaixo de AAA, nem a legenda mais discreta.
+  ['textMuted', 'background', AAA_NORMAL],
+  ['textMuted', 'surface', AAA_NORMAL],
+  ['brand', 'surface', AAA_NORMAL],
+  ['headerText', 'headerBg', AAA_NORMAL],
+  ['headerSubtext', 'headerBg', AAA_NORMAL],
+  ['onBrand', 'brand', AAA_NORMAL],
+  ['success', 'surface', AAA_NORMAL],
+  ['warning', 'surface', AAA_NORMAL],
+  ['error', 'surface', AAA_NORMAL],
+];
+
+describe('Contraste de cor — WCAG AAA (Modo Alto Contraste, v1.3 2026-09-02)', () => {
+  it('alto contraste claro: tudo passa 7:1, sem exceção', () => {
+    checkPairs(highContrastLightColors, AAA_PAIRS);
+  });
+
+  it('alto contraste escuro: tudo passa 7:1, sem exceção', () => {
+    checkPairs(highContrastDarkColors, AAA_PAIRS);
   });
 });

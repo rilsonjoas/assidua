@@ -19,6 +19,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
 import { useProfileStore } from '../../store/profileStore';
+import { useToastStore } from '../../store/toastStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { maskMedicationName } from '../../lib/privacy';
 import {
   createMedication,
   updateMedication,
@@ -188,6 +191,11 @@ export default function MedicationFormScreen() {
   const [scheduleToRemove, setScheduleToRemove] = useState<DoseSchedule | null>(null);
   const [removingSchedule, setRemovingSchedule] = useState(false);
   const { showAlert, alertDialog } = useAlertDialog();
+  // Achado real de uso (2026-09-02): "salvar sem feedback visual" — ver
+  // store/toastStore.ts (precisa ser global porque este `router.back()`
+  // desmonta a tela antes de um toast local conseguir aparecer).
+  const showToast = useToastStore((s) => s.showToast);
+  const { isPrivate } = usePrivacyStore();
 
   useEffect(() => {
     if (!isNew) {
@@ -307,6 +315,8 @@ export default function MedicationFormScreen() {
       }
       queryClient.invalidateQueries({ queryKey: ['medications'] });
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      const toastName = maskMedicationName(name, isPrivate);
+      showToast(isNew ? t('medicationForm.createdToast', { name: toastName }) : t('medicationForm.savedToast', { name: toastName }));
       router.back();
     } catch (err: any) {
       showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSave'));
@@ -348,6 +358,7 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['medications'] });
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
+      showToast(next ? t('medicationForm.pausedToast') : t('medicationForm.resumedToast'));
     } catch (err: any) {
       showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPauseToggle'));
     } finally {
@@ -402,6 +413,7 @@ export default function MedicationFormScreen() {
       const med = await uploadMedicationPhoto(Number(id), result.assets[0].uri);
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
+      showToast(t('medicationForm.photoSavedToast'));
     } catch (err: any) {
       console.error('[uploadPhoto error]', err);
       if (typeof Sentry !== 'undefined' && Sentry.captureException) {
@@ -424,6 +436,7 @@ export default function MedicationFormScreen() {
       const med = await deleteMedicationPhoto(Number(id));
       setPhotoUrl(med.photo_url);
       queryClient.invalidateQueries({ queryKey: ['medications'] });
+      showToast(t('medicationForm.photoRemovedToast'));
     } catch (err: any) {
       console.error('[removePhoto error]', err);
       if (typeof Sentry !== 'undefined' && Sentry.captureException) {
@@ -578,6 +591,7 @@ export default function MedicationFormScreen() {
       );
       cancelScheduleForm();
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('medicationForm.scheduleSavedToast'));
     } catch (err: any) {
       showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSaveSchedule'));
     } finally {
@@ -593,6 +607,7 @@ export default function MedicationFormScreen() {
       await cancelScheduleNotifications(scheduleToRemove.id);
       setSchedules((prev) => prev.filter((s) => s.id !== scheduleToRemove.id));
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('medicationForm.scheduleRemovedToast'));
     } finally {
       setRemovingSchedule(false);
       setScheduleToRemove(null);
@@ -789,6 +804,12 @@ export default function MedicationFormScreen() {
         placeholder={t('medicationForm.namePlaceholder')}
         placeholderTextColor={colors.textMuted}
         accessibilityLabel={t('medicationForm.nameAccessibilityLabel')}
+        // Achado real de uso (2026-09-05): abrir "novo remédio" exigia um
+        // toque a mais só pra começar a digitar. Só na criação — ao
+        // editar um remédio existente, abrir com o teclado já em pé em
+        // cima dos dados que a pessoa quer primeiro conferir seria
+        // pior, não melhor.
+        autoFocus={isNew}
       />
 
       <Text style={styles.label}>{t('medicationForm.dosageLabel')}</Text>

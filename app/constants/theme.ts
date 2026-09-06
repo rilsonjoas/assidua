@@ -68,6 +68,56 @@ export const lightColors: ThemeColors = {
   error: '#ef4444',
 };
 
+// Modo Alto Contraste (v1.3, aprovado 2026-09-02) — vai além da
+// auditoria AA acima, mirando AAA (7:1 texto normal, 4.5:1 texto
+// grande) pra quem tem baixa visão de verdade, não só "ficar mais
+// bonito". Preto/branco quase puros + cores semânticas escurecidas
+// (light) ou clareadas (dark) o suficiente pra bater 7:1 mesmo assim —
+// não é o mesmo ajuste do tema normal, é mais agressivo de propósito.
+export const highContrastLightColors: ThemeColors = {
+  background: '#ffffff',
+  surface: '#ffffff',
+  surfaceSecondary: '#eeeeee',
+  border: '#000000',
+  text: '#000000',
+  textSecondary: '#1a1a1a',
+  textMuted: '#404040', // ainda o mais claro dos três, mas 9:1+ no branco (AAA mesmo "muted")
+  brand: '#312e81',
+  brandLight: '#c7d2fe',
+  brandSubtle: '#eef2ff',
+  onBrand: '#ffffff',
+  headerBg: '#312e81',
+  headerText: '#ffffff',
+  headerSubtext: '#ffffff',
+  tabBar: '#ffffff',
+  tabBarBorder: '#000000',
+  success: '#166534',
+  warning: '#92400e',
+  error: '#991b1b',
+};
+
+export const highContrastDarkColors: ThemeColors = {
+  background: '#000000',
+  surface: '#000000',
+  surfaceSecondary: '#1a1a1a',
+  border: '#ffffff',
+  text: '#ffffff',
+  textSecondary: '#f0f0f0',
+  textMuted: '#c7c7c7',
+  brand: '#a5b4fc',
+  brandLight: '#3730a3',
+  brandSubtle: '#1e1b4b',
+  onBrand: '#000000',
+  headerBg: '#000000',
+  headerText: '#ffffff',
+  headerSubtext: '#ffffff',
+  tabBar: '#000000',
+  tabBarBorder: '#ffffff',
+  success: '#4ade80',
+  warning: '#fbbf24',
+  error: '#f87171',
+};
+
 export const darkColors: ThemeColors = {
   background: '#0f172a',
   surface: '#1e293b',

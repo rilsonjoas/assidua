@@ -8,6 +8,7 @@ import ProfileScreen from '../app/(tabs)/profile';
 import { useProfileStore } from '../store/profileStore';
 import { useAuthStore } from '../store/authStore';
 import { useFontScaleStore } from '../store/fontScaleStore';
+import { useHighContrastStore } from '../store/highContrastStore';
 import { useLanguageStore } from '../store/languageStore';
 import { api } from '../services/api';
 import { logout, deleteAccount } from '../services/auth';
@@ -236,5 +237,44 @@ describe('ProfileScreen — tamanho da fonte (2026-08-14)', () => {
     fireEvent.press(await screen.findByLabelText('Tamanho da fonte Extra Grande'));
 
     expect(useFontScaleStore.getState().mode).toBe('extraLarge');
+  });
+});
+
+describe('ProfileScreen — Alto Contraste (v1.3, aprovado 2026-09-02)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuthStore.setState({ user: { id: 10, name: 'Rilson', email: 'r@x.com', subscription_tier: 'free' } as any });
+    useProfileStore.setState({ profiles: [ownProfile], activeProfile: ownProfile });
+    useHighContrastStore.setState({ isHighContrast: false });
+    mockedApi.get.mockResolvedValue({ data: [ownProfile] });
+  });
+
+  it('começa desligado, anunciado como switch desmarcado', async () => {
+    renderProfile();
+
+    const toggle = await screen.findByLabelText('Alto Contraste');
+    expect(toggle.props.accessibilityRole).toBe('switch');
+    expect(toggle.props.accessibilityState.checked).toBe(false);
+    expect(screen.getByText('Desativado')).toBeTruthy();
+  });
+
+  it('tocar liga o modo e atualiza o texto de estado', async () => {
+    renderProfile();
+
+    fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+
+    expect(useHighContrastStore.getState().isHighContrast).toBe(true);
+    const toggle = await screen.findByLabelText('Alto Contraste');
+    expect(toggle.props.accessibilityState.checked).toBe(true);
+    expect(screen.getByText('Ativado')).toBeTruthy();
+  });
+
+  it('tocar de novo desliga (é um toggle, não só liga)', async () => {
+    renderProfile();
+
+    fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+    fireEvent.press(await screen.findByLabelText('Alto Contraste'));
+
+    expect(useHighContrastStore.getState().isHighContrast).toBe(false);
   });
 });

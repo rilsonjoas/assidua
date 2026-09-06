@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -14,6 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
+import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
@@ -34,7 +35,13 @@ export default function StockScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<number | null>(null);
   const [qty, setQty] = useState('');
+  // Qual dos dois botões está em voo — permite mostrar o spinner só
+  // nele, não nos dois ao mesmo tempo (a mutação é uma só pras duas ações).
+  const [pendingAction, setPendingAction] = useState<'add' | 'set' | null>(null);
   const { showAlert, alertDialog } = useAlertDialog();
+  // Achado real de uso (2026-09-02): "salvar sem feedback visual" —
+  // mesmo padrão do toast global usado no cadastro de remédio.
+  const showToast = useToastStore((s) => s.showToast);
 
   const { data: medications = [], isLoading } = useQuery({
     queryKey: ['medications', activeProfile?.id],
@@ -58,16 +65,51 @@ export default function StockScreen() {
         });
       }
       setEditing(null);
+      showToast(t('stock.savedToast', { name: maskMedicationName(medication?.name, isPrivate) }));
     },
+    // Achado real (2026-09-02): a mutação não tinha `onError` — uma
+    // falha de rede/validação ficava muda, sem fechar o formulário nem
+    // avisar nada (achado ao cobrir o novo fluxo de "Adicionar" com
+    // teste). Formulário continua aberto de propósito, pra tentar de
+    // novo sem perder o que já foi digitado.
+    onError: () => {
+      showAlert(t('common.error'), t('stock.errorSave'));
+    },
+    onSettled: () => setPendingAction(null),
   });
 
-  function saveQty(med: Medication) {
+  // Achado real de uso (2026-09-02): "editar só reescreve — falta
+  // adicionar e definir". Um campo só, dois botões: nenhum menu
+  // escondido, e o número digitado sempre significa a mesma coisa (a
+  // quantidade em si), o botão escolhido é que decide se ela substitui
+  // o estoque atual ou soma a ele.
+  function parseTypedQty(): number | null {
     const quantity = parseFloat(qty);
     if (isNaN(quantity) || quantity < 0) {
       showAlert(t('stock.invalidValue'));
-      return;
+      return null;
     }
+    return quantity;
+  }
+
+  function setQtyAbsolute(med: Medication) {
+    const quantity = parseTypedQty();
+    if (quantity === null) return;
+    setPendingAction('set');
     mutation.mutate({ id: med.id, quantity });
+  }
+
+  function addQty(med: Medication) {
+    const typed = parseTypedQty();
+    if (typed === null) return;
+    const current = med.stock?.current_quantity ?? 0;
+    setPendingAction('add');
+    mutation.mutate({ id: med.id, quantity: current + typed });
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setQty('');
   }
 
   return (
@@ -92,6 +134,14 @@ export default function StockScreen() {
             const daysRemaining = item.days_remaining;
             const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
             const maskedName = maskMedicationName(item.name, isPrivate);
+            // Achado real de uso (2026-09-05): remédio cadastrado sem
+            // preencher "estoque inicial" (opcional) mostra "0 unid" liso
+            // — igual a um remédio que genuinamente acabou, sem indicar
+            // que ninguém informou nada ainda. `last_updated_at` só é
+            // preenchido no primeiro `PUT /stock` de verdade (ver
+            // `StockController::update`); nulo com quantidade zero é o
+            // sinal confiável de "nunca foi tocado", distinto de "acabou".
+            const neverSet = stock?.current_quantity === 0 && stock?.last_updated_at === null;
             return (
               <View style={[styles.card, isLow && styles.cardAlert, isWide && { flex: 1 }]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
@@ -108,25 +158,69 @@ export default function StockScreen() {
                     </View>
                   )}
                   {editing === item.id ? (
-                    <View style={styles.editRow}>
-                      <TextInput
-                        style={[styles.input, { color: colors.text }]}
-                        value={qty}
-                        onChangeText={setQty}
-                        keyboardType="decimal-pad"
-                        placeholder={t('stock.quantityPlaceholder')}
-                        placeholderTextColor={colors.textMuted}
-                        accessibilityLabel={t('stock.quantityLabel', { name: maskedName })}
-                      />
-                      <Text style={styles.unit}>{stock?.unit}</Text>
-                      <TouchableOpacity
-                        onPress={() => saveQty(item)}
-                        style={styles.saveBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('stock.save')}
-                      >
-                        <Text style={styles.saveBtnText}>{t('stock.save')}</Text>
-                      </TouchableOpacity>
+                    <View style={styles.editForm}>
+                      <View style={styles.editRow}>
+                        <TextInput
+                          style={[styles.input, { color: colors.text }]}
+                          value={qty}
+                          onChangeText={setQty}
+                          keyboardType="decimal-pad"
+                          placeholder={t('stock.quantityPlaceholder')}
+                          placeholderTextColor={colors.textMuted}
+                          accessibilityLabel={t('stock.quantityLabel', { name: maskedName })}
+                          autoFocus
+                        />
+                        <Text style={styles.unit}>{stock?.unit}</Text>
+                      </View>
+                      {/* Achado real de uso (2026-09-02): "editar só reescreve —
+                          falta adicionar e definir". Dois botões claros, sem
+                          menu escondido; o que o usuário digitou acima
+                          significa a mesma coisa nos dois, quem muda é a
+                          operação. */}
+                      <View style={styles.editActions}>
+                        <TouchableOpacity
+                          onPress={cancelEdit}
+                          style={styles.cancelBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('common.cancel')}
+                        >
+                          <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => addQty(item)}
+                          style={styles.addBtn}
+                          disabled={mutation.isPending}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('stock.addLabel', { name: maskedName })}
+                          accessibilityState={{ busy: pendingAction === 'add' }}
+                        >
+                          {pendingAction === 'add'
+                            ? <ActivityIndicator color={colors.brand} size="small" />
+                            : (
+                              <>
+                                <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                                <Text style={styles.addBtnText}>{t('stock.add')}</Text>
+                              </>
+                            )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setQtyAbsolute(item)}
+                          style={styles.saveBtn}
+                          disabled={mutation.isPending}
+                          accessibilityRole="button"
+                          accessibilityLabel={t('stock.setLabel', { name: maskedName })}
+                          accessibilityState={{ busy: pendingAction === 'set' }}
+                        >
+                          {pendingAction === 'set'
+                            ? <ActivityIndicator color={colors.onBrand} size="small" />
+                            : <Text style={styles.saveBtnText}>{t('stock.set')}</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : neverSet ? (
+                    <View style={styles.neverSetRow}>
+                      <MaterialCommunityIcons name="information-outline" size={14} color={colors.textMuted} />
+                      <Text style={styles.neverSetText}>{t('stock.neverSetHint')}</Text>
                     </View>
                   ) : (
                     <Text style={styles.qty}>
@@ -134,16 +228,18 @@ export default function StockScreen() {
                     </Text>
                   )}
                 </View>
-                <TouchableOpacity
-                  testID={`edit-stock-${item.id}`}
-                  onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
-                  style={styles.editBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('stock.editLabel', { name: maskedName })}
-                >
-                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textMuted} />
-                  <Text style={styles.editBtnText}>{t('stock.edit')}</Text>
-                </TouchableOpacity>
+                {editing !== item.id && (
+                  <TouchableOpacity
+                    testID={`edit-stock-${item.id}`}
+                    onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
+                    style={styles.editBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('stock.editLabel', { name: maskedName })}
+                  >
+                    <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textMuted} />
+                    <Text style={styles.editBtnText}>{t('stock.edit')}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           }}
@@ -180,14 +276,31 @@ function makeStyles(c: ThemeColors) {
     alertRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
     alertText: { fontSize: 13, color: c.warning },
     qty: { fontSize: 15, color: c.brand, fontWeight: '600', marginTop: 4 },
-    editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
+    neverSetRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    neverSetText: { fontSize: 13, color: c.textMuted, fontStyle: 'italic' },
+    editForm: { marginTop: 4, gap: 8 },
+    editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     input: {
       borderWidth: 1, borderColor: c.border, borderRadius: 8,
       paddingHorizontal: 10, paddingVertical: 6, width: 80, fontSize: 15,
       backgroundColor: c.surface,
     },
     unit: { color: c.textSecondary, fontSize: 14 },
-    saveBtn: { backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+    // "Adicionar" (soma ao estoque atual) e "Definir" (substitui pelo
+    // valor exato) lado a lado — achado real de uso (2026-09-02): um
+    // botão só ("Salvar") sempre reescrevia, sem opção de somar uma
+    // compra ao que já tinha. `flexWrap` cobre telas estreitas, mesmo
+    // padrão já usado no Histórico.
+    editActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    cancelBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+    cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
+    addBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      borderWidth: 1.5, borderColor: c.brand, borderRadius: 8,
+      paddingHorizontal: 12, paddingVertical: 5,
+    },
+    addBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
+    saveBtn: { backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, minWidth: 64, alignItems: 'center' },
     saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
   });
 }

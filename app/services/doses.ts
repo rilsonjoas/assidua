@@ -55,6 +55,21 @@ export async function getWeeklyAdherence(profileId: number): Promise<WeeklyAdher
   return data;
 }
 
+// "Calendário de adesão" (v1.3, aprovado 2026-09-02) — um dia por linha.
+export interface DailyAdherencePoint {
+  date: string;
+  percentage: number | null;
+  taken: number;
+  due: number;
+}
+
+// `month` no formato "AAAA-MM"; sem ele, o backend usa o mês atual no
+// fuso do perfil (ver DoseLogController::dailyAdherence).
+export async function getDailyAdherence(profileId: number, month?: string): Promise<DailyAdherencePoint[]> {
+  const { data } = await api.get(`/profiles/${profileId}/daily-adherence`, { params: month ? { month } : {} });
+  return data;
+}
+
 // "Resumo pra consulta" (2026-08-23) — não é o histórico de uso, é o
 // documento pra levar ao médico: % do período + quais doses faltaram.
 export interface ConsultationSummary {

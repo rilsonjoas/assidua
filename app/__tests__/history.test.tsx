@@ -11,6 +11,10 @@ jest.mock('../services/doses', () => ({
   ...(jest.requireActual('../services/doses') as object),
   getDoseHistory: jest.fn(),
   getWeeklyAdherence: jest.fn(),
+  // Calendário de adesão (v1.3, 2026-09-02) — sem mock aqui, a query
+  // real do componente resolvia undefined e o react-query reclamava
+  // (achado rodando esta suíte depois de adicionar o calendário).
+  getDailyAdherence: jest.fn(),
 }));
 jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
@@ -55,6 +59,7 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
     mockedMedications.getMedications.mockResolvedValue([losartana, paracetamol] as any);
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
     mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
   });
 
   it('mostra um chip por medicamento cadastrado, mais "Todos os remédios"', async () => {
@@ -108,6 +113,7 @@ describe('HistoryScreen — gráfico de adesão (Fase 2, 2026-08-13)', () => {
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedMedications.getMedications.mockResolvedValue([]);
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
   });
 
   it('mostra uma barra por semana retornada, com o percentual certo', async () => {

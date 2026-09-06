@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CalculateAdherenceStreak;
+use App\Actions\CalculateDailyAdherence;
 use App\Actions\CalculateWeeklyAdherence;
 use App\Actions\GenerateConsultationSummary;
 use App\Actions\GenerateScheduleOccurrences;
@@ -304,5 +305,50 @@ class DoseLogController extends Controller
         }
 
         return response()->json($points);
+    }
+
+    // "Calendário de adesão" (v1.3, aprovado 2026-09-02) — um dia por
+    // linha (não uma semana agregada), pro app pintar verde/amarelo/
+    // vermelho em cada dia do mês. `?month=AAAA-MM` opcional, mês atual
+    // (no fuso do perfil) por padrão. Mesmo teto de profundidade do
+    // weeklyAdherence (30 dias grátis) — não abre uma segunda forma de
+    // ver mais histórico do que o plano permite; mês fora da janela
+    // permitida cai pro mês mais antigo que ainda cabe nela.
+    public function dailyAdherence(Request $request, Profile $profile, CalculateDailyAdherence $calculateDaily): JsonResponse
+    {
+        Gate::authorize('view', $profile);
+
+        $today = Carbon::today($profile->timezone);
+        $month = $request->query('month')
+            ? Carbon::parse($request->query('month').'-01', $profile->timezone)
+            : $today->copy()->startOfMonth();
+
+        $maxDays = $request->user()->isPro() ? 3650 : 30;
+        $earliestAllowed = $today->copy()->subDays($maxDays)->startOfMonth();
+        if ($month->lt($earliestAllowed)) {
+            $month = $earliestAllowed;
+        }
+
+        $monthEnd = $month->copy()->endOfMonth();
+        if ($monthEnd->gt($today)) {
+            $monthEnd = $today->copy();
+        }
+
+        $schedules = DoseSchedule::where('is_active', true)
+            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true)->where('is_paused', false))
+            ->get(['id', 'time', 'days_of_week', 'interval_hours']);
+
+        $days = [];
+        for ($date = $month->copy(); $date->lte($monthEnd); $date->addDay()) {
+            $data = $calculateDaily->handle($profile, $date->copy(), $schedules);
+            $days[] = [
+                'date' => $date->toDateString(),
+                'taken' => $data['taken'],
+                'due' => $data['due'],
+                'percentage' => $data['percentage'],
+            ];
+        }
+
+        return response()->json($days);
     }
 }

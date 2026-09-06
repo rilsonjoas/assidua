@@ -63,6 +63,23 @@ describe('MedicationsScreen — skeleton durante carregamento (Fase 2, 2026-08-1
     await waitFor(() => {
       expect(screen.queryByTestId('skeleton-list', { includeHiddenElements: true })).toBeNull();
     }, { timeout: 5000 });
+    // Achado real de uso (2026-09-05): texto cinza sozinho virou estado
+    // vazio com ícone + CTA pra quem pode cadastrar (dono do perfil,
+    // caso deste teste) — ver medications.tsx.
+    expect(await screen.findByText('Nenhum medicamento ainda')).toBeTruthy();
+    expect(screen.getByText('Adicionar medicamento')).toBeTruthy();
+  });
+
+  // Cuidador não cadastra remédio (não é dele) — convite pra adicionar
+  // seria um beco sem saída pra ele, então mantém só o texto simples.
+  it('cuidador vê a lista vazia sem convite pra cadastrar (não é dele)', async () => {
+    const collaborator = { ...profile, is_owner: false };
+    useProfileStore.setState({ profiles: [collaborator], activeProfile: collaborator });
+    mockedMedications.getMedications.mockResolvedValue([]);
+
+    renderMedications();
+
     expect(await screen.findByText('Nenhum medicamento cadastrado.')).toBeTruthy();
+    expect(screen.queryByText('Adicionar medicamento')).toBeNull();
   });
 });

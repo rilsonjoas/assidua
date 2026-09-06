@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -18,12 +18,15 @@ import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
 import { usePrivacyStore } from '../../store/privacyStore';
+import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
+import { AdherenceRing } from '../../components/AdherenceRing';
 import { isNetworkError } from '../../services/sync';
 import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay } from '../../services/offlineQueue';
 import { useTheme } from '../../hooks/useTheme';
@@ -44,12 +47,8 @@ const DATE_FORMAT: Record<string, string> = {
 export default function HomeScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  function showToast(msg: string) {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  }
+  // Toast global (2026-09-05) — extraído daqui, ver store/toastStore.ts.
+  const showToast = useToastStore((s) => s.showToast);
 
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
   const { isPrivate, togglePrivacy } = usePrivacyStore();
@@ -124,7 +123,11 @@ export default function HomeScreen() {
         old?.map((d) => (d.id === dose.id ? { ...d, ...log } : d)),
       );
 
-      showToast(t('home.doseSuccessToast', { name: maskMedicationName(dose.medication.name, isPrivate) }));
+      // haptic: false — o hático desta tela é deliberadamente separado do
+      // toast (só vibra na confirmação real do servidor, ver abaixo);
+      // com o toastStore vibrando sozinho por padrão, precisa desligar
+      // aqui pra não dobrar nem vibrar numa marcação só enfileirada offline.
+      showToast(t('home.doseSuccessToast', { name: maskMedicationName(dose.medication.name, isPrivate) }), { haptic: false });
 
       if (log._pendingSync) return; // offline — o resto acontece quando a fila drenar
 
@@ -266,9 +269,31 @@ export default function HomeScreen() {
               )}
             </View>
             {doses.length > 0 && (
-              <Text style={styles.progress}>{t('home.progress', { count: takenCount, total: doses.length })}</Text>
+              // O anel ao lado já anuncia a mesma informação (com %) pro
+              // leitor de tela — texto aqui evita duplicar o anúncio,
+              // mas continua visível pra quem enxerga.
+              <Text style={styles.progress} importantForAccessibility="no" accessibilityElementsHidden>
+                {t('home.progress', { count: takenCount, total: doses.length })}
+              </Text>
             )}
           </View>
+          {doses.length > 0 && (
+            // Anel de progresso de adesão do dia (v1.3, aprovado
+            // 2026-09-02) — usa `react-native-svg`, dependência nova
+            // (ver package.json) que só entra de verdade num próximo
+            // `eas build`; até lá, o texto acima já cobre a mesma
+            // informação, e o ErrorBoundary evita quebrar a tela inteira
+            // num build antigo que ainda não tem o módulo nativo linkado
+            // (mesmo padrão já usado com expo-image-picker).
+            <ErrorBoundary fallback={null}>
+              <AdherenceRing
+                taken={takenCount}
+                total={doses.length}
+                trackColor="rgba(255,255,255,0.25)"
+                textColor={colors.headerText}
+              />
+            </ErrorBoundary>
+          )}
           <TouchableOpacity
             onPress={togglePrivacy}
             accessibilityRole="button"
@@ -465,12 +490,6 @@ export default function HomeScreen() {
           }}
         />
       )}
-      {!!toastMessage && (
-        <View style={styles.toastContainer} accessible accessibilityLiveRegion="polite">
-          <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
-          <Text style={styles.toastText}>{toastMessage}</Text>
-        </View>
-      )}
       {alertDialog}
     </View>
   );
@@ -479,26 +498,6 @@ export default function HomeScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    toastContainer: {
-      position: 'absolute',
-      bottom: 24,
-      left: 20,
-      right: 20,
-      backgroundColor: c.success,
-      borderRadius: 14,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      elevation: 6,
-      shadowColor: '#000',
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-      zIndex: 999,
-    },
-    toastText: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
     // overflow hidden mantém a marca d'água recortada dentro do header.
     header: { backgroundColor: c.headerBg, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
     // Grande e quase transparente: presença de marca sem brigar com

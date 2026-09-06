@@ -20,8 +20,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/authStore';
 import { useProfileStore } from '../../store/profileStore';
+import { useToastStore } from '../../store/toastStore';
 import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useFontScaleStore, FontScaleMode } from '../../store/fontScaleStore';
+import { useHighContrastStore } from '../../store/highContrastStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -59,6 +61,7 @@ export default function ProfileScreen() {
   const { mode: themeMode, setMode: setThemeMode } = useThemeStore();
   const { mode: languageMode, setLanguage } = useLanguage();
   const { mode: fontScaleMode, setMode: setFontScaleMode } = useFontScaleStore();
+  const { isHighContrast, toggleHighContrast } = useHighContrastStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -109,6 +112,9 @@ export default function ProfileScreen() {
   function showAlert(title: string, message: string) {
     setAlertInfo({ title, message });
   }
+  // Achado real de uso (2026-09-02): "salvar sem feedback visual" —
+  // mesmo padrão do toast global usado no cadastro de remédio.
+  const showToast = useToastStore((s) => s.showToast);
   const [invitingProfileId, setInvitingProfileId] = useState<number | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
@@ -202,6 +208,7 @@ export default function ProfileScreen() {
       setName('');
       setAvatarIcon('account');
       setColor('#6366f1');
+      showToast(t('profile.createdToast', { name: data.name }));
     } catch (err: any) {
       showAlert(t('common.error'), err.response?.data?.message ?? t('profile.errorCreateProfile'));
     } finally {
@@ -580,6 +587,34 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      {/* Alto Contraste (v1.3, aprovado 2026-09-02) — ortogonal ao tema
+          claro/escuro acima: troca a paleta pra uma que mira AAA em vez
+          de AA (ver constants/theme.ts), não decide claro vs. escuro
+          sozinho. Uma linha só de toggle, mesmo padrão visual do botão
+          de Ajuda logo abaixo — accessibilityRole="switch" anuncia
+          ligado/desligado certo pro leitor de tela sem precisar do
+          `Switch` nativo (destoaria do resto do design do app, mesmo
+          motivo documentado em `lib/alert.ts` no passado). */}
+      <TouchableOpacity
+        style={[styles.helpBtn, { marginTop: 20 }]}
+        onPress={toggleHighContrast}
+        accessibilityRole="switch"
+        accessibilityLabel={t('profile.highContrast')}
+        accessibilityHint={t('profile.highContrastHint')}
+        accessibilityState={{ checked: isHighContrast }}
+      >
+        <MaterialCommunityIcons name="contrast-box" size={20} color={colors.textSecondary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.helpBtnText}>{t('profile.highContrast')}</Text>
+          <Text style={styles.exportHint}>{t('profile.highContrastHint')}</Text>
+        </View>
+        <View style={[styles.toggleState, isHighContrast && styles.toggleStateActive]}>
+          <Text style={[styles.toggleStateText, isHighContrast && styles.toggleStateTextActive]}>
+            {isHighContrast ? t('common.on') : t('common.off')}
+          </Text>
+        </View>
+      </TouchableOpacity>
+
       {/* Ajuda (2026-08-14) — pergunta direta do Rilson: "não tem como
           facilitar pra novos usuários com um guia?". O onboarding só
           aparece uma vez; isto fica sempre acessível, pra quem
@@ -894,6 +929,13 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1, borderColor: c.border,
     },
     helpBtnText: { flex: 1, color: c.text, fontWeight: '600', fontSize: 15 },
+    toggleState: {
+      borderWidth: 1.5, borderColor: c.border, borderRadius: 8,
+      paddingHorizontal: 10, paddingVertical: 5,
+    },
+    toggleStateActive: { backgroundColor: c.brand, borderColor: c.brand },
+    toggleStateText: { fontSize: 12, fontWeight: '700', color: c.textMuted },
+    toggleStateTextActive: { color: c.onBrand },
     exportHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     logoutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

@@ -24,6 +24,224 @@
 
 ---
 
+## UX/UI, Micro-interações & Retenção de Uso (v1.3)
+
+- [x] **Satisfação & Engajamento do Usuário**:
+  - [x] Feedback hático ao marcar "Tomei o remédio" — já existia
+        (`Haptics.notificationAsync`, `app/(tabs)/index.tsx`); a
+        micro-animação visual de celebração continua em aberto, o
+        hático em si não é pendência.
+  - [x] **Anel de progresso circular na Home** — `components/AdherenceRing.tsx`
+        (2026-09-05), `react-native-svg` (dependência nova, ver nota de
+        build abaixo). Mesmos limiares de cor do gráfico semanal
+        (≥80/50-79/<50), com `accessibilityRole="progressbar"` e label
+        pluralizado. Envolvido em `<ErrorBoundary fallback={null}>` —
+        num build antigo sem o módulo nativo linkado, some sozinho sem
+        quebrar a Home (o texto "N de M doses" ao lado já cobre a
+        mesma informação). **Só ativa de verdade no próximo `eas build`**,
+        mesma pendência já documentada pro `react-native-purchases`.
+  - [x] **Modo Alto Contraste (AAA)** — `constants/theme.ts`
+        (`highContrastLightColors`/`highContrastDarkColors`),
+        `store/highContrastStore.ts`, toggle em Perfil › Aparência.
+        Ortogonal ao claro/escuro (troca a paleta, não decide tema
+        sozinho). Auditado em `__tests__/color-contrast.test.tsx` —
+        7:1 real, não só a meta declarada. Toque mínimo de 48px segue
+        pendente como auditoria própria (não entrou junto, escopo
+        maior que cabia aqui).
+  - [x] **Calendário de adesão (verde/amarelo/vermelho)** —
+        `components/AdherenceCalendar.tsx`, endpoint novo
+        `GET /profiles/{id}/daily-adherence` (Laravel:
+        `CalculateDailyAdherence`, extraído de `CalculateWeeklyAdherence`
+        pra reusar a mesma conta dia a dia — semana virou composição
+        disso, não duplica lógica). Mês atual por padrão, navegação
+        prev/next, mesmo teto de profundidade grátis/Pro do gráfico
+        semanal. 242/242 backend, 38/38 suítes mobile.
+
+---
+
+## Backlog de Produto — Sessão de uso real (2026-09-02, Rilson testando ao vivo)
+
+> Levantamento do Rilson usando o app de verdade (web, 16h–18h). Item por
+> item aqui registrado com o máximo de detalhe possível pra ser atacado
+> depois com paciência e consciência. Nenhum implementado ainda — é só
+> registro fiel do que foi observado e pedido, na ordem que surgiu.
+
+### 1. Adicionar remédio no **estoque** sem precisar de horário
+
+- [ ] **Problema observado**: hoje o fluxo só aceita cadastrar um remédio
+      quando há pelo menos 1 horário selecionado. Mas o usuário às vezes
+      só quer anotar que **tem** aquele remédio (comprou, guardou na
+      gaveta) sem ainda decidir quando vai tomar. O registro de "posse" e
+      o registro de "horário de tomar" são usos distintos que hoje estão
+      acoplados.
+- **O que mudaria a experiência**: permitir salvar um remédio com **zero
+  horários** quando o objetivo for só controlar estoque. O remédio entra
+  no inventário, aparece em Estoque, mas não gera lembrete nem aparece no
+  dashboard de doses até ter ao menos 1 horário.
+- **Atenção ao comportamento atual**: hoje há um aviso claro
+  (`errorNoSchedule`) que impede salvar sem horário — existe de propósito
+  pra não criar "remédio invisível no dashboard". A mudança precisa
+  **não** reintroduzir esse problema: um remédio sem horário deve ficar
+  visível e entendido (ex.: marcado como "só estoque, sem horário"), não
+  sumir da UX.
+- **Pergunta de produto a decidir ao implementar**: quando/quanto avisar
+  o usuário de que "você não vai receber lembretes deste remédio"?
+  (ais de cautela, porque o público-alvo é idoso.)
+- **Critério de aceite**: consigo cadastrar um remédio sem nenhum
+  horário, ele aparece no inventário/estoque, não gera notificação, e a
+  tela deixa claro que está "sem horário". Se eu depois adicionar um
+  horário, vira um remédio normal.
+
+### 2. Botão "+" (adicionar) nas duas abas — home **e** remédios
+
+- [ ] **Problema observado**: hoje é preciso ir até a aba de Remédios pra
+      adicionar um remédio. O Rilson pede o botão "+" também na home,
+      porque adicionar é demais uma ação constante — e o caminho até a
+      aba certa não é óbvio pra todo mundo.
+- **O que considerar**: o "+" na home pode abrir o mesmo fluxo de
+  cadastro (remédio novo), ou um mini-menu (novo remédio / adicionar no
+  estoque — em linha com o item 1). Decidir na implementação.
+- **Critério de aceite**: consigo iniciar o cadastro de um remédio a
+  partir da home e a partir da aba de Remédios, sem ter que mudar de aba
+  primeiro.
+
+### 3. Perfil ativo não é estável ao fechar/reabrir o app — ✅ resolvido 2026-09-05
+
+> `store/profileStore.ts` ganhou `persist` (só o id, perfil completo
+> sempre vem fresco da API). Causa raiz confirmada: sem nada salvo,
+> `setProfiles` caía sempre no primeiro perfil da lista. Corrigido nos
+> dois sentidos da corrida API-vs-AsyncStorage — achado real ao
+> escrever o teste de regressão (`__tests__/profile-store.test.ts`):
+> a primeira versão do fix só corrigia quando a reidratação terminava
+> primeiro, não quando a API respondia primeiro.
+
+- [x] **Problema observado**: estou logado/perfil **Rilson**, mas quando
+      fecho e reabro o app ele vai direto pro perfil **Demonstração**
+      (demo). O "perfil ativo" não está sendo lido/restaurado de forma
+      confiável na inicialização — ou é escolhido por padrão o de
+      demonstração quando o estado não persiste.
+- **Investigar** (hipóteses, não confirmado): persistência do perfil
+  ativo não sobrevive ao restart (estado em memória / não salvo em
+  storage); ordem de hidratação na inicialização escolhe o primeiro perfil
+  da lista (que pode ser o de demonstração); conflito de conta (ver
+  "Fragmentação de contas" na seção Web). Considere salvar o id do perfil
+  ativo de forma explícita e restaurá-lo na abertura, com fallback honesto.
+- **Critério de aceite**: o perfil selecionado permanece o mesmo ao fechar
+  e reabrir o app (ou, se o demo for intencional, fica claro e não é
+  surpresa).
+
+### 4. Demo/apresentação não ensina como usar o app
+
+- [ ] **Problema observado**: a demonstração (onboarding/apresentação)
+      não explica o funcionamento: para que serve o **ícone do olho**, como
+      **adicionar remédios**, como **controlar estoque**, etc. O público usa
+      sem orientação.
+- **O que entra na demo**: um mini-guia de uso — o que cada controle
+  faz (olho = mostrar/ocultar algo, provavelmente senha/dados sensíveis),
+  passo a passo de "adicionar remédio", de "controlar estoque", de "marcar
+  que tomei". Pode ser um tour/onboarding novo ou um item "Como usar"
+  acessível a qualquer momento.
+- **Critério de aceite**: alguém que nunca viu o app consegue entender, só
+  pela demo/ajuda, para que serve o olho e como executar as 3 ações
+  principais (adicionar remédio, controlar estoque, registrar dose).
+
+### 5. Cadastro de remédio sem opção de tirar **foto**
+
+- [ ] **Problema observado**: ao adicionar um medicamento, não aparece a
+      opção de **tirar foto**. (Há menção a foto/receita em outros pontos
+      do projeto — ver se a feature existe parcialmente e não está exposta
+      no cadastro, ou se foi planejada e não implementada.)
+- **O que verificar**: onde a foto de remédio/receita está prevista,
+  o que ela alimenta (reconhecimento? só arquivo anexo? lembrete visual
+  pro idoso?) e por que não está no fluxo de adicionar. Decidir escopo:
+  foto da caixa do remédio como auxiliar visual (muito útil p/ idoso).
+- **Critério de aceite**: no cadastro/edição do remédio há a opção de
+  anexar/capturar uma foto, com permissão de câmera tratada graciosamente.
+
+### 6. Botão de editar sem "X" de fechar — UI confusa — ✅ resolvido 2026-09-05
+
+> `components/ModalCloseButton.tsx` substitui o `headerLeft` padrão nas
+> 3 telas modais (medicamento, pro, ajuda) por um X grande e
+> inequívoco — o chevron de voltar automático do Stack não bastou
+> como affordance de saída no teste real. Formulário de horário
+> (dentro do medicamento) já tinha "Cancelar" em texto, deixado como
+> está.
+
+- [x] **Problema observado**: o botão de editar não tem um "X" (fechar).
+      A UI fica confusa — quem abre achando que vai sair não encontra como.
+      (Provável: um drawer/modal de edição sem affordance clara de
+      fechamento, ou um card que parece clicável mas não fecha.)
+- **O que melhorar**: garantir affordance clara de fechar em qualquer
+  superfície de edição (X no canto, backdrop dismiss, gesto de swipe).
+  Auditar as outras telas de edição do app com o mesmo critério.
+- **Critério de aceite**: toda tela/drawer de edição tem um caminho visível
+  e previsível de fechar/cancelar, sem que o usuário fique preso.
+
+### 7. Salvar sem **feedback visual** (toast) — ✅ resolvido 2026-09-05
+
+> `store/toastStore.ts` + `components/Toast.tsx`, global (sobrevive a
+> `router.back()`, montado uma vez em `_layout.tsx`). Estendido pro app
+> inteiro: cadastro/edição de remédio, pausar/reativar, foto, horário,
+> estoque, criar perfil — não só o pedido original. Confirmação em dois
+> canais (visual + hático), com cuidado pra não duplicar o hático que a
+> dose (Hoje) já tinha de propósito só na confirmação real do servidor.
+
+- [x] **Problema observado**: ao clicar em salvar, não há comprovação
+      visual do que aconteceu — nada confirma "salvo com sucesso".
+      Importante demais porque o público são **usuários idosos que
+      desconfiam da tecnologia**: sem confirmação, acham que quebrou ou
+      que não salvou.
+- **O que implementar**: toast/snackbar de confirmação "Remédio salvo ✓"
+  (e para erro, mensagem clara). Considerar também feedback nos dois
+  temas (claro/escuro), com tempo de leitura confortável (não sumir
+  rápido demais p/ leitura de idoso).
+- **Critério de aceite**: toda ação destrutiva/importante de salvar tem
+  confirmação visual explícita; erros são comunicados com linguagem clara,
+  sem "aconteceu nada".
+
+### 8. Registrar dose em **horário diferente** do agendado + recálculo da próxima
+
+- [ ] **Problema observado**: se eu tomei um remédio num horário diferente
+      do programado, como cadastro isso? Ex.: tomaria às 08h, mas tomei às
+      10h. Não há como registrar "tomei agora fora do horário" nem uma
+      opção de **recalcular a próxima dose com base no novo horário**.
+- **O que o usuário precisa**: (a) marcar "tomei" em qualquer momento
+  (não só no horário exato), e (b) decidir se as próximas doses devem ser
+  recalculadas a partir do novo horário real (ex.: intervalo a cada 8h a
+  partir das 10h = próxima às 18h) ou se mantém o ciclo original.
+- **Atenção**: esto tipo de flexibilidade é essencial pra adesão real
+  (a vida não segue o relógio), mas precisa de uma UI simples — para o
+  idoso, "recalcular a próxima" tem que ser uma escolha de 1 toque quando
+  houver diferença de horário.
+- **Critério de aceite**: consigo registrar uma dose fora do horário
+  previsto; o app pergunta se quero ajustar as próximas doses ao novo
+  horário; sim → recalculadas (mostrando o novo horário da próxima); não →
+  mantém o ciclo.
+
+### 9. Estoque: editar hoje só **reescreve** tudo — faltam "adicionar" e "definir" — ✅ resolvido 2026-09-05
+
+> Dois botões lado a lado ("Adicionar"/"Definir"), campo único —
+> semântica decidida pelo botão escolhido, não pelo texto digitado.
+> De quebra: botão "Editar" some enquanto o form está aberto (não
+> fazia sentido os dois ao mesmo tempo), mutação ganhou `onError`
+> (faltava — falha ficava muda) e dia com estoque zerado nunca tocado
+> mostra dica própria ("Estoque não informado") em vez de "0 unid" liso.
+
+- [x] **Problema observado**: no Estoque, o botão "editar" só permite
+      **reescrever** a quantidade (definir do zero). Mas a compra normal é
+      **adicionar** ao que já se tem (comprei 30, entro +30 sobre o que já
+      havia). O Rilson pede as **duas opções**.
+- **O que implementar**: no card/estoque de um remédio, oferecer as duas
+  ações: **"Adicionar"** (somar à quantidade atual — o caso de uso
+  frequente de compra) e **"Definir"** (setar o valor exato — correção/
+  contagem física). Evitar ambiguidade: dois botões claros, não um menú
+  escondido.
+- **Critério de aceite**: consigo tanto somar unidades ao estoque quanto
+  definir um valor exato, de forma óbvia, e o feedback visual (item 7)
+  confirma a operação.
+
+---
+
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
 
 Trabalho direto no código a partir do levantamento abaixo.

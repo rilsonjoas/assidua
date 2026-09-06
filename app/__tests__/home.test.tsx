@@ -6,6 +6,7 @@ import HomeScreen from '../app/(tabs)/index';
 import { useProfileStore } from '../store/profileStore';
 import * as dosesService from '../services/doses';
 import { api } from '../services/api';
+import * as Haptics from 'expo-haptics';
 
 jest.mock('../services/doses');
 jest.mock('../services/api', () => ({
@@ -80,6 +81,7 @@ describe('HomeScreen — marcar dose como tomada', () => {
     // mesma query — precisa responder de novo, não só na primeira vez.
     mockedDoses.getTodayDoses.mockResolvedValue([pendingDose]);
     mockedDoses.logDose.mockResolvedValueOnce({ ...pendingDose, status: 'taken' });
+    const hapticSpy = jest.spyOn(Haptics, 'notificationAsync').mockResolvedValue();
 
     renderHome();
 
@@ -96,6 +98,14 @@ describe('HomeScreen — marcar dose como tomada', () => {
           status: 'taken',
         }),
       );
+    });
+
+    // Achado real (2026-09-05): o toastStore passou a vibrar sozinho em
+    // todo showToast — sem `{ haptic: false }` aqui (ver index.tsx), a
+    // confirmação de dose online vibraria em dobro (uma vez pelo toast
+    // global, outra pela lógica própria desta tela).
+    await waitFor(() => {
+      expect(hapticSpy).toHaveBeenCalledTimes(1);
     });
   });
 

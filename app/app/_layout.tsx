@@ -19,6 +19,8 @@ import { queryClient } from '../services/queryClient';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { PrivacyBlur } from '../components/PrivacyBlur';
+import { Toast } from '../components/Toast';
+import { ModalCloseButton } from '../components/ModalCloseButton';
 
 import * as SentryWeb from '@sentry/react';
 
@@ -165,6 +167,7 @@ function ThemedLayout() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <OfflineBanner />
       <PrivacyBlur />
+      <Toast />
       {/* Frame responsivo: SÓ auth/onboarding ficam na coluna estreita
           centralizada no desktop (formulário esticado fica feio, e são
           telas de passagem única). Todo o resto controla a própria
@@ -188,6 +191,7 @@ function ThemedLayout() {
                 headerTitleStyle: { color: colors.text, fontWeight: '700' },
                 headerTintColor: colors.text,
                 headerShadowVisible: false,
+                headerLeft: () => <ModalCloseButton />,
               }}
             />
             <Stack.Screen
@@ -200,6 +204,7 @@ function ThemedLayout() {
                 headerTitleStyle: { color: colors.text, fontWeight: '700' },
                 headerTintColor: colors.text,
                 headerShadowVisible: false,
+                headerLeft: () => <ModalCloseButton />,
               }}
             />
             <Stack.Screen
@@ -212,6 +217,7 @@ function ThemedLayout() {
                 headerTitleStyle: { color: colors.text, fontWeight: '700' },
                 headerTintColor: colors.text,
                 headerShadowVisible: false,
+                headerLeft: () => <ModalCloseButton />,
               }}
             />
           </Stack>

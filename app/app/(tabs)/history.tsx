@@ -28,6 +28,7 @@ export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';
+import { AdherenceCalendar } from '../../components/AdherenceCalendar';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
@@ -209,6 +210,8 @@ export default function HistoryScreen() {
             )}
 
             <AdherenceChart data={weeklyAdherence} />
+
+            {activeProfile && <AdherenceCalendar profileId={activeProfile.id} />}
 
             <View style={[styles.consultationButtonsRow, isWide && styles.consultationButtonsRowWide]}>
               <TouchableOpacity

@@ -72,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profiles/{profile}/doses/history', [DoseLogController::class, 'history']);
     Route::get('/profiles/{profile}/streak', [DoseLogController::class, 'streak']);
     Route::get('/profiles/{profile}/weekly-adherence', [DoseLogController::class, 'weeklyAdherence']);
+    Route::get('/profiles/{profile}/daily-adherence', [DoseLogController::class, 'dailyAdherence']);
     Route::get('/profiles/{profile}/consultation-summary', [DoseLogController::class, 'consultationSummary']);
     Route::post('/dose-logs', [DoseLogController::class, 'store']);
     Route::delete('/dose-logs/{doseLog}', [DoseLogController::class, 'destroy']);
