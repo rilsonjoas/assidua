@@ -51,7 +51,9 @@
           "photosPermission": "O app usa suas fotos pra você reconhecer visualmente o medicamento.",
           "cameraPermission": "O app usa a câmera pra fotografar o medicamento."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {
