@@ -39,4 +39,20 @@ describe('AdherenceChart', () => {
     expect(screen.getByText('—')).toBeTruthy();
     expect(screen.queryByText(/Ainda não há doses registradas/)).toBeNull();
   });
+
+  // Achado real (2026-09-05): a legenda era texto hardcoded, nunca
+  // passava por `t()` — inconsistente com o AdherenceCalendar novo, que
+  // já usava i18n de verdade pra chave equivalente. Extraído pra
+  // `history.adherenceLegend*`, compartilhado pelos dois componentes.
+  it('legenda usa i18n, não texto hardcoded', () => {
+    const data: WeeklyAdherencePoint[] = [
+      { week_start: '2026-08-10', week_end: '2026-08-16', percentage: 80, taken: 8, due: 10 },
+    ];
+
+    render(<AdherenceChart data={data} />);
+
+    expect(screen.getByText('≥80% Ótimo')).toBeTruthy();
+    expect(screen.getByText('50-79% Atenção')).toBeTruthy();
+    expect(screen.getByText('<50% Baixo')).toBeTruthy();
+  });
 });

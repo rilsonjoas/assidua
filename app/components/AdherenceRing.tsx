@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
+import { getAdherenceColor } from '../lib/adherence';
 import { AppText as Text } from './AppText';
 
 interface AdherenceRingProps {
@@ -28,7 +29,7 @@ export function AdherenceRing({ taken, total, size = 56, strokeWidth = 6, trackC
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - pct / 100);
-  const ringColor = total === 0 ? colors.border : pct >= 80 ? colors.success : pct >= 50 ? colors.warning : colors.error;
+  const ringColor = total === 0 ? colors.border : getAdherenceColor(pct, colors);
 
   return (
     <View

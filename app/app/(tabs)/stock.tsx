@@ -292,15 +292,21 @@ function makeStyles(c: ThemeColors) {
     // compra ao que já tinha. `flexWrap` cobre telas estreitas, mesmo
     // padrão já usado no Histórico.
     editActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-    cancelBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+    // minHeight 48 nos três (WCAG AAA, achado revisando toque mínimo
+    // 2026-09-05) — sem isso ficavam ~30-32px de altura real, abaixo do
+    // alvo mínimo pro público idoso/baixa destreza motora do app.
+    cancelBtn: { paddingHorizontal: 10, paddingVertical: 6, minHeight: 48, justifyContent: 'center' },
     cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
     addBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 4,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
       borderWidth: 1.5, borderColor: c.brand, borderRadius: 8,
-      paddingHorizontal: 12, paddingVertical: 5,
+      paddingHorizontal: 12, paddingVertical: 5, minHeight: 48,
     },
     addBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
-    saveBtn: { backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, minWidth: 64, alignItems: 'center' },
+    saveBtn: {
+      backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+      minWidth: 64, minHeight: 48, alignItems: 'center', justifyContent: 'center',
+    },
     saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
   });
 }

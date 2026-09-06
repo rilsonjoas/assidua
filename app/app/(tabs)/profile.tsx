@@ -555,13 +555,21 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      {/* Achado real (2026-09-05): o toggle de Alto Contraste (abaixo)
+          entrou sem título de seção próprio, "grudado" visualmente na de
+          Tamanho da fonte — como as duas são ferramentas de
+          acessibilidade relacionadas (não uma depende da outra), um
+          título "Acessibilidade" cobrindo as duas deixa isso claro em
+          vez de parecer que o contraste é sub-item da fonte. */}
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{t('profile.accessibility')}</Text>
+
       {/* Tamanho da fonte (2026-08-14) — item #1 de acessibilidade pro
           público real do app (idoso, cuidador com baixa familiaridade
           digital), feito só depois da auditoria de responsividade
           (2026-08-13) confirmar margem de sobra até 1.3x sem quebrar
           layout. Ícone em 3 tamanhos crescentes serve de prévia visual
           — mesma ideia de "AAA" que seletor de fonte de SO usa. */}
-      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{t('profile.fontSize')}</Text>
+      <Text style={styles.subsectionLabel}>{t('profile.fontSize')}</Text>
       <View style={styles.themeRow}>
         {FONT_SCALE_OPTIONS.map((opt) => (
           <TouchableOpacity
@@ -596,7 +604,7 @@ export default function ProfileScreen() {
           `Switch` nativo (destoaria do resto do design do app, mesmo
           motivo documentado em `lib/alert.ts` no passado). */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 20 }]}
+        style={[styles.helpBtn, { marginTop: 14 }]}
         onPress={toggleHighContrast}
         accessibilityRole="switch"
         accessibilityLabel={t('profile.highContrast')}
@@ -858,6 +866,10 @@ function makeStyles(c: ThemeColors) {
     tierText: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
     tierPro: { color: '#fbbf24' },
     sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 4 },
+    // Rótulo de sub-item dentro de uma seção maior (ex.: "Tamanho da
+    // fonte" dentro de "Acessibilidade") — menor e mais discreto que
+    // sectionTitle, pra não competir com o título real da seção.
+    subsectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
     sectionHint: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 12 },
     emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 8 },
     emptyText: { fontSize: 15, fontWeight: '600', color: c.textMuted },

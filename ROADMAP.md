@@ -45,9 +45,7 @@
         `store/highContrastStore.ts`, toggle em Perfil › Aparência.
         Ortogonal ao claro/escuro (troca a paleta, não decide tema
         sozinho). Auditado em `__tests__/color-contrast.test.tsx` —
-        7:1 real, não só a meta declarada. Toque mínimo de 48px segue
-        pendente como auditoria própria (não entrou junto, escopo
-        maior que cabia aqui).
+        7:1 real, não só a meta declarada.
   - [x] **Calendário de adesão (verde/amarelo/vermelho)** —
         `components/AdherenceCalendar.tsx`, endpoint novo
         `GET /profiles/{id}/daily-adherence` (Laravel:
@@ -56,6 +54,36 @@
         disso, não duplica lógica). Mês atual por padrão, navegação
         prev/next, mesmo teto de profundidade grátis/Pro do gráfico
         semanal. 242/242 backend, 38/38 suítes mobile.
+
+### Follow-up de qualidade da v1.3 (2026-09-05/06)
+
+- [x] **DRY**: cor por percentual (`>=80/50/<50`) duplicada em 3
+      componentes — extraída pra `lib/adherence.ts` (`getAdherenceColor`).
+- [x] **i18n**: legenda do `AdherenceChart` (semanal) era texto
+      hardcoded, nunca passava por `t()` — inconsistente com o
+      `AdherenceCalendar` novo. Unificados em `history.adherenceLegend*`,
+      compartilhados pelos dois.
+- [x] **Seção "Acessibilidade"** em Perfil agrupando Tamanho da fonte +
+      Alto Contraste — antes o toggle de contraste não tinha título
+      próprio, parecia sub-item da fonte.
+- [x] **Toque mínimo de 48px (WCAG AAA)** — escopado só pro que foi
+      tocado nesta sessão (não é a auditoria do app inteiro, que
+      continua em aberto como item maior): botões Adicionar/Definir/
+      Cancelar do estoque, setas de navegação do calendário, CTA de
+      empty state (Home + Remédios) — todos ganharam `minHeight`/
+      `minWidth: 48`. Testado em `__tests__/touch-targets.test.tsx`.
+- [ ] Auditoria de toque mínimo do **resto do app** (fora do que foi
+      tocado aqui) — projeto à parte, escopo grande demais pra decidir
+      de passagem.
+
+Dependências (não é v1.3, é saúde do projeto pro build real que vem a
+seguir — ver commit `chore(deps)`): expo-font/expo-linking como
+dependência direta, expo-print/expo-sharing/expo-local-authentication
+realinhados ao SDK 56, `npm audit fix` (sem `--force`) até convergir
+(20→18 vulnerabilidades — as 18 restantes são ferramental de build sem
+exposição em runtime, ou exigiriam downgrade destrutivo pra "corrigir").
+Hermes V1 (regressão de memória, não segurança) fica pra uma sessão
+dedicada de upgrade do SDK 56→57.
 
 ---
 

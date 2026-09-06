@@ -136,7 +136,8 @@ function makeStyles(c: ThemeColors) {
     emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
     emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
     emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
-    emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 },
+    // minHeight 48 (WCAG AAA, achado revisando toque mínimo 2026-09-05).
+    emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8, minHeight: 48, justifyContent: 'center' },
     emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
     card: {
       backgroundColor: c.surface, borderRadius: 16,

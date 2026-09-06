@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getDailyAdherence, DailyAdherencePoint } from '../services/doses';
 import { bestTextColor } from '../lib/contrast';
+import { getAdherenceColor } from '../lib/adherence';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
@@ -63,9 +64,7 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
     // aplica". Distinção real: 0% (devia e não tomou) é vermelho de
     // propósito, bem diferente de "não tinha nada previsto".
     if (point.due === 0 || point.date > today) return null;
-    if (point.percentage! >= 80) return colors.success;
-    if (point.percentage! >= 50) return colors.warning;
-    return colors.error;
+    return getAdherenceColor(point.percentage!, colors);
   }
 
   return (
@@ -125,15 +124,15 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
-          <Text style={styles.legendText}>{t('history.calendarLegendGood')}</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendGood')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
-          <Text style={styles.legendText}>{t('history.calendarLegendMid')}</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendMid')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.error }]} />
-          <Text style={styles.legendText}>{t('history.calendarLegendLow')}</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendLow')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }]} />
@@ -159,7 +158,10 @@ function makeStyles(c: ThemeColors) {
       shadowOffset: { width: 0, height: 2 },
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    navBtn: { padding: 8 },
+    // minHeight/minWidth 48 (WCAG AAA, achado revisando toque mínimo
+    // 2026-09-05) — só `padding: 8` em cima de um ícone de 22px dava
+    // ~38px de área real, abaixo do alvo mínimo.
+    navBtn: { padding: 8, minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
     title: { fontSize: 15, fontWeight: '700', color: c.text, textTransform: 'capitalize' },
     weekdayRow: { flexDirection: 'row' },
     weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: c.textMuted },

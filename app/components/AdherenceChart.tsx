@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { WeeklyAdherencePoint } from '../services/doses';
+import { getAdherenceColor } from '../lib/adherence';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
@@ -40,13 +41,7 @@ export function AdherenceChart({ data }: { data: WeeklyAdherencePoint[] }) {
         {data.map((point) => {
           const hasData = point.percentage !== null;
           const pct = point.percentage ?? 0;
-          const barColor = !hasData
-            ? colors.border
-            : pct >= 80
-              ? colors.success
-              : pct >= 50
-                ? colors.warning
-                : colors.error;
+          const barColor = !hasData ? colors.border : getAdherenceColor(pct, colors);
           const barHeight = hasData ? Math.max(MIN_BAR_HEIGHT, (pct / 100) * MAX_BAR_HEIGHT) : MIN_BAR_HEIGHT;
           const weekLabel = point.week_start ? format(parseISO(point.week_start), 'dd/MM') : '';
 
@@ -76,15 +71,15 @@ export function AdherenceChart({ data }: { data: WeeklyAdherencePoint[] }) {
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
-          <Text style={styles.legendText}>≥80% Ótimo</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendGood')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
-          <Text style={styles.legendText}>50-79% Atenção</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendMid')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.error }]} />
-          <Text style={styles.legendText}>&lt;50% Baixo</Text>
+          <Text style={styles.legendText}>{t('history.adherenceLegendLow')}</Text>
         </View>
       </View>
     </View>
