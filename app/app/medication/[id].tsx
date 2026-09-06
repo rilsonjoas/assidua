@@ -427,27 +427,20 @@ export default function MedicationFormScreen() {
 
     if (result.canceled || !result.assets?.[0]) return;
 
-    // Achado real de uso (2026-09-06): câmera de celular moderno produz
-    // foto de vários MB mesmo só com o quality:0.7 acima (isso comprime,
-    // não redimensiona) — já bateu um 500 no servidor por causa disso
-    // (ver docker/uploads.ini). Redimensionar aqui pra um tamanho
-    // generoso o bastante pra "foto de referência da caixa do remédio"
-    // deixa a imagem tipicamente abaixo de 1MB, bem confortável mesmo
-    // que o limite do servidor mude de novo no futuro — resolve a causa
-    // (upload gigante), não só o sintoma (limite do servidor). Mesmo
-    // padrão de degradação graciosa do ImagePicker acima: sem o módulo
-    // nativo linkado ainda, sobe a foto original em vez de travar a
-    // funcionalidade inteira.
-    let uploadUri = result.assets[0].uri;
-    try {
-      const ImageManipulator = require('expo-image-manipulator');
-      const context = ImageManipulator.ImageManipulator.manipulate(uploadUri).resize({ width: 1280 });
-      const image = await context.renderAsync();
-      const resized = await image.saveAsync({ compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
-      uploadUri = resized.uri;
-    } catch (err) {
-      console.warn('[resizePhoto] seguindo com a imagem original:', err);
-    }
+    // Achado real de uso (2026-09-06): tentei redimensionar a foto aqui
+    // com `expo-image-manipulator` antes de subir (câmera de celular
+    // gera arquivo grande mesmo comprimido, ver docker/uploads.ini pro
+    // fix real do lado do servidor). Revertido no mesmo dia: mesmo
+    // dentro de um `try/catch` como o do ImagePicker acima, carregar o
+    // módulo nativo derrubou o app inteiro em produção (Sentry: "Cannot
+    // find native module 'ExpoImageManipulator'", `handled: no` — o
+    // catch não segurou). Diferente de expo-print (cujo require síncrono
+    // já é pego pelo catch), o carregamento desse módulo escapa de
+    // alguma forma que não deu pra confirmar com segurança sem um build
+    // real pra testar. Fica pra depois de um build de verdade — o fix
+    // do servidor (upload_max_filesize) já resolve o problema original
+    // sozinho, sem essa camada extra de risco.
+    const uploadUri = result.assets[0].uri;
 
     setUploadingPhoto(true);
     try {

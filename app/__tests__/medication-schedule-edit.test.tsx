@@ -29,16 +29,6 @@ jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn(),
   launchImageLibraryAsync: jest.fn(),
 }));
-// Achado real de uso (2026-09-06): câmera de celular produz foto de
-// vários MB — redimensionar antes de subir evita bater em limite de
-// tamanho do servidor de novo (ver docker/uploads.ini).
-const mockRenderAsync = jest.fn() as jest.Mock<any>;
-const mockResize = jest.fn(() => ({ renderAsync: mockRenderAsync })) as jest.Mock<any>;
-const mockManipulate = jest.fn(() => ({ resize: mockResize })) as jest.Mock<any>;
-jest.mock('expo-image-manipulator', () => ({
-  ImageManipulator: { manipulate: mockManipulate },
-  SaveFormat: { JPEG: 'jpeg' },
-}));
 
 const mockedMedications = jest.mocked(medicationsService);
 const mockedNotifications = jest.mocked(notificationsService);
@@ -801,32 +791,6 @@ describe('MedicationFormScreen — foto do medicamento (2026-08-13)', () => {
       expect(mockedMedications.uploadMedicationPhoto).toHaveBeenCalledWith(10, 'file:///tmp/foto.jpg');
     });
     expect(await screen.findByLabelText('Trocar foto')).toBeTruthy();
-  });
-
-  // Achado real de uso (2026-09-06): foto de câmera bateu erro 500 no
-  // servidor por causa do tamanho — redimensionar antes de subir evita
-  // a causa (upload gigante), não só aumenta o limite do servidor.
-  it('redimensiona a foto antes de subir quando o módulo está disponível', async () => {
-    mockedImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValueOnce({ granted: true } as any);
-    mockedImagePicker.launchImageLibraryAsync.mockResolvedValueOnce({
-      canceled: false,
-      assets: [{ uri: 'file:///tmp/foto-original-enorme.jpg' } as any],
-    } as any);
-    mockRenderAsync.mockResolvedValueOnce({
-      saveAsync: (jest.fn() as jest.Mock<any>).mockResolvedValueOnce({ uri: 'file:///tmp/foto-redimensionada.jpg' }),
-    });
-    mockedMedications.uploadMedicationPhoto.mockResolvedValueOnce({ ...medication, photo_url: 'https://api.example.com/storage/foto.jpg' } as any);
-
-    renderScreen();
-    fireEvent.press(await screen.findByLabelText('Adicionar foto'));
-    fireEvent.press(screen.getByText('Escolher da galeria'));
-
-    await waitFor(() => {
-      // Sobe a versão redimensionada, não a original enorme.
-      expect(mockedMedications.uploadMedicationPhoto).toHaveBeenCalledWith(10, 'file:///tmp/foto-redimensionada.jpg');
-    });
-    expect(mockManipulate).toHaveBeenCalledWith('file:///tmp/foto-original-enorme.jpg');
-    expect(mockResize).toHaveBeenCalledWith({ width: 1280 });
   });
 
   it('sem permissão de galeria, não chama upload', async () => {
