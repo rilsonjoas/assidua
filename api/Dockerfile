@@ -40,6 +40,7 @@ RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cac
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
