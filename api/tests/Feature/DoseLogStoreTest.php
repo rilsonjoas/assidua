@@ -88,6 +88,55 @@ class DoseLogStoreTest extends TestCase
         $this->assertSame(0, DoseLog::count());
     }
 
+    // Achado de auditoria de segurança (2026-09-08, IDOR): dose_schedule_id/
+    // medication_id só eram validados como "existe em algum lugar do
+    // banco", sem checar que pertencem ao profile_id autorizado. Um
+    // usuário podia enviar seu PRÓPRIO profile_id (passa no Gate) junto
+    // com um dose_schedule_id de OUTRO perfil — vazando nome/dosagem do
+    // medicamento alheio na resposta e sobrescrevendo o DoseLog dele.
+    public function test_dose_schedule_id_de_outro_perfil_e_rejeitado(): void
+    {
+        $attacker = User::factory()->create();
+        $attackerProfile = Profile::factory()->create(['user_id' => $attacker->id]);
+
+        $victim = User::factory()->create();
+        $victimProfile = Profile::factory()->create(['user_id' => $victim->id]);
+        $victimMedication = Medication::factory()->create(['profile_id' => $victimProfile->id, 'name' => 'Remédio Sigiloso da Vítima']);
+        $victimSchedule = $victimMedication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $response = $this->actingAs($attacker)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $victimSchedule->id,
+            'medication_id' => $victimMedication->id,
+            'profile_id' => $attackerProfile->id, // próprio profile, passa no Gate
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'taken',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertSame(0, DoseLog::count());
+        $response->assertDontSee('Remédio Sigiloso da Vítima');
+    }
+
+    public function test_medication_id_que_nao_bate_com_o_schedule_e_rejeitado(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medicationA = Medication::factory()->create(['profile_id' => $profile->id]);
+        $medicationB = Medication::factory()->create(['profile_id' => $profile->id]);
+        $scheduleA = $medicationA->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $response = $this->actingAs($user)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $scheduleA->id,
+            'medication_id' => $medicationB->id, // não é o medicamento do schedule A
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today()->setTimeFromTimeString('08:00:00')->toISOString(),
+            'status' => 'taken',
+        ]);
+
+        $response->assertNotFound();
+        $this->assertSame(0, DoseLog::count());
+    }
+
     public function test_rejeita_status_invalido(): void
     {
         $user = User::factory()->create();

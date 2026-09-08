@@ -139,4 +139,33 @@ class DataExportTest extends TestCase
         $this->assertStringContainsString('Dipirona', $content);
         $this->assertStringContainsString('Tomado', $content);
     }
+
+    // Achado de auditoria de segurança (2026-09-08, CSV Formula
+    // Injection): campo de texto livre (notas) começando com "=" virava
+    // uma fórmula ativa se a pessoa abrisse o CSV no Excel/Sheets.
+    public function test_export_csv_neutraliza_formula_em_campo_de_texto_livre(): void
+    {
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Maria',
+            'color' => '#6366f1',
+            'avatar_emoji' => 'account',
+            'timezone' => 'America/Recife',
+        ]);
+        $profile->medications()->create([
+            'name' => '=1+1',
+            'dosage' => '500',
+            'unit' => 'mg',
+            'notes' => '+CMD',
+            'color' => '#ef4444',
+            'is_active' => true,
+        ]);
+
+        $url = $this->actingAs($user)->postJson('/api/me/export-link', ['format' => 'csv'])->json('url');
+        $content = $this->get($url)->getContent();
+
+        $this->assertStringNotContainsString(';=1+1', $content);
+        $this->assertStringContainsString("'=1+1", $content);
+        $this->assertStringContainsString("'+CMD", $content);
+    }
 }

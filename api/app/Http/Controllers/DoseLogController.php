@@ -155,6 +155,21 @@ class DoseLogController extends Controller
         $profile = Profile::findOrFail($data['profile_id']);
         Gate::authorize('create', [DoseLog::class, $profile]);
 
+        // Segurança (2026-09-08, achado de auditoria — IDOR): dose_schedule_id
+        // e medication_id só eram validados como "existe em algum lugar do
+        // banco" (exists:tabela,id), sem checar que pertencem ao PRÓPRIO
+        // $profile já autorizado acima — os três IDs eram tratados como
+        // independentes. Um usuário autenticado podia enviar seu próprio
+        // profile_id (passa no Gate) junto com dose_schedule_id/medication_id
+        // de OUTRO perfil, lendo o medicamento alheio na resposta e
+        // sobrescrevendo (updateOrCreate) o DoseLog de terceiros. Agora
+        // resolve o schedule escopado ao profile — 404 se não pertencer a
+        // ele — e confere que o medication_id enviado bate com o do
+        // schedule, antes de tocar em qualquer registro.
+        $schedule = DoseSchedule::whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id))
+            ->findOrFail($data['dose_schedule_id']);
+        abort_unless($schedule->medication_id === (int) $data['medication_id'], 404);
+
         $scheduledAtFormatted = Carbon::parse($data['scheduled_at'])->setTimezone($profile->timezone)->format('Y-m-d H:i:s');
 
         $log = DoseLog::updateOrCreate(

@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 // LGPD art. 18, V — portabilidade: o usuário tem direito a receber os
 // próprios dados em formato estruturado. Fluxo em duas etapas de
@@ -54,6 +55,21 @@ class DataExportController extends Controller
 
         return response()->json($this->payloadFor($user))
             ->header('Content-Disposition', 'attachment; filename="assidua-dados.json"');
+    }
+
+    // Segurança (2026-09-08, achado de auditoria — CSV Formula Injection):
+    // nome/dosagem/instruções/notas do medicamento (texto livre digitado
+    // pelo próprio usuário) iam direto pra célula do CSV. Se um desses
+    // campos começar com =, +, -, ou @, Excel/Sheets pode interpretar
+    // como fórmula ao abrir o arquivo. Prefixo de apóstrofo é o padrão
+    // OWASP — o Excel mostra o texto literal, sem executar nada.
+    private function csvSafe(?string $value): string
+    {
+        $value ??= '';
+        if ($value !== '' && Str::startsWith($value, ['=', '+', '-', '@', "\t", "\r"])) {
+            return "'" . $value;
+        }
+        return $value;
     }
 
     private function downloadCsv(User $user)
@@ -116,12 +132,12 @@ class DataExportController extends Controller
                         $statusFormatted = $statusMap[$log->status] ?? $log->status ?? '';
 
                         fputcsv($handle, [
-                            $profile->name,
-                            $medication->name,
-                            $medication->dosage ?? '',
-                            $medication->unit ?? '',
-                            $medication->instructions ?? '',
-                            $medication->notes ?? '',
+                            $this->csvSafe($profile->name),
+                            $this->csvSafe($medication->name),
+                            $this->csvSafe($medication->dosage),
+                            $this->csvSafe($medication->unit),
+                            $this->csvSafe($medication->instructions),
+                            $this->csvSafe($medication->notes),
                             $medication->is_paused ? 'Sim' : 'Não',
                             $medication->stock ? $medication->stock->current_quantity : '',
                             $schedulesText,
@@ -132,12 +148,12 @@ class DataExportController extends Controller
                     }
                 } else {
                     fputcsv($handle, [
-                        $profile->name,
-                        $medication->name,
-                        $medication->dosage ?? '',
-                        $medication->unit ?? '',
-                        $medication->instructions ?? '',
-                        $medication->notes ?? '',
+                        $this->csvSafe($profile->name),
+                        $this->csvSafe($medication->name),
+                        $this->csvSafe($medication->dosage),
+                        $this->csvSafe($medication->unit),
+                        $this->csvSafe($medication->instructions),
+                        $this->csvSafe($medication->notes),
                         $medication->is_paused ? 'Sim' : 'Não',
                         $medication->stock ? $medication->stock->current_quantity : '',
                         $schedulesText,

@@ -44,7 +44,11 @@ class RevenueCatWebhookController extends Controller
     {
         $secret = config('services.revenuecat.webhook_secret');
 
-        if (! $secret || $request->header('Authorization') !== $secret) {
+        // Segurança (2026-09-08, achado de auditoria): !== compara byte a
+        // byte e retorna assim que acha a primeira diferença — janela
+        // teórica de timing side-channel contra o valor do secret.
+        // hash_equals() sempre compara em tempo constante.
+        if (! $secret || ! hash_equals($secret, (string) $request->header('Authorization'))) {
             return response()->json(['error' => 'unauthorized'], 401);
         }
 
