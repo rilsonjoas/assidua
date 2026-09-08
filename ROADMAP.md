@@ -882,7 +882,7 @@ localmente pra debugar, não só neste teste específico.
   uma varredura sistemática ainda; fica como item de backlog pra uma
   sessão dedicada só a isso.
 
-### Segunda leva — achados extras a pedido do Rilson (2026-09-08) — ⏳ implementado, aguardando commit/deploy
+### Segunda leva — achados extras a pedido do Rilson (2026-09-08) — ✅ resolvido
 
 > Depois de instalar o build e usar a tela de Estoque, o Rilson trouxe
 > uma queixa concreta (screenshot) e pediu 5-10 sugestões extras de
@@ -934,10 +934,11 @@ localmente pra debugar, não só neste teste específico.
       com `medications.length > 0`, mesma regra da Home.
 
 > Verificação: `npm test` (comando exato do CI) 2x estável, 44/44
-> suítes, 304/304 testes. Typecheck limpo. **Ainda não commitado nem
-> publicado** — Rilson pediu pra segurar até ele mandar.
+> suítes, 304/304 testes. Typecheck limpo. Commitado e publicado junto
+> com a terceira leva (ver abaixo) — commit `2b16950`, `eas update`
+> canal `preview` (update group `e66d8d59`), CI e Deploy VPS verdes.
 
-### Terceira leva — "cuidado compartilhado" de verdade (2026-09-08) — ⏳ implementado, aguardando commit/deploy
+### Terceira leva — "cuidado compartilhado" de verdade (2026-09-08) — ✅ resolvido
 
 > O Rilson perguntou direto: o uso normal do app é do usuário final
 > (o próprio paciente ou quem configurou pra ele), e o cuidador
@@ -988,12 +989,13 @@ localmente pra debugar, não só neste teste específico.
 > cancelar sem gerar nada); `profile-collaborators.test.tsx` atualizado
 > (o botão agora só navega, o fluxo de convidar/compartilhar de verdade
 > mudou pra suíte nova). Verificação: `npm test` (comando exato do CI)
-> 2x estável, 45/45 suítes, 312/312 testes. Typecheck limpo. **Ainda não
-> commitado nem publicado** — aguardando o Rilson mandar.
+> 2x estável, 45/45 suítes, 312/312 testes. Typecheck limpo. Commitado
+> (`2b16950`) e publicado via `eas update` canal `preview` (update
+> group `e66d8d59`) — CI e Deploy VPS verdes, sem incidentes.
 
 ---
 
-## Auditoria de segurança (2026-09-08) — ⏳ corrigido, aguardando commit/deploy
+## Auditoria de segurança (2026-09-08) — ✅ corrigido
 
 > Relatório gerado por outra sessão do Claude Code rodando em paralelo
 > (`docs/security-audit/`, não rastreado no git — script Python +
@@ -1056,8 +1058,9 @@ localmente pra debugar, não só neste teste específico.
 > de `subscription_tier` sob controle.
 >
 > Verificação: `./vendor/bin/sail artisan test` 2x estável, 255/255
-> testes backend. **Ainda não commitado nem publicado** — aguardando o
-> Rilson mandar.
+> testes backend. Commitado (`fe2c025`) e em produção via Deploy VPS
+> (CI verde, smoke test passou). `docs/security-audit/` (relatório de
+> outra sessão) permanece fora do git, intocado.
 
 ---
 
