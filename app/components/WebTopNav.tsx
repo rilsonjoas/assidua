@@ -107,11 +107,17 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     alignSelf: 'stretch',
   },
+  // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+  // navbar é web-only, mas "largo" também cobre tablet touch (ex.:
+  // iPad em paisagem), não só desktop com mouse. Cabe folgado dentro
+  // da barra de 56px.
   link: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 12,
+    minHeight: 48,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },

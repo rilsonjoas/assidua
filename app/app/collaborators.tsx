@@ -193,7 +193,7 @@ function makeStyles(c: ThemeColors) {
     },
     rowName: { fontSize: 15, fontWeight: '600', color: c.text },
     rowHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-    revokeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, minHeight: 44, justifyContent: 'center' },
+    revokeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, minHeight: 48, justifyContent: 'center' },
     revokeBtnText: { fontSize: 12, fontWeight: '600', color: c.error },
     inviteBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

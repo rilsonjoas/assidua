@@ -25,6 +25,7 @@ import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, Dose
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit, recalculateScheduleToday } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
+import { rescheduleTodayOccurrences } from '../../services/notifications';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { AdherenceRing } from '../../components/AdherenceRing';
@@ -204,24 +205,24 @@ export default function HomeScreen() {
       if (takenAt && dose.dose_schedule.interval_hours != null) {
         const diffMinutes = Math.abs(takenAt.getTime() - parseISO(dose.scheduled_at).getTime()) / 60000;
         if (diffMinutes >= 30) {
-          offerRecalculateToday(dose.dose_schedule_id, takenAt);
+          offerRecalculateToday(dose.dose_schedule_id, takenAt, dose.medication);
         }
       }
     },
   });
 
-  // ⚠️ Limitação conhecida e aceita (2026-09-08): isto só muda o que a
-  // tela Hoje mostra (via invalidateQueries — o backend já recalcula
-  // certo, ver GenerateScheduleOccurrences). Os LEMBRETES LOCAIS
-  // (notificação push) do resto do dia continuam nos horários antigos
-  // — `scheduleScheduleNotifications` usa gatilho `DAILY` recorrente
-  // (mesmo horário todo dia), sem conceito de "só hoje" no
-  // `expo-notifications`. Ajustar isso direito exigiria cancelar as
-  // notificações recorrentes de hoje e restaurá-las à meia-noite (job
-  // em background, nada garantido sem o app aberto) — risco/esforço
-  // não valeu a pena pro ganho, já que a tela (fonte de verdade real)
-  // já fica correta. Documentado aqui de propósito, não escondido.
-  function offerRecalculateToday(scheduleId: number, anchor: Date) {
+  function offerRecalculateToday(
+    scheduleId: number,
+    anchor: Date,
+    medication: { name: string; dosage: string | null; unit: string },
+  ) {
+    // `anchorLabel` (HH:mm no fuso do APARELHO) é só pra mostrar na
+    // mensagem — a pessoa lendo está olhando o próprio aparelho, então
+    // mostrar a hora local dela aqui é o certo. O que vai pro backend é
+    // `anchor.toISOString()`, o instante absoluto (2026-09-08, achado
+    // de auditoria de fuso horário) — o backend converte pro fuso do
+    // PERFIL antes de gravar, não confia mais num "H:i" nu que
+    // presumia aparelho e perfil no mesmo fuso.
     const anchorLabel = format(anchor, 'HH:mm');
     showAlert(
       t('home.recalculateTitle'),
@@ -230,9 +231,22 @@ export default function HomeScreen() {
         label: t('home.recalculateAction'),
         onPress: async () => {
           try {
-            await recalculateScheduleToday(scheduleId, anchorLabel);
+            const result = await recalculateScheduleToday(scheduleId, anchor.toISOString());
             queryClient.invalidateQueries({ queryKey: ['today-doses'] });
             showToast(t('home.recalculatedToast'));
+            // Resincroniza os lembretes locais (2026-09-08, revisitando
+            // a limitação aceita) — best-effort, de propósito: a tela
+            // Hoje já está correta pelo invalidateQueries acima
+            // (fonte de verdade real); se o agendamento de notificação
+            // falhar (permissão negada, etc.), não desfaz o recálculo
+            // nem assusta a pessoa com um erro sobre algo secundário.
+            rescheduleTodayOccurrences({
+              scheduleId,
+              todayOccurrences: result.today_occurrences,
+              medicationName: medication.name,
+              dosage: medication.dosage,
+              unit: medication.unit,
+            }).catch((err) => console.warn('[assidua] Falha ao resincronizar lembretes locais:', err));
           } catch (err: any) {
             showAlert(t('common.error'), err.response?.data?.message ?? t('home.errorRecalculate'));
           }
@@ -552,6 +566,7 @@ export default function HomeScreen() {
                       disabled={skipDose.isPending}
                       accessibilityRole="button"
                       accessibilityLabel={t('home.skipLabel', { name: maskedName, time })}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <MaterialCommunityIcons name="close" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
@@ -577,6 +592,7 @@ export default function HomeScreen() {
                     onPress={() => reactMutation.mutate(item)}
                     disabled={!!item.reacted_at || reactMutation.isPending}
                     accessibilityRole="button"
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     accessibilityLabel={
                       item.reacted_at
                         ? t('home.alreadyReacted')
@@ -709,8 +725,10 @@ function makeStyles(c: ThemeColors) {
     streakBadgeText: { color: '#f59e0b', fontWeight: '700', fontSize: 13 },
     progress: { color: c.headerSubtext, fontSize: 13, marginTop: 4 },
     profileList: { marginTop: 14 },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+    // troca de perfil ativo, ação real e usada com frequência.
     profileChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
+      flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48,
       backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20,
       paddingHorizontal: 12, paddingVertical: 6, marginRight: 8,
     },
@@ -757,9 +775,12 @@ function makeStyles(c: ThemeColors) {
     pendingSyncRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
     pendingSyncText: { fontSize: 10, color: c.textMuted },
     actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 12 },
+    // minHeight 48 nos 3 botões da fileira de ações (WCAG AAA, auditoria
+    // de toque mínimo 2026-09-08) — Tomei/Outro horário/Pular ficam lado
+    // a lado, então dividem a mesma altura mínima pra ficar alinhados.
     takeButton: {
-      flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.brand,
-      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: c.brand,
+      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, minHeight: 48,
     },
     takeButtonText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
     // "Foi em outro horário" (item 8, 2026-09-08; rótulo visível
@@ -767,11 +788,15 @@ function makeStyles(c: ThemeColors) {
     // não dava pra entender o que fazia). Ganhou texto, então não usa
     // mais o mesmo padding quadrado do skipButton ao lado.
     customTimeButton: {
-      flexDirection: 'row', alignItems: 'center', gap: 4,
-      paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minHeight: 48,
       backgroundColor: c.surfaceSecondary,
     },
     customTimeButtonText: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
+    // Sem minWidth/minHeight aqui de propósito — ícone "X" sozinho, lado
+    // a lado com dois botões que já têm texto; crescer o quadrado pra
+    // 48x48 inflava a fileira inteira. hitSlop no JSX (ver abaixo)
+    // resolve o toque mínimo sem mexer no visual.
     skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
     // Modal "Foi em outro horário?" — mesmo padrão visual de
     // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
@@ -791,12 +816,21 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12, padding: 14, fontSize: 18, color: c.text, textAlign: 'center',
     },
     modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-    modalCancelBtn: { flex: 1, padding: 13, borderRadius: 10, alignItems: 'center' },
+    // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08) — column
+    // layout, botão de largura cheia dentro do modal, crescer aqui é
+    // só um botão normal ficando mais alto, sem efeito colateral visual.
+    modalCancelBtn: { flex: 1, padding: 13, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     modalCancelText: { color: c.textSecondary, fontWeight: '600' },
-    modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center' },
+    modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     modalConfirmText: { color: c.onBrand, fontWeight: '600' },
-    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4 },
+    // minHeight 48 (2026-09-08) — badge com texto ("Tomado" + ícone de
+    // desfazer), não um ícone sozinho; cabe na altura que o card já tem
+    // (2 linhas de texto ao lado já passam de 48px), sem esticar nada.
+    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4, minHeight: 48 },
     undoIcon: { marginLeft: 2, opacity: 0.6 },
+    // Ícone de coração sozinho — hitSlop, não padding/minHeight
+    // (2026-09-08, mesmo raciocínio do skipButton acima): preserva o
+    // visual compacto, só expande a área de toque.
     reactButton: { paddingHorizontal: 12, paddingVertical: 8 },
     reactedIndicator: { paddingRight: 14 },
     takenText: { color: c.success, fontWeight: '600', fontSize: 13 },

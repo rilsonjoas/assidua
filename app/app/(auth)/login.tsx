@@ -178,9 +178,12 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
       borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12, color: c.text,
     },
+    // minHeight 48 explícito nos dois (WCAG AAA, auditoria de toque
+    // mínimo 2026-09-08) — o padding já batia perto de 48px, mas sem
+    // garantia (depende do tamanho de fonte do sistema).
     button: {
-      backgroundColor: c.brand, borderRadius: 12, padding: 16,
-      alignItems: 'center', marginTop: 8, marginBottom: 16,
+      backgroundColor: c.brand, borderRadius: 12, padding: 16, minHeight: 48,
+      alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 16,
     },
     buttonText: { color: c.onBrand, fontSize: 16, fontWeight: '600' },
     dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
@@ -188,11 +191,14 @@ function makeStyles(c: ThemeColors) {
     dividerText: { color: c.textMuted, fontSize: 13 },
     googleButton: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-      backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
+      backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border, minHeight: 48,
       borderRadius: 12, padding: 14, marginBottom: 16,
     },
     googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
-    link: { alignItems: 'center', marginTop: 20 },
+    // paddingVertical em vez de hitSlop (WCAG AAA, 2026-09-08) — nem
+    // `Link` (expo-router) nem `Text` aceitam `hitSlop`; crescer a
+    // própria caixa com padding é o jeito que funciona pros dois.
+    link: { alignItems: 'center', justifyContent: 'center', marginTop: 20, paddingVertical: 14, minHeight: 48 },
     linkText: { textAlign: 'center', color: c.brand, fontSize: 15 },
   });
 }

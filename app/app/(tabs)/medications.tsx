@@ -205,8 +205,12 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row', flexWrap: 'wrap', gap: 8,
       paddingHorizontal: 16, paddingTop: 16,
     },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+    // só 2 chips numa fileira, sobra espaço de sobra pra crescer sem
+    // apertar nada.
     sortChip: {
-      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, minHeight: 48,
+      alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     sortChipActive: { backgroundColor: c.brand, borderColor: c.brand },

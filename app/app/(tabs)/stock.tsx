@@ -286,7 +286,10 @@ function makeStyles(c: ThemeColors) {
     // diferente da linha apertada de perfil.
     // marginTop nos dois: alinha opticamente com a primeira linha do nome
     // agora que o card usa `alignItems: 'flex-start'` (ver nota em `card`).
-    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginTop: 2 },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+    // ícone+texto, não ícone sozinho; o card tem espaço de sobra, então
+    // crescer aqui não aperta nada ao redor.
+    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginTop: 2, minHeight: 48 },
     editBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
     colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14, marginTop: 3 },
     info: { flex: 1 },

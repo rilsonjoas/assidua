@@ -188,6 +188,62 @@ export async function registerPushToken(): Promise<void> {
   }
 }
 
+// "Recalcular hoje" resincroniza os lembretes locais (2026-09-08,
+// revisitando a limitação aceita do item 8). O gatilho DAILY do Expo
+// não tem conceito de "só hoje" — cancelar o recorrente de hoje também
+// cancelaria o de amanhã, e restaurar depois exigiria um job de
+// background (nada garantido sem o app aberto, mesmo risco/esforço já
+// descartado antes). Em vez de mexer no recorrente, ADICIONA lembretes
+// avulsos (gatilho `DATE`, dispara uma vez só) nos horários novos de
+// hoje. O recorrente antigo continua existindo e ainda dispara nos
+// horários de antes — não é perfeito (pode chegar um aviso a mais, no
+// horário velho), mas resolve o problema real (não ficar SEM aviso no
+// horário novo) sem arriscar quebrar os lembretes de amanhã.
+export async function rescheduleTodayOccurrences(params: {
+  scheduleId: number;
+  todayOccurrences: string[]; // ISO — vem de recalculateScheduleToday
+  medicationName: string;
+  dosage: string | null;
+  unit: string;
+}): Promise<void> {
+  const { scheduleId, todayOccurrences, medicationName, dosage, unit } = params;
+  const body = formatDosageUnit(dosage, unit);
+  const prefix = `schedule_${scheduleId}_todayOverride_`;
+
+  // Cancela avulsos de uma recalculada anterior no mesmo dia, senão
+  // recalcular duas vezes seguidas acumula lembretes duplicados.
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(
+    all
+      .filter((n) => n.identifier.startsWith(prefix))
+      .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
+  );
+
+  const now = Date.now();
+  await Promise.all(
+    todayOccurrences
+      .map((iso) => new Date(iso))
+      // Só o que ainda vai acontecer — agendar gatilho DATE no passado
+      // dispara na hora (ou dá erro, dependendo da versão do SO).
+      .filter((date) => date.getTime() > now)
+      .map((date, index) =>
+        Notifications.scheduleNotificationAsync({
+          identifier: `${prefix}${index}`,
+          content: {
+            title: `Hora de tomar ${medicationName}`,
+            body,
+            sound: true,
+            data: { scheduleId },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date,
+          },
+        }),
+      ),
+  );
+}
+
 export async function cancelScheduleNotifications(scheduleId: number): Promise<void> {
   const all = await Notifications.getAllScheduledNotificationsAsync();
   const prefix = `schedule_${scheduleId}_`;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
 // Achado real de uso (2026-08-14), corrigido no mesmo dia: schedule de
 // intervalo (ex.: de 8 em 8h) gera mais de uma dose por dia, mas o
@@ -19,11 +19,11 @@ jest.mock('expo-notifications', () => ({
   cancelScheduledNotificationAsync: (...args: unknown[]) => mockCancelScheduledNotificationAsync(...args),
   getAllScheduledNotificationsAsync: (...args: unknown[]) => mockGetAllScheduledNotificationsAsync(...args),
   AndroidImportance: { HIGH: 4 },
-  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly', TIME_INTERVAL: 'timeInterval' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily', WEEKLY: 'weekly', TIME_INTERVAL: 'timeInterval', DATE: 'date' },
 }));
 jest.mock('expo-constants', () => ({ expoConfig: { extra: {} } }));
 
-import { scheduleScheduleNotifications } from '../services/notifications';
+import { scheduleScheduleNotifications, rescheduleTodayOccurrences } from '../services/notifications';
 
 describe('scheduleScheduleNotifications — modo intervalo', () => {
   beforeEach(() => {
@@ -100,5 +100,77 @@ describe('scheduleScheduleNotifications — modo intervalo', () => {
         trigger: expect.objectContaining({ type: 'daily', hour: 8, minute: 0 }),
       }),
     );
+  });
+});
+
+// "Recalcular hoje resincroniza notificações locais" (2026-09-08,
+// revisitando a limitação aceita do item 8) — em vez de mexer no
+// recorrente DAILY (cancelar hoje cancelaria amanhã também, sem
+// conceito de "só hoje" no Expo), adiciona lembretes avulsos (gatilho
+// DATE, uma vez só) nos horários novos de hoje.
+describe('rescheduleTodayOccurrences', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T14:00:00.000Z'));
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('agenda um lembrete avulso (gatilho DATE) por ocorrência futura de hoje', async () => {
+    await rescheduleTodayOccurrences({
+      scheduleId: 7,
+      todayOccurrences: ['2026-08-08T18:00:00+00:00', '2026-08-09T02:00:00+00:00'],
+      medicationName: 'Losartana',
+      dosage: '50',
+      unit: 'mg',
+    });
+
+    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(2);
+    const calls = mockScheduleNotificationAsync.mock.calls as any[];
+    expect(calls[0][0].trigger).toEqual({ type: 'date', date: new Date('2026-08-08T18:00:00+00:00') });
+    expect(calls[0][0].identifier).toBe('schedule_7_todayOverride_0');
+    expect(calls[0][0].content.title).toContain('Losartana');
+  });
+
+  it('não agenda ocorrência que já passou (evita disparo imediato/erro)', async () => {
+    await rescheduleTodayOccurrences({
+      scheduleId: 7,
+      // 14h "agora" (ver beforeEach) — 10h já passou, 18h ainda não.
+      todayOccurrences: ['2026-08-08T10:00:00+00:00', '2026-08-08T18:00:00+00:00'],
+      medicationName: 'Losartana',
+      dosage: '50',
+      unit: 'mg',
+    });
+
+    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    expect((mockScheduleNotificationAsync.mock.calls[0] as any)[0].trigger.date).toEqual(
+      new Date('2026-08-08T18:00:00+00:00'),
+    );
+  });
+
+  it('cancela avulsos de uma recalculada anterior antes de agendar os novos (sem acumular duplicata)', async () => {
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'schedule_7_todayOverride_0' },
+      { identifier: 'schedule_7_todayOverride_1' },
+      // Recorrente normal — não é dessa recalculada, não deve ser tocado.
+      { identifier: 'schedule_7_interval_0' },
+    ]);
+
+    await rescheduleTodayOccurrences({
+      scheduleId: 7,
+      todayOccurrences: ['2026-08-08T18:00:00+00:00'],
+      medicationName: 'Losartana',
+      dosage: '50',
+      unit: 'mg',
+    });
+
+    expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledTimes(2);
+    expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_7_todayOverride_0');
+    expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_7_todayOverride_1');
+    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalledWith('schedule_7_interval_0');
   });
 });

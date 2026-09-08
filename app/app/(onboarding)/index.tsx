@@ -64,7 +64,16 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.container} onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}>
-      <TouchableOpacity style={styles.skip} onPress={finish} accessibilityRole="button" accessibilityLabel={t('onboarding.skipLabel')}>
+      <TouchableOpacity
+        style={styles.skip}
+        onPress={finish}
+        accessibilityRole="button"
+        accessibilityLabel={t('onboarding.skipLabel')}
+        // hitSlop (WCAG AAA, auditoria de toque mínimo 2026-09-08) — só
+        // texto, sem padding, ficava bem abaixo de 48px; sozinho no
+        // canto, sem vizinho pra se preocupar em sobrepor.
+        hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+      >
         <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </TouchableOpacity>
 
@@ -142,7 +151,9 @@ function makeStyles(c: ThemeColors) {
     dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 24 },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
     dotActive: { backgroundColor: c.brand, width: 20 },
-    nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginHorizontal: 24 },
+    // minHeight 48 explícito (WCAG AAA, 2026-09-08) — já batia perto via
+    // padding, mas sem garantia (depende do tamanho de fonte do sistema).
+    nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginHorizontal: 24 },
     nextBtnWide: { alignSelf: 'center', width: '100%', maxWidth: 480, marginHorizontal: 0 },
     nextBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
   });

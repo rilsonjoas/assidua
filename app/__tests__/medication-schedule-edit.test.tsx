@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1292,5 +1292,42 @@ describe('MedicationFormScreen — limite de medicamentos do plano gratuito (202
     expect(await screen.findByText('Erro')).toBeTruthy();
     expect(screen.getByText('Nome inválido.')).toBeTruthy();
     expect(screen.queryByLabelText('Ver planos Pro')).toBeNull();
+  });
+});
+
+// Auditoria de toque mínimo de 48px (WCAG AAA), 2026-09-08 — caso de
+// maior risco do formulário: editar (lápis) e excluir (lixeira) ficam
+// lado a lado, sozinhos, num horário já cadastrado. hitSlop cresce a
+// área de toque sem crescer os ícones (cresceriam a fileira inteira),
+// mas hitSlop grande demais nos dois faria as áreas se sobreporem —
+// risco real de tocar "excluir" tentando tocar "editar". O espaço
+// entre eles (`gap` do card + `marginLeft` do botão de excluir) foi
+// aumentado de propósito pra caber hitSlop de 10px nos dois lados sem
+// disputa.
+describe('MedicationFormScreen — toque mínimo dos ícones editar/excluir horário (2026-09-08)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSearchParams.mockReturnValue({ id: '10' });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedication.mockResolvedValue(medication as any);
+  });
+
+  it('editar e excluir horário têm hitSlop de 10px sem sobrepor um o outro', async () => {
+    renderScreen();
+
+    const editBtn = await screen.findByLabelText(/^Editar horário/);
+    const deleteBtn = await screen.findByLabelText(/^Remover horário/);
+
+    expect(editBtn.props.hitSlop).toEqual({ top: 10, bottom: 10, left: 10, right: 10 });
+    expect(deleteBtn.props.hitSlop).toEqual({ top: 10, bottom: 10, left: 10, right: 10 });
+
+    // Vão real entre os dois (gap do card + marginLeft do delete) tem
+    // que ser maior que a soma dos dois hitSlops voltados um pro outro
+    // (10 + 10 = 20), senão as áreas de toque se sobrepõem.
+    const cardGap = 12; // scheduleCard: { gap: 12 }
+    const deleteBtnMarginLeft = StyleSheet.flatten(deleteBtn.props.style).marginLeft ?? 0;
+    const realGapBetweenThem = cardGap + deleteBtnMarginLeft;
+    const combinedFacingHitSlop = editBtn.props.hitSlop.right + deleteBtn.props.hitSlop.left;
+    expect(realGapBetweenThem).toBeGreaterThan(combinedFacingHitSlop);
   });
 });

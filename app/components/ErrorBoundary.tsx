@@ -125,6 +125,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
+  // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
   button: {
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -132,6 +133,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    minHeight: 48,
   },
   buttonText: {
     color: '#ffffff',

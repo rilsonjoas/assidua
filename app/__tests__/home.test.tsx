@@ -7,6 +7,7 @@ import HomeScreen from '../app/(tabs)/index';
 import { useProfileStore } from '../store/profileStore';
 import * as dosesService from '../services/doses';
 import * as medicationsService from '../services/medications';
+import * as notificationsService from '../services/notifications';
 import { api } from '../services/api';
 import * as Haptics from 'expo-haptics';
 
@@ -15,12 +16,17 @@ jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
   recalculateScheduleToday: jest.fn(),
 }));
+// "Recalcular hoje resincroniza notificações locais" (2026-09-08) —
+// index.tsx passou a chamar rescheduleTodayOccurrences; auto-mock (não
+// precisa de implementação real, expo-notifications não roda no Jest).
+jest.mock('../services/notifications');
 jest.mock('../services/api', () => ({
   api: { get: jest.fn(), put: jest.fn(), post: jest.fn() },
 }));
 
 const mockedDoses = jest.mocked(dosesService);
 const mockedMedications = jest.mocked(medicationsService);
+const mockedNotifications = jest.mocked(notificationsService);
 const mockedApi = jest.mocked(api);
 
 const profile = {
@@ -376,6 +382,7 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
     jest.spyOn(Haptics, 'notificationAsync').mockResolvedValue();
+    mockedNotifications.rescheduleTodayOccurrences.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -456,8 +463,28 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     fireEvent.press(screen.getByText('Registrar'));
     fireEvent.press(await screen.findByLabelText('Ajustar'));
 
+    // Instante absoluto (ISO), não mais "H:i" nu (2026-09-08, achado de
+    // auditoria de fuso horário — ver ROADMAP.md). `new Date()` bate com
+    // o dia de `scheduled_at` porque o "agora" congelado no beforeEach é
+    // o mesmo instante.
+    const expectedAnchor = new Date();
+    expectedAnchor.setHours(20, 0, 0, 0);
+
     await waitFor(() => {
-      expect(mockedMedications.recalculateScheduleToday).toHaveBeenCalledWith(7, '20:00');
+      expect(mockedMedications.recalculateScheduleToday).toHaveBeenCalledWith(7, expectedAnchor.toISOString());
+    });
+
+    // Resincroniza os lembretes locais (2026-09-08, revisitando a
+    // limitação aceita) — usa exatamente os `today_occurrences` que
+    // recalculateScheduleToday devolveu, não recalcula por conta própria.
+    await waitFor(() => {
+      expect(mockedNotifications.rescheduleTodayOccurrences).toHaveBeenCalledWith({
+        scheduleId: 7,
+        todayOccurrences: ['2026-08-08T20:00:00+00:00'],
+        medicationName: 'Losartana',
+        dosage: '50',
+        unit: 'mg',
+      });
     });
   });
 

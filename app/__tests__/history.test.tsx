@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HistoryScreen from '../app/(tabs)/history';
 import { useProfileStore } from '../store/profileStore';
+import { useAuthStore } from '../store/authStore';
 import * as dosesService from '../services/doses';
 import * as medicationsService from '../services/medications';
 
@@ -206,6 +207,10 @@ describe('HistoryScreen — gráfico de adesão (Fase 2, 2026-08-13)', () => {
 describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // PDF virou exclusivo Pro (2026-09-08) — esta suíte testa o fluxo de
+    // gerar em si, então simula usuário Pro; o gate em si (usuário free)
+    // tem suíte própria logo abaixo.
+    useAuthStore.setState({ user: { id: 10, name: 'Rilson', email: 'r@x.com', subscription_tier: 'pro' } as any });
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedMedications.getMedications.mockResolvedValue([losartana, paracetamol] as any);
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
@@ -273,5 +278,57 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
 
     expect(screen.queryByText('Vai gerar o relatório de todos os medicamentos, últimos 30 dias.')).toBeNull();
     expect(mockedDoses.getConsultationSummary).not.toHaveBeenCalled();
+  });
+});
+
+// "PDF vira exclusivo Pro" (2026-09-08, decisão do Rilson) — usuário
+// free vê o botão (com selo "Pro"), mas tocar abre um convite pra
+// assinar em vez do fluxo de gerar; "Compartilhar resumo" (texto),
+// dados idênticos, continua livre — não testado aqui de novo.
+describe('HistoryScreen — PDF exclusivo Pro (2026-09-08)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuthStore.setState({ user: { id: 10, name: 'Rilson', email: 'r@x.com', subscription_tier: 'free' } as any });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedications.mockResolvedValue([losartana, paracetamol] as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
+    mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
+  });
+
+  it('usuário free vê o selo "Pro" no botão de PDF', async () => {
+    renderHistory();
+
+    expect(await screen.findByLabelText('Gerar Relatório Médico em PDF, recurso Pro')).toBeTruthy();
+  });
+
+  it('tocar no PDF sem ser Pro convida pra assinar, sem gerar nada', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Gerar Relatório Médico em PDF, recurso Pro'));
+
+    expect(await screen.findByText('Relatório em PDF é um recurso Pro')).toBeTruthy();
+    expect(mockedDoses.getConsultationSummary).not.toHaveBeenCalled();
+  });
+
+  it('confirmar o convite no diálogo navega pra /pro', async () => {
+    const { router } = require('expo-router');
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Gerar Relatório Médico em PDF, recurso Pro'));
+    fireEvent.press(await screen.findByText('Ver o Pro'));
+
+    expect(router.push).toHaveBeenCalledWith('/pro');
+  });
+
+  it('"Compartilhar resumo" continua livre pra usuário free', async () => {
+    mockedDoses.getConsultationSummary.mockResolvedValue({ percentage: 90, taken: 9, due: 10, missed: [] } as any);
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Compartilhar resumo pra consulta'));
+
+    await waitFor(() => {
+      expect(mockedDoses.getConsultationSummary).toHaveBeenCalled();
+    });
   });
 });

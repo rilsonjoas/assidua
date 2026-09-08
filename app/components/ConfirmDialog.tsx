@@ -87,12 +87,20 @@ function makeStyles(c: ThemeColors) {
     title: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 8 },
     message: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
     actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    // minHeight 48 + justifyContent nos 2 (WCAG AAA, auditoria de toque
+    // mínimo 2026-09-08) — mesmo raciocínio do AlertDialog: column
+    // layout, sem justifyContent o texto não centralizaria numa caixa
+    // mais alta. Usado em toda confirmação sim/não do app.
     cancelBtn: {
       flex: 1, padding: 13, borderRadius: 10,
-      borderWidth: 1, borderColor: c.border, alignItems: 'center',
+      borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     cancelText: { color: c.textSecondary, fontWeight: '600' },
-    confirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center' },
+    confirmBtn: {
+      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     confirmBtnDestructive: { backgroundColor: c.error },
     confirmText: { color: c.onBrand, fontWeight: '600' },
   });

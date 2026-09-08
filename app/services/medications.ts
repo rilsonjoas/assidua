@@ -116,11 +116,17 @@ export async function deleteSchedule(id: number): Promise<void> {
 // fixo com 422 — recálculo não faz sentido pra fixo, que só registra
 // atrasado). `today_occurrences` já vem calculado, poupa um segundo
 // round-trip só pra saber o que reagendar como notificação local.
-export async function recalculateScheduleToday(scheduleId: number, anchorTime: string): Promise<{
+// Fuso horário (2026-09-08, achado de auditoria) — `anchorInstant` é um
+// instante absoluto (ISO 8601, ex.: `Date.toISOString()`), não mais um
+// "H:i" nu montado no fuso do aparelho de quem confirma. O backend
+// converte pro fuso do PERFIL antes de gravar — sem isso, um cuidador
+// remoto em outro fuso enviava um horário "local dele" que o backend
+// tratava como se já fosse hora do perfil, deslocando o recálculo.
+export async function recalculateScheduleToday(scheduleId: number, anchorInstant: string): Promise<{
   schedule: DoseSchedule;
   today_occurrences: string[];
 }> {
-  const { data } = await api.post(`/schedules/${scheduleId}/recalculate-today`, { anchor_time: anchorTime });
+  const { data } = await api.post(`/schedules/${scheduleId}/recalculate-today`, { anchor_time: anchorInstant });
   return data;
 }
 

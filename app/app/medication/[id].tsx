@@ -1213,6 +1213,7 @@ export default function MedicationFormScreen() {
                 style={styles.editBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('stock.editLabel', { name: maskMedicationName(name, isPrivate) })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -1231,6 +1232,11 @@ export default function MedicationFormScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('medicationForm.colorOptionLabel', { index: i + 1 })}
             accessibilityState={{ selected: color === c }}
+            // hitSlop, não crescer o swatch (WCAG AAA, auditoria de toque
+            // mínimo 2026-09-08) — 10px de `gap` entre vizinhos, então
+            // 5px de cada lado é o máximo sem sobrepor a área de toque
+            // do vizinho (evita selecionar a cor errada).
+            hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
           />
         ))}
       </View>
@@ -1382,6 +1388,7 @@ export default function MedicationFormScreen() {
                 style={styles.editBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('medicationForm.editLabel', { time: s.time, days: formatDays(s.days_of_week, t, s.interval_hours) })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -1390,6 +1397,7 @@ export default function MedicationFormScreen() {
                 style={styles.deleteBtn}
                 accessibilityRole="button"
                 accessibilityLabel={t('medicationForm.removeLabel', { time: s.time, days: formatDays(s.days_of_week, t, s.interval_hours) })}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
               </TouchableOpacity>
@@ -1530,6 +1538,7 @@ export default function MedicationFormScreen() {
                   style={styles.editBtn}
                   accessibilityRole="button"
                   accessibilityLabel={t('medicationForm.editLabel', { time: draft.time, days: summary })}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -1538,6 +1547,7 @@ export default function MedicationFormScreen() {
                   style={styles.deleteBtn}
                   accessibilityRole="button"
                   accessibilityLabel={t('medicationForm.removeLabel', { time: draft.time, days: summary })}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
                 </TouchableOpacity>
@@ -1811,9 +1821,10 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center', marginTop: 24,
     },
     saveBtnText: { color: c.onBrand, fontSize: 16, fontWeight: '700' },
+    // minHeight 48 (WCAG AAA, 2026-09-08).
     pauseBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderRadius: 12, padding: 13, marginTop: 10,
+      borderRadius: 12, padding: 13, marginTop: 10, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     pauseBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
@@ -1831,8 +1842,10 @@ function makeStyles(c: ThemeColors) {
       marginTop: 20, paddingVertical: 12, minHeight: 48,
     },
     deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: 14 },
+    // minHeight 48 (WCAG AAA, 2026-09-08) — sozinho na própria linha,
+    // sem vizinho apertado, cresce sem custo nenhum de layout.
     addScheduleBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 4,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48,
       backgroundColor: c.brandSubtle, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     },
     addScheduleBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
@@ -1857,13 +1870,29 @@ function makeStyles(c: ThemeColors) {
     scheduleInfo: { flex: 1 },
     scheduleTime: { fontSize: 17, fontWeight: '700', color: c.text },
     scheduleDays: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    // Ícones só (lápis/lixeira) numa fileira apertada — hitSlop, não
+    // crescer a caixa visual (auditoria de toque mínimo, 2026-09-08).
+    // marginLeft do deleteBtn subiu de 4 pra 14 (+ gap:12 do scheduleCard
+    // = 26px de vão real) de propósito: com hitSlop de 10px nos dois,
+    // cada um chega em 48px de área de toque sem as duas zonas se
+    // sobreporem — evita tocar "excluir" tentando tocar "editar" (ou o
+    // contrário) num remédio de idoso, risco real, não só estética.
     editBtn: { padding: 4 },
-    deleteBtn: { padding: 4, marginLeft: 4 },
+    deleteBtn: { padding: 4, marginLeft: 14 },
     addScheduleBox: {
       backgroundColor: c.surface, borderRadius: 14, padding: 16,
       borderWidth: 1, borderColor: c.border, marginTop: 4,
     },
     addScheduleTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
+    // Exceção deliberada na auditoria de toque mínimo (2026-09-08): 7
+    // círculos numa fileira só (dom-sáb) não cabem em 48px cada — nem
+    // com a tela cheia de largura (~360-390px), 7×48px sozinho já
+    // estoura o espaço disponível, sem sobrar nada pra gap ou padding
+    // da tela. Forçar 48 aqui quebraria a fileira (overflow/wrap feio),
+    // pior pra usabilidade do que manter os 38px. Mesmo padrão aceito
+    // por seletores de dia da semana de calendário em geral (iOS
+    // Lembretes, Google Agenda). `gap:6` entre eles ajuda a separar o
+    // toque sem crescer o círculo.
     daysRow: { flexDirection: 'row', gap: 6, marginTop: 4, justifyContent: 'space-between' },
     dayBtn: {
       flex: 1,
@@ -1878,8 +1907,11 @@ function makeStyles(c: ThemeColors) {
     // — largura pelo conteúdo e quebra de linha, diferente dos botões
     // flex:1 acima: "4x por dia" não cabe espremido em quarto de tela.
     presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, marginBottom: 6 },
+    // minHeight 48 (WCAG AAA, 2026-09-08) — a fileira já quebra linha
+    // (`flexWrap: 'wrap'` em presetRow), então crescer não aperta nada.
     presetChip: {
-      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, minHeight: 48,
+      alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     presetChipActive: { backgroundColor: c.brand, borderColor: c.brand },
@@ -1887,12 +1919,19 @@ function makeStyles(c: ThemeColors) {
     presetChipTextActive: { color: c.onBrand },
     fieldHint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
     addScheduleActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    // minHeight 48 + justifyContent nos 2 (WCAG AAA, auditoria de toque
+    // mínimo 2026-09-08) — pares de botão de largura cheia (estoque,
+    // formulário de horário), sem efeito colateral de layout ao crescer.
     cancelBtn: {
       flex: 1, padding: 12, borderRadius: 10,
-      borderWidth: 1, borderColor: c.border, alignItems: 'center',
+      borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     cancelBtnText: { color: c.textSecondary, fontWeight: '600' },
-    confirmBtn: { flex: 1, backgroundColor: c.brand, padding: 12, borderRadius: 10, alignItems: 'center' },
+    confirmBtn: {
+      flex: 1, backgroundColor: c.brand, padding: 12, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     confirmBtnText: { color: c.onBrand, fontWeight: '600' },
     // Estoque editável na tela do remédio (2026-09-07, item 13) — mesmo
     // par Adicionar/Definir de app/(tabs)/stock.tsx, adaptado aos
@@ -1948,10 +1987,13 @@ function makeStyles(c: ThemeColors) {
       fontWeight: '600',
       color: c.text,
     },
+    // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08).
     modalCancelButton: {
       marginTop: 4,
       paddingVertical: 12,
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 48,
     },
     modalCancelText: {
       fontSize: 15,

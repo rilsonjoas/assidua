@@ -16,7 +16,9 @@ import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { ptBR, enUS, es } from 'date-fns/locale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 import { useProfileStore } from '../../store/profileStore';
+import { useAuthStore } from '../../store/authStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { generateConsultationReportHtml } from '../../lib/reportHtml';
@@ -66,8 +68,17 @@ function groupByDate(logs: DoseLog[], lang: string, t: (key: string) => string):
 
 export default function HistoryScreen() {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const { activeProfile } = useProfileStore();
   const { isPrivate } = usePrivacyStore();
+  // Relatório em PDF virou exclusivo Pro (2026-09-08, decisão do
+  // Rilson) — "Compartilhar resumo" (texto simples, mesmos dados)
+  // continua livre pra todo mundo; só o PDF em si pede upgrade. Sem
+  // gate no backend de propósito: o dado por trás (consultation
+  // summary) já é o mesmo que "Compartilhar resumo" expõe de graça —
+  // aqui é decisão de produto (qual botão exige Pro), não fronteira de
+  // segurança/dado sensível.
+  const isPro = useAuthStore((s) => s.user?.subscription_tier === 'pro');
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -187,6 +198,13 @@ export default function HistoryScreen() {
   // confirmar.
   function requestPrintReport() {
     if (!activeProfile) return;
+    if (!isPro) {
+      showAlert(t('history.pdfProTitle'), t('history.pdfProMessage'), {
+        label: t('history.pdfProAction'),
+        onPress: () => router.push('/pro'),
+      });
+      return;
+    }
     setConfirmingPrint(true);
   }
 
@@ -262,15 +280,25 @@ export default function HistoryScreen() {
             {activeProfile && <AdherenceCalendar profileId={activeProfile.id} />}
 
             <View style={[styles.consultationButtonsRow, isWide && styles.consultationButtonsRowWide]}>
+              {/* Selo "PRO" visível (2026-09-08) — pra quem não é Pro não
+                  ser pego de surpresa só ao tocar; a mesma informação já
+                  está no diálogo que abre (`requestPrintReport`), isso
+                  aqui é só adiantar o aviso. */}
               <TouchableOpacity
                 style={[styles.consultationButton, styles.consultationPdfButton]}
                 onPress={requestPrintReport}
                 disabled={sharingSummary}
                 accessibilityRole="button"
-                accessibilityLabel={t('history.exportPdf')}
+                accessibilityLabel={isPro ? t('history.exportPdf') : t('history.exportPdfLockedLabel')}
               >
                 <MaterialCommunityIcons name="file-pdf-box" size={20} color={colors.onBrand} />
                 <Text style={styles.consultationPdfButtonText}>{t('history.exportPdf')}</Text>
+                {!isPro && (
+                  <View style={styles.proBadge}>
+                    <MaterialCommunityIcons name="star" size={11} color="#fbbf24" />
+                    <Text style={styles.proBadgeText}>{t('profile.pro')}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -527,6 +555,12 @@ function makeStyles(c: ThemeColors) {
     consultationButtonText: { color: c.brand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
     consultationPdfButton: { backgroundColor: c.brand, borderColor: c.brand },
     consultationPdfButtonText: { color: c.onBrand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    proBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 2,
+      backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8,
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    proBadgeText: { color: c.onBrand, fontSize: 10, fontWeight: '700' },
     filtersWrapper: { marginHorizontal: 16, marginTop: 4, marginBottom: 12 },
     filterWrapGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
     filterChip: {
@@ -539,11 +573,19 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
-      minHeight: 44,
+      minHeight: 48,
     },
-    filterChipActive: { backgroundColor: c.brandSubtle, borderColor: c.brand },
+    // Vocabulário de chip consolidado (2026-09-08, achado de UX
+    // registrado hoje mais cedo) — antes era o único chip pequeno do
+    // app usando tingimento (`brandSubtle`) em vez de preenchimento
+    // sólido; `sortChip` (Remédios) e `presetChip` (formulário de
+    // remédio) já usavam preenchimento sólido pra esse mesmo formato
+    // (pílula pequena). `brandSubtle` continua certo pra CARTÕES/LINHAS
+    // maiores (tema, formato de exportação, opção da lista de
+    // cuidadores) — ali sim o preenchimento sólido pesaria demais.
+    filterChipActive: { backgroundColor: c.brand, borderColor: c.brand },
     filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
-    filterChipTextActive: { color: c.brand, fontWeight: '700' },
+    filterChipTextActive: { color: c.onBrand, fontWeight: '700' },
     medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     medicationChipDot: { width: 10, height: 10, borderRadius: 5 },
     filterGroupLabel: { fontSize: 13, fontWeight: '700', color: c.textMuted, marginBottom: 8 },
@@ -582,7 +624,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 15,
       color: c.text,
       marginBottom: 10,
-      minHeight: 46,
+      minHeight: 48,
     },
     pickerList: { maxHeight: 320 },
     pickerRow: {
@@ -608,6 +650,8 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 14,
       borderRadius: 12,
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 48,
       backgroundColor: c.background,
     },
     pickerCancelText: { fontSize: 15, fontWeight: '700', color: c.textMuted },

@@ -85,11 +85,25 @@ function makeStyles(c: ThemeColors) {
     },
     title: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 8 },
     message: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
-    okBtn: { backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center', marginTop: 20 },
+    // minHeight 48 + justifyContent nos 3 (WCAG AAA, auditoria de toque
+    // mínimo 2026-09-08) — column layout (sem flexDirection), então
+    // `alignItems: 'center'` só centraliza na horizontal; sem
+    // `justifyContent` o texto ficaria colado no topo da caixa mais alta.
+    // Componente usado em TODO alerta/erro do app — alto impacto.
+    okBtn: {
+      backgroundColor: c.brand, padding: 13, borderRadius: 10, marginTop: 20,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     okText: { color: c.onBrand, fontWeight: '600' },
     actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-    dismissBtn: { flex: 1, padding: 13, borderRadius: 10, alignItems: 'center' },
+    dismissBtn: {
+      flex: 1, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     dismissText: { color: c.textSecondary, fontWeight: '600' },
-    actionBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center' },
+    actionBtn: {
+      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
   });
 }

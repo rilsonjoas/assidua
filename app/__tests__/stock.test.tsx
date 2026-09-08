@@ -190,7 +190,7 @@ describe('StockScreen — refill alert inteligente', () => {
     fireEvent.press(screen.getByText('Definir'));
 
     await waitFor(() => {
-      expect(screen.getByText('Erro ao atualizar o estoque.')).toBeTruthy();
+      expect(screen.getByText('Não foi possível atualizar o estoque agora. Tente de novo em instantes.')).toBeTruthy();
     });
     expect(screen.getByPlaceholderText('Qtd')).toBeTruthy();
   });

@@ -270,6 +270,11 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.tierBadge}
             onPress={() => router.push('/pro')}
+            // hitSlop, não minHeight (WCAG AAA, auditoria de toque
+            // mínimo 2026-09-08) — é um selo pequeno de propósito, sob o
+            // nome/e-mail no card colorido; crescer o box visualmente
+            // ficaria estranho ali, então expande só a área de toque.
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             accessibilityRole="button"
             accessibilityLabel={t('pro.badgeLabel', {
               tier: user?.subscription_tier === 'pro' ? t('profile.pro') : t('profile.free'),
@@ -445,6 +450,13 @@ export default function ProfileScreen() {
                 key={c}
                 onPress={() => setColor(c)}
                 style={[styles.colorBtn, { backgroundColor: c }, color === c && styles.colorBtnActive]}
+                // hitSlop, não crescer o swatch (WCAG AAA, 2026-09-08) —
+                // só 10px de `gap` entre swatches vizinhos, então 9px de
+                // cada lado se sobreporia ao do vizinho (risco real de
+                // tocar a cor errada). 5px é o máximo que cabe sem
+                // sobrepor — chega a ~40px de área, não os 48 ideais,
+                // mas honesto com o espaço real disponível.
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 accessibilityRole="button"
                 accessibilityLabel={t('profile.colorOptionLabel', { index: i + 1 })}
                 accessibilityState={{ selected: color === c }}
@@ -895,16 +907,19 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 14, padding: 14, marginBottom: 8, gap: 14,
       elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
     },
-    // Área clicável de seleção dentro da linha (fix botão aninhado web)
+    // Área clicável de seleção dentro da linha (fix botão aninhado web).
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+    // sem isso, a altura real era só a do avatar (40px), abaixo do alvo.
     profileRowMain: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14,
+      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 48,
     },
     profileRowActive: { borderWidth: 2, borderColor: c.brand },
     profileIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     profileName: { fontSize: 15, color: c.text, fontWeight: '600' },
     sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
     sharedBadgeText: { fontSize: 11, color: c.brand, fontWeight: '600' },
-    inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, marginRight: 4 },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
+    inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, marginRight: 4, minHeight: 48 },
     inviteBtnText: { fontSize: 12, fontWeight: '600', color: c.brand },
     createBox: { backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
     createTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 14 },
@@ -914,25 +929,41 @@ function makeStyles(c: ThemeColors) {
       padding: 12, fontSize: 16, marginBottom: 4, backgroundColor: c.background,
     },
     iconRow: { marginBottom: 4 },
-    iconBtn: { padding: 8, marginRight: 6, borderRadius: 10, backgroundColor: c.surfaceSecondary },
+    // minWidth/minHeight 48 + centralização (WCAG AAA, auditoria de
+    // toque mínimo 2026-09-08) — 8px de padding + ícone de 24px dava só
+    // 40x40, e sem alignItems/justifyContent o ícone nem centralizava
+    // dentro do próprio quadrado.
+    iconBtn: {
+      padding: 8, marginRight: 6, borderRadius: 10, backgroundColor: c.surfaceSecondary,
+      minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center',
+    },
     colorRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     colorBtn: { width: 30, height: 30, borderRadius: 15 },
     colorBtnActive: { borderWidth: 3, borderColor: c.text, transform: [{ scale: 1.15 }] },
     createActions: { flexDirection: 'row', gap: 10 },
-    cancelBtn: { flex: 1, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
+    // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08) — column
+    // layout, então `alignItems: 'center'` só centraliza na horizontal;
+    // sem justifyContent o texto ficaria colado no topo da caixa mais alta.
+    cancelBtn: {
+      flex: 1, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     cancelText: { color: c.textSecondary, fontWeight: '600' },
-    saveBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center' },
+    saveBtn: {
+      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     saveBtnText: { color: c.onBrand, fontWeight: '600' },
     addBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 14,
+      backgroundColor: c.surface, borderRadius: 12, padding: 14, minHeight: 48,
       borderWidth: 1.5, borderColor: c.brand, borderStyle: 'dashed', marginBottom: 16,
     },
     addBtnText: { color: c.brand, fontWeight: '600', fontSize: 15 },
     themeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     themeBtn: {
       flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 12,
+      backgroundColor: c.surface, borderRadius: 12, padding: 12, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     themeBtnActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
@@ -944,7 +975,7 @@ function makeStyles(c: ThemeColors) {
     languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
     languageBtn: {
       width: '48%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 12,
+      backgroundColor: c.surface, borderRadius: 12, padding: 12, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     // Web wide (2026-08-22) — achado do Rilson: os 48% fixos (pensados
@@ -954,7 +985,7 @@ function makeStyles(c: ThemeColors) {
     languageBtnWide: { width: undefined, flex: 1 },
     helpBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 20,
+      backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 20, minHeight: 48,
       borderWidth: 1, borderColor: c.border,
     },
     helpBtnText: { flex: 1, color: c.text, fontWeight: '600', fontSize: 15 },
@@ -968,7 +999,7 @@ function makeStyles(c: ThemeColors) {
     exportHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     logoutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 8, paddingVertical: 14, paddingHorizontal: 20, marginTop: 24,
+      gap: 8, paddingVertical: 14, paddingHorizontal: 20, marginTop: 24, minHeight: 48,
       borderRadius: 12,
     },
     logoutText: { color: c.error, fontWeight: '600', fontSize: 15 },
@@ -979,7 +1010,8 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1, borderColor: c.error,
     },
     deleteConfirmBtn: {
-      flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10, alignItems: 'center',
+      flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     brandFooter: { alignItems: 'center', marginTop: 48, marginBottom: 20, gap: 6 },
     // Mesma silhueta branca do header/card; tintColor (no JSX) a adapta
@@ -999,7 +1031,7 @@ function makeStyles(c: ThemeColors) {
     formatOption: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: c.border,
-      marginTop: 8,
+      marginTop: 8, minHeight: 48,
     },
     formatOptionActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
     formatText: { fontSize: 14, color: c.text, fontWeight: '500' },

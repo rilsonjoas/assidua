@@ -72,9 +72,49 @@
       Cancelar do estoque, setas de navegação do calendário, CTA de
       empty state (Home + Remédios) — todos ganharam `minHeight`/
       `minWidth: 48`. Testado em `__tests__/touch-targets.test.tsx`.
-- [ ] Auditoria de toque mínimo do **resto do app** (fora do que foi
-      tocado aqui) — projeto à parte, escopo grande demais pra decidir
-      de passagem.
+- [x] **Auditoria de toque mínimo do app inteiro — ✅ resolvido 2026-09-08**
+      (a pedido explícito do Rilson, retomando o item acima). Passada
+      tela por tela em todo `app/` e `components/` (260 elementos
+      tocáveis revisados). Dois critérios, não um só "bota minHeight:48
+      em tudo":
+      - **Crescer a caixa** (`minHeight`/`minWidth: 48` + `justifyContent`
+        quando faltava) onde crescer não aperta nada ao redor — botões de
+        largura cheia, fileiras que já quebram linha (`flexWrap`), linhas
+        de lista com espaço de sobra. Cobre: `AlertDialog`/`ConfirmDialog`
+        (usados em TODO alerta/confirmação do app — maior alcance de
+        todos), Login/Cadastro, `profile.tsx` (9 estilos, tela inteira
+        sem nenhuma cobertura antes), `ErrorBoundary`, `WebTopNav`,
+        `medication/[id].tsx` (formulário de horário, pausar, excluir,
+        chips de preset), `stock.tsx` (editar), `medications.tsx`
+        (ordenar), `history.tsx` (filtro/picker), Home (perfil, Tomei,
+        modal de horário customizado).
+      - **`hitSlop`, não crescer** onde o elemento é ícone sozinho numa
+        fileira apertada, ao lado de outro alvo — achado do próprio
+        Rilson revisando o trabalho ao vivo: a primeira versão cresceu
+        o botão "Pular" (só um X) pra 48x48 quadrado, inflando a fileira
+        inteira ao lado de "Tomei"/"Foi em outro horário". Corrigido pra
+        `hitSlop` (preserva o visual compacto): "Pular" e "Reagir"
+        (Home), swatches de cor (Perfil e Remédio, 30-32px). **Achado
+        próprio ao revisar hitSlop de perto**: dois ícones vizinhos
+        (editar/excluir horário, lado a lado) com hitSlop generoso
+        DEMAIS faz as áreas de toque se sobreporem — risco real de
+        excluir um horário tentando editar. Corrigido aumentando o vão
+        real entre os dois ícones (`marginLeft` de 4 pra 14) antes de
+        aplicar hitSlop de 10px nos dois, com a matemática comentada no
+        código pra não se perder de novo.
+      - **Exceções conscientes, documentadas, não "esquecidas"**: os 7
+        círculos de dia da semana (dom-sáb) não cabem em 48px cada numa
+        fileira só, nem com a tela cheia de largura — forçar quebraria o
+        layout; mantido 38px (mesmo padrão de seletores de dia de
+        calendário em geral). Links de privacidade/termos inline num
+        parágrafo (WCAG 2.5.8 exime explicitamente alvo "inline", e nem
+        `Text` nem `Link` do expo-router aceitam `hitSlop`).
+      - Testes: `touch-targets.test.tsx` ampliado (79 asserções, cobrindo
+        os padrões de maior alcance) + 1 teste novo em
+        `medication-schedule-edit.test.tsx` que confirma matematicamente
+        que os hitSlops de editar/excluir não se sobrepõem.
+      - Verificação: `npm test` 2x estável, 45/45 suítes, 323/323 testes.
+        Typecheck limpo.
 
 Dependências (não é v1.3, é saúde do projeto pro build real que vem a
 seguir — ver commit `chore(deps)`): expo-font/expo-linking como
@@ -331,18 +371,32 @@ dedicada de upgrade do SDK 56→57.
 > `recalculateScheduleToday` e a tela Hoje já reflete os novos horários.
 > 7 testes novos em `home.test.tsx`.
 >
-> ⚠️ **Limitação conhecida e aceita, documentada no código**: o
-> recálculo corrige o que a tela Hoje mostra (fonte de verdade real),
-> mas **não** resincroniza os lembretes locais (push) do resto do dia —
-> `expo-notifications` agenda o modo intervalo como gatilho `DAILY`
-> recorrente (mesmo horário todo dia), sem conceito nativo de "só
-> hoje". Corrigir isso direito exigiria cancelar e depois restaurar
-> notificações à meia-noite (job em background, não garantido sem o
-> app aberto) — risco/esforço não valeu a pena frente ao ganho, já que
-> a tela em si fica correta. Registrado aqui e no código
-> (`offerRecalculateToday`), não escondido.
+> ⚠️ **Limitação original (2026-09-08 de manhã)**: o recálculo corrigia
+> o que a tela Hoje mostra, mas não resincronizava os lembretes locais.
 >
-> 291/291 testes mobile, 250/250 backend, typecheck limpo.
+> **Revisitado e melhorado no mesmo dia**, a pedido do Rilson: `expo-notifications`
+> continua sem conceito nativo de "só hoje" no gatilho `DAILY`
+> recorrente (cancelar o de hoje cancelaria o de amanhã também — isso
+> não mudou, é limitação real da plataforma, não preguiça). Em vez de
+> mexer no recorrente, `rescheduleTodayOccurrences` (`services/notifications.ts`,
+> novo) ADICIONA lembretes avulsos (gatilho `DATE`, dispara uma vez só)
+> exatamente nos `today_occurrences` que `recalculateScheduleToday` já
+> devolve — sem round-trip extra. Chamado de `offerRecalculateToday`
+> logo depois do recálculo confirmar, best-effort (falha ao agendar
+> notificação não desfaz o recálculo nem mostra erro pra pessoa, já que
+> a tela — fonte de verdade real — já está correta pelo `invalidateQueries`).
+> **Trade-off ainda existente, agora menor e documentado com precisão**:
+> o lembrete recorrente antigo continua existindo e pode disparar hoje
+> no horário velho também (um aviso a mais, não a menos) — melhor que o
+> estado anterior (ficar sem NENHUM aviso no horário novo). Cancela
+> avulsos de uma recalculada anterior antes de agendar os novos, pra não
+> acumular duplicata se a pessoa recalcular duas vezes no mesmo dia. 3
+> testes novos em `notifications.test.ts` (agenda por ocorrência futura,
+> ignora ocorrência já passada, cancela avulsos antigos sem tocar no
+> recorrente normal), 1 asserção nova em `home.test.tsx`.
+>
+> 291/291 testes mobile, 250/250 backend, typecheck limpo (na época).
+> Suíte completa mais recente ao final desta sessão: ver seções abaixo.
 
 ## Revisão de código + incidente do Sentry, antes do build de hoje (2026-09-08)
 
@@ -401,14 +455,23 @@ localmente pra debugar, não só neste teste específico.
   quantidade de estoque e a checagem "nunca informado" estavam
   duplicadas entre `stock.tsx` e a tela do remédio (item 13) — extraídas
   pra `lib/stockQuantity.ts`, com teste próprio.
-- **Registrado, não corrigido agora** (baixo risco, escopo maior):
-  `recalculateScheduleToday` monta o horário no fuso do APARELHO de
-  quem toca no botão, mas o backend ancora em "hoje" no fuso do PERFIL
-  — um cuidador remoto num fuso diferente do paciente pode ter o
-  recálculo levemente deslocado. Exigiria uma lib de fuso horário nova
-  (`date-fns-tz` ou equivalente) pra resolver direito; caso raro (a
-  maioria usa o próprio perfil, não cuidador remoto), fica documentado
-  aqui pra não ser esquecido, não pra ser ignorado.
+- [x] **Fuso horário do cuidador remoto — ✅ resolvido 2026-09-08** (a
+  pedido do Rilson, revisitando o item abaixo). `recalculateScheduleToday`
+  montava o horário no fuso do APARELHO de quem tocava o botão
+  (`format(anchor, 'HH:mm')`, sem conversão), mas o backend ancorava
+  "hoje" no fuso do PERFIL — sem lib nova de fuso (`date-fns-tz` não foi
+  preciso): o app já tinha um `Date` de verdade (`anchor`, instante
+  absoluto) e só precisava parar de formatar ele localmente antes de
+  mandar. Agora manda `anchor.toISOString()` (instante absoluto, sem
+  ambiguidade de fuso nenhuma); o backend (`DoseScheduleController::recalculateToday`)
+  converte pro fuso do PERFIL com `Carbon::parse(...)->setTimezone($profile->timezone)`
+  antes de gravar `today_override_time`. O texto mostrado na tela
+  continua no fuso do APARELHO de propósito (quem está lendo a mensagem
+  está olhando o próprio aparelho — mostrar a hora dele ali é o certo,
+  só o dado que vai pro servidor precisava ser TZ-safe). 1 teste novo no
+  backend (`DoseScheduleTest.php`: perfil em `America/Sao_Paulo`, âncora
+  em UTC, confere que grava a hora certa convertida), teste mobile
+  atualizado pro novo formato (ISO em vez de "H:i").
 
 **304/304 testes mobile, 252/252 backend, typecheck limpo** — confirmado
 2x seguidas pra descartar flakiness antes do build.
@@ -868,19 +931,44 @@ localmente pra debugar, não só neste teste específico.
   identificava o remédio), no botão único a bolinha ajuda a reconhecer
   visualmente a seleção atual de relance, sem precisar ler o texto.
   Reconsiderado e mantido, não removido.
-- **5. Vocabulário de chip/pílula fragmentado pelo app** (filtros de
-  Histórico, atalhos de frequência, sort chips de Remédios) — cada tela
-  reimplementa o mesmo padrão visual com nomes de estilo ligeiramente
-  diferentes. Vale uma conversa de design system (extrair um componente
-  `Chip` compartilhado) mais adiante, não é bug nem urgente.
+- [x] **5. Vocabulário de chip/pílula fragmentado pelo app — ✅ resolvido
+  2026-09-08.** Investigação: `sortChip` (Remédios) e `presetChip`
+  (formulário de remédio) já usavam preenchimento sólido (`brand`) pro
+  estado ativo; só `filterChip` (Histórico) destoava, usando tingimento
+  (`brandSubtle`) — o único chip PEQUENO do app nesse padrão (que na
+  verdade é o certo pra CARTÕES/LINHAS maiores: `themeBtnActive`,
+  `formatOptionActive`, `pickerRowActive` continuam com `brandSubtle`
+  de propósito, não é pra unificar esses). Corrigido só o outlier:
+  `filterChipActive` virou preenchimento sólido igual aos outros dois.
+  Decidido não extrair um componente `Chip` compartilhado agora — o que
+  afeta o usuário é a cor/comportamento consistente, não a arquitetura
+  do código; um componente novo tocando 3 arquivos com testes
+  existentes é risco desproporcional ao ganho real neste momento.
 - **6. Nome "Remédios" na aba, mas o app guarda itens de primeiros
-  socorros também** (gaze, álcool — visto no próprio screenshot que
-  motivou essa revisão) — mismatch entre o nome da funcionalidade e o
-  que ela de fato guarda. Fica registrado pra uma conversa futura sobre
-  nomenclatura/categorização; não implementado agora.
-- **7. Auditoria geral de copy de estado vazio/erro** — não foi feita
-  uma varredura sistemática ainda; fica como item de backlog pra uma
-  sessão dedicada só a isso.
+  socorros também** (gaze, álcool) — **investigado, decisão pendente do
+  Rilson.** Confirmado no código: `Medication` não tem nenhum campo de
+  categoria/tipo — é puramente um rótulo de UI, não uma limitação de
+  schema. Um rename é tecnicamente viável, mas mecânico e arriscado:
+  a palavra "medicamento"/"remédio" aparece espalhada em dezenas de
+  chaves de i18n (pt/en/es) e vários testes fazem match por texto
+  exato — trocar sem saber o nome novo escolhido correria risco real de
+  esquecer alguma chave ou quebrar asserção. Não decidido nem executado
+  sozinho — é decisão de marca/produto, não bug.
+- [x] **7. Auditoria geral de copy de estado vazio/erro — ✅ resolvido
+  2026-09-08.** Estados vazios já eram bons (ícone + título + texto com
+  próximo passo, ex.: "Cadastre o primeiro remédio pra começar...") —
+  nenhuma mudança necessária ali. Achado real na varredura: ~9 mensagens
+  de erro seguiam o padrão genérico "Erro ao X." sem explicar o que
+  fazer a seguir, destoando das boas (ex.: erro de foto já explicava
+  causa provável + próximo passo). Todas reescritas com o mesmo padrão
+  ("Não foi possível X agora. Tente de novo em instantes." ou, quando
+  cabia validação, "...Verifique os dados e tente de novo.") em
+  pt/en/es: login/cadastro com Google, criar conta, criar perfil,
+  atualizar estoque, pausar/reativar/excluir/salvar medicamento, salvar
+  horário. `home.errorRecalculate` ganhou uma garantia extra importante:
+  deixa claro que a dose já registrada continua salva mesmo se o ajuste
+  falhar — evita a pessoa achar que perdeu o registro por causa de um
+  erro secundário. 1 teste atualizado (`stock.test.tsx`, texto exato).
 
 ### Segunda leva — achados extras a pedido do Rilson (2026-09-08) — ✅ resolvido
 

@@ -152,6 +152,14 @@ export default function RegisterScreen() {
           <Text style={styles.linkText}>{t('register.haveAccount')}</Text>
         </Link>
 
+        {/* Links de privacidade/termos ficam de fora da auditoria de
+            toque mínimo de propósito (2026-09-08) — WCAG 2.5.8 exime
+            explicitamente alvo "inline" (dentro de uma frase, tamanho
+            preso à line-height do texto ao redor); `Text` do RN também
+            nem aceita `hitSlop`, então não tem correção de estilo
+            equivalente aqui como a dos botões — precisaria virar dois
+            links de linha inteira fora do parágrafo, mudança de layout
+            maior que uma auditoria de toque deveria decidir sozinha. */}
         <Text style={styles.privacyText}>
           {t('register.privacyPrefix')}{' '}
           <Text style={styles.privacyLink} onPress={() => Linking.openURL(PRIVACY_URL)}>
@@ -195,7 +203,12 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12, padding: 14, marginBottom: 16,
     },
     googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
-    link: { alignItems: 'center', marginTop: 8 },
+    // paddingVertical em vez de hitSlop (WCAG AAA, 2026-09-08) — nem
+    // `Link` (expo-router) nem `Text` aceitam `hitSlop`; crescer a
+    // própria caixa com padding é o jeito que funciona pros dois, e
+    // aqui (link de linha inteira, sozinho) fica visualmente igual a
+    // outros botões "de texto" do app.
+    link: { alignItems: 'center', justifyContent: 'center', marginTop: 8, paddingVertical: 14, minHeight: 48 },
     linkText: { textAlign: 'center', color: c.brand, fontSize: 15 },
     privacyText: { textAlign: 'center', color: c.textMuted, fontSize: 12, marginTop: 20, lineHeight: 18 },
     privacyLink: { color: c.brand, fontWeight: '600' },

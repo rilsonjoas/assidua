@@ -76,9 +76,10 @@ function makeStyles(c: ThemeColors) {
     cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
     cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, flexShrink: 1 },
     cardText: { fontSize: 14, color: c.textSecondary, lineHeight: 21 },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
     shareBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, marginTop: 8,
+      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, marginTop: 8, minHeight: 48,
     },
     shareBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
     shareHint: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 17 },

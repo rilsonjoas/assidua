@@ -144,6 +144,11 @@ export default function ProScreen() {
             disabled={restoring}
             accessibilityRole="button"
             accessibilityState={{ busy: restoring, disabled: restoring }}
+            // hitSlop (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
+            // "Restaurar compra" é de propósito um link discreto, não
+            // um botão; hitSlop cresce a área de toque sem inflar o
+            // visual. 8px de padding no Text + 8 de hitSlop = 48.
+            hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
           >
             <Text style={styles.restoreLink}>{restoring ? t('pro.restoring') : t('pro.restore')}</Text>
           </TouchableOpacity>
@@ -187,8 +192,9 @@ function makeStyles(c: ThemeColors) {
     tableValuePro: { color: c.brand, fontWeight: '700' },
     loading: { marginTop: 20 },
     packages: { width: '100%', marginTop: 20, gap: 12 },
+    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
     subscribeButton: {
-      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14,
+      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, minHeight: 48,
       alignItems: 'center', justifyContent: 'center',
     },
     subscribeButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
