@@ -7,6 +7,8 @@ import {
   ScrollView,
   Share,
   Platform,
+  Modal,
+  TextInput,
 } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -71,6 +73,14 @@ export default function HistoryScreen() {
   const isWide = useIsWideScreen();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [medicationFilter, setMedicationFilter] = useState<number | 'all'>('all');
+  // "Filtro de remédio vira seletor com busca" (2026-09-08) — achado
+  // real do Rilson testando no aparelho: com muitos remédios cadastrados
+  // (16+, incluindo itens de primeiros socorros como gaze/álcool), a
+  // parede de chips de larguras bem diferentes virava uma bagunça
+  // visual difícil de escanear — ruim pro público idoso do app. Um
+  // botão só, que abre uma lista com busca, escala bem melhor.
+  const [medicationPickerVisible, setMedicationPickerVisible] = useState(false);
+  const [medicationSearch, setMedicationSearch] = useState('');
 
   const { data: medications = [] } = useQuery({
     queryKey: ['medications', activeProfile?.id],
@@ -103,6 +113,23 @@ export default function HistoryScreen() {
   if (medicationFilter !== 'all') filters.medication_id = medicationFilter;
   const hasActiveFilter = statusFilter !== 'all' || medicationFilter !== 'all';
 
+  // "Filtro de remédio vira seletor com busca" (2026-09-08) — o botão
+  // mostra a própria seleção atual ("Todos os remédios" ou o nome do
+  // remédio filtrado), então não precisa de rótulo redundante do lado.
+  const selectedMedication = medicationFilter !== 'all' ? medications.find((m) => m.id === medicationFilter) : null;
+  const selectedMedicationLabel = selectedMedication
+    ? maskMedicationName(selectedMedication.name, isPrivate)
+    : t('history.filterAllMedications');
+  const filteredMedications = medications.filter((m) =>
+    maskMedicationName(m.name, isPrivate).toLowerCase().includes(medicationSearch.trim().toLowerCase()),
+  );
+
+  function selectMedicationFilter(value: number | 'all') {
+    setMedicationFilter(value);
+    setMedicationPickerVisible(false);
+    setMedicationSearch('');
+  }
+
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['history', activeProfile?.id, filters],
     queryFn: () => getDoseHistory(activeProfile!.id, filters),
@@ -121,7 +148,7 @@ export default function HistoryScreen() {
   // ignorando o filtro por medicamento visível aqui. Nome mascarado só
   // no que entra no relatório (payload), não no diálogo de confirmação
   // — que mostra pra própria pessoa o que ela mesma selecionou.
-  const selectedMedication = medicationFilter !== 'all' ? medications.find((m) => m.id === medicationFilter) ?? null : null;
+  // (`selectedMedication` reaproveitado do seletor de filtro acima.)
   const [confirmingPrint, setConfirmingPrint] = useState(false);
   const [sharingSummary, setSharingSummary] = useState(false);
   const { showAlert, alertDialog } = useAlertDialog();
@@ -259,6 +286,12 @@ export default function HistoryScreen() {
             </View>
 
             <View style={styles.filtersWrapper}>
+              {/* Rótulos acima de cada grupo (2026-09-08, achado de UX
+                  revendo o app de verdade) — sem eles, dois filtros
+                  independentes empilhados pareciam um só grupo confuso,
+                  fácil de não perceber que dá pra filtrar por status E
+                  por remédio ao mesmo tempo. */}
+              <Text style={styles.filterGroupLabel}>{t('history.filterStatusLabel')}</Text>
               <View style={styles.filterWrapGroup}>
                 {STATUS_FILTERS.map((f) => (
                   <TouchableOpacity
@@ -277,37 +310,30 @@ export default function HistoryScreen() {
               </View>
 
               {medications.length > 0 && (
-                <View style={[styles.filterWrapGroup, { marginTop: 10 }]}>
+                <>
+                  <Text style={[styles.filterGroupLabel, { marginTop: 14 }]}>{t('history.filterMedicationLabel')}</Text>
+                  {/* "Filtro de remédio vira seletor com busca"
+                      (2026-09-08) — achado real testando no aparelho: com
+                      16+ remédios (incluindo itens de primeiros socorros
+                      como gaze/álcool), a parede de chips de larguras bem
+                      diferentes virava uma bagunça visual difícil de
+                      escanear. Um botão só, que mostra a seleção atual e
+                      abre uma lista com busca, escala bem melhor. */}
                   <TouchableOpacity
-                    style={[styles.filterChip, medicationFilter === 'all' && styles.filterChipActive]}
-                    onPress={() => setMedicationFilter('all')}
+                    style={styles.medicationFilterButton}
+                    onPress={() => setMedicationPickerVisible(true)}
                     accessibilityRole="button"
-                    accessibilityLabel={t('history.filterLabel', { label: t('history.filterAllMedications') })}
-                    accessibilityState={{ selected: medicationFilter === 'all' }}
+                    accessibilityLabel={t('history.medicationFilterButtonLabel', { label: selectedMedicationLabel })}
                   >
-                    <Text style={[styles.filterChipText, medicationFilter === 'all' && styles.filterChipTextActive]}>
-                      {t('history.filterAllMedications')}
+                    {selectedMedication && (
+                      <View style={[styles.medicationChipDot, { backgroundColor: selectedMedication.color }]} />
+                    )}
+                    <Text style={styles.medicationFilterButtonText} numberOfLines={1}>
+                      {selectedMedicationLabel}
                     </Text>
+                    <MaterialCommunityIcons name="chevron-down" size={20} color={colors.textMuted} />
                   </TouchableOpacity>
-                  {medications.map((m) => {
-                    const maskedMedName = maskMedicationName(m.name, isPrivate);
-                    return (
-                      <TouchableOpacity
-                        key={m.id}
-                        style={[styles.filterChip, styles.medicationChip, medicationFilter === m.id && styles.filterChipActive]}
-                        onPress={() => setMedicationFilter(m.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('history.filterLabel', { label: maskedMedName })}
-                        accessibilityState={{ selected: medicationFilter === m.id }}
-                      >
-                        <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
-                        <Text style={[styles.filterChipText, medicationFilter === m.id && styles.filterChipTextActive]}>
-                          {maskedMedName}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                </>
               )}
             </View>
           </View>
@@ -378,6 +404,75 @@ export default function HistoryScreen() {
         onCancel={() => setConfirmingPrint(false)}
         onConfirm={handlePrintReport}
       />
+      {/* "Filtro de remédio vira seletor com busca" (2026-09-08) —
+          mesmo padrão visual de action sheet já usado no app (ex.: foto
+          do medicamento), adaptado pra caber busca + lista rolável em
+          vez de poucas opções fixas. */}
+      <Modal
+        visible={medicationPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMedicationPickerVisible(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>{t('history.medicationPickerTitle')}</Text>
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder={t('history.medicationSearchPlaceholder')}
+              placeholderTextColor={colors.textMuted}
+              value={medicationSearch}
+              onChangeText={setMedicationSearch}
+              accessibilityLabel={t('history.medicationSearchAccessibilityLabel')}
+            />
+            <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+              <TouchableOpacity
+                style={[styles.pickerRow, medicationFilter === 'all' && styles.pickerRowActive]}
+                onPress={() => selectMedicationFilter('all')}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.filterAllMedications')}
+                accessibilityState={{ selected: medicationFilter === 'all' }}
+              >
+                <Text style={[styles.pickerRowText, medicationFilter === 'all' && styles.pickerRowTextActive]}>
+                  {t('history.filterAllMedications')}
+                </Text>
+                {medicationFilter === 'all' && <MaterialCommunityIcons name="check" size={20} color={colors.brand} />}
+              </TouchableOpacity>
+              {filteredMedications.map((m) => {
+                const maskedMedName = maskMedicationName(m.name, isPrivate);
+                const active = medicationFilter === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[styles.pickerRow, active && styles.pickerRowActive]}
+                    onPress={() => selectMedicationFilter(m.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={maskedMedName}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <View style={[styles.medicationChipDot, { backgroundColor: m.color }]} />
+                    <Text style={[styles.pickerRowText, active && styles.pickerRowTextActive, { flex: 1 }]}>
+                      {maskedMedName}
+                    </Text>
+                    {active && <MaterialCommunityIcons name="check" size={20} color={colors.brand} />}
+                  </TouchableOpacity>
+                );
+              })}
+              {filteredMedications.length === 0 && (
+                <Text style={styles.pickerEmptyText}>{t('history.medicationSearchEmpty')}</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.pickerCancelButton}
+              onPress={() => setMedicationPickerVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.cancel')}
+            >
+              <Text style={styles.pickerCancelText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {alertDialog}
     </View>
   );
@@ -451,6 +546,71 @@ function makeStyles(c: ThemeColors) {
     filterChipTextActive: { color: c.brand, fontWeight: '700' },
     medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     medicationChipDot: { width: 10, height: 10, borderRadius: 5 },
+    filterGroupLabel: { fontSize: 13, fontWeight: '700', color: c.textMuted, marginBottom: 8 },
+    medicationFilterButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: c.surface,
+      borderWidth: 1.5,
+      borderColor: c.border,
+      minHeight: 48,
+    },
+    medicationFilterButtonText: { flex: 1, fontSize: 15, fontWeight: '600', color: c.text },
+    pickerOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      padding: 20,
+    },
+    pickerContent: {
+      backgroundColor: c.surface,
+      borderRadius: 16,
+      padding: 18,
+      maxHeight: '80%',
+    },
+    pickerTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 12 },
+    pickerSearchInput: {
+      borderWidth: 1.5,
+      borderColor: c.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: c.text,
+      marginBottom: 10,
+      minHeight: 46,
+    },
+    pickerList: { maxHeight: 320 },
+    pickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      borderRadius: 12,
+      minHeight: 48,
+    },
+    pickerRowActive: { backgroundColor: c.brandSubtle },
+    pickerRowText: { fontSize: 15, fontWeight: '600', color: c.text },
+    pickerRowTextActive: { color: c.brand, fontWeight: '700' },
+    pickerEmptyText: {
+      textAlign: 'center',
+      color: c.textMuted,
+      fontSize: 14,
+      paddingVertical: 20,
+    },
+    pickerCancelButton: {
+      marginTop: 12,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+      backgroundColor: c.background,
+    },
+    pickerCancelText: { fontSize: 15, fontWeight: '700', color: c.textMuted },
     list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
     listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 8 },
     sectionHeaderBox: {

@@ -57,6 +57,20 @@ function renderHistory() {
   );
 }
 
+// "Filtro de remédio vira seletor com busca" (2026-09-08) — a UI trocou de
+// parede de chips pra um botão único que abre um modal com busca. Os testes
+// que antes pressionavam o chip do medicamento direto agora abrem o seletor
+// primeiro (pelo accessibilityLabel do botão, que muda com a seleção atual)
+// e escolhem a opção dentro do modal.
+async function openMedicationPicker() {
+  fireEvent.press(await screen.findByLabelText(/^Filtrar por remédio, seleção atual:/));
+}
+
+async function selectMedicationInPicker(label: string) {
+  await openMedicationPicker();
+  fireEvent.press(await screen.findByLabelText(label));
+}
+
 describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,18 +81,21 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
   });
 
-  it('mostra um chip por medicamento cadastrado, mais "Todos os remédios"', async () => {
+  it('botão de filtro começa em "Todos os remédios" e o seletor lista cada medicamento cadastrado', async () => {
     renderHistory();
 
-    expect(await screen.findByText('Todos os remédios')).toBeTruthy();
-    expect(screen.getByLabelText('Filtrar por Losartana')).toBeTruthy();
-    expect(screen.getByLabelText('Filtrar por Paracetamol')).toBeTruthy();
+    expect(await screen.findByLabelText('Filtrar por remédio, seleção atual: Todos os remédios')).toBeTruthy();
+
+    await openMedicationPicker();
+
+    expect(await screen.findByLabelText('Losartana')).toBeTruthy();
+    expect(screen.getByLabelText('Paracetamol')).toBeTruthy();
   });
 
   it('ao escolher um medicamento, refaz a busca com medication_id', async () => {
     renderHistory();
 
-    fireEvent.press(await screen.findByText('Paracetamol'));
+    await selectMedicationInPicker('Paracetamol');
 
     await waitFor(() => {
       expect(mockedDoses.getDoseHistory).toHaveBeenCalledWith(
@@ -91,10 +108,10 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
   it('"Todos os remédios" busca sem filtro de medicamento', async () => {
     renderHistory();
 
-    fireEvent.press(await screen.findByText('Paracetamol'));
+    await selectMedicationInPicker('Paracetamol');
     await waitFor(() => expect(mockedDoses.getDoseHistory).toHaveBeenCalledWith(1, expect.objectContaining({ medication_id: 11 })));
 
-    fireEvent.press(screen.getByText('Todos os remédios'));
+    await selectMedicationInPicker('Todos os remédios');
 
     await waitFor(() => {
       const lastCall = mockedDoses.getDoseHistory.mock.calls.at(-1);
@@ -108,7 +125,7 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
     renderHistory();
 
     await screen.findByText('Losartana'); // espera a lista carregar (do log, não do filtro)
-    expect(screen.queryByText('Todos os remédios')).toBeNull();
+    expect(screen.queryByLabelText(/^Filtrar por remédio, seleção atual:/)).toBeNull();
   });
 });
 
@@ -202,7 +219,7 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
   it('com um medicamento filtrado, a confirmação nomeia esse medicamento', async () => {
     renderHistory();
 
-    fireEvent.press(await screen.findByText('Paracetamol'));
+    await selectMedicationInPicker('Paracetamol');
     fireEvent.press(screen.getByLabelText('Gerar Relatório Médico (PDF)'));
 
     expect(await screen.findByText('Vai gerar o relatório de Paracetamol, últimos 30 dias.')).toBeTruthy();
@@ -211,7 +228,7 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
   it('confirmar com medicamento filtrado passa medication_id e o nome do recorte pro PDF', async () => {
     renderHistory();
 
-    fireEvent.press(await screen.findByText('Paracetamol'));
+    await selectMedicationInPicker('Paracetamol');
     fireEvent.press(screen.getByLabelText('Gerar Relatório Médico (PDF)'));
     fireEvent.press(await screen.findByText('Gerar relatório'));
 

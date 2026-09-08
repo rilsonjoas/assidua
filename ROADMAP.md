@@ -805,6 +805,85 @@ localmente pra debugar, não só neste teste específico.
 
 ---
 
+## Revisão de UI/UX pós-build real (2026-09-08)
+
+> Depois de instalar o APK de verdade (build `a0556aea`) num aparelho,
+> o Rilson notou que a tela de Histórico estava com a "parede de chips"
+> de filtro por medicamento poluída visualmente (screenshot real, 16+
+> itens incluindo coisas de primeiros socorros como gaze/álcool) e
+> pediu uma revisão geral de UI/UX do app com pelo menos 5 sugestões.
+> Levantamento abaixo (skill `frontend-design` como referência de
+> princípios gerais — não existe skill específica de auditoria de app
+> mobile já pronta neste ambiente). Confirmado com o Rilson: implementar
+> todos os itens, começando pelo 1, "contanto que fique claro para o
+> usuário final".
+
+### 1. Filtro de medicamento no Histórico virava parede de chips — ✅ resolvido 2026-09-08
+
+> Com poucos remédios os chips cabiam numa linha; com 16+ (o cenário
+> real do Rilson, incluindo itens de primeiros socorros cadastrados
+> como medicamento) virava uma segunda parede de chips de larguras bem
+> diferentes, difícil de escanear — a queixa original do screenshot.
+
+- **Implementado**: trocado por um botão único (`medicationFilterButton`)
+  mostrando a seleção atual (bolinha de cor + nome + chevron) que abre
+  um modal (`Modal` + `TextInput` de busca + lista rolável com "Todos
+  os remédios" no topo e cada medicamento com checkmark quando
+  selecionado). Mesmo padrão visual de action sheet já usado em outras
+  partes do app. `history.tsx`: estado `medicationPickerVisible` /
+  `medicationSearch`, `filteredMedications` (busca case-insensitive por
+  nome já mascarado, respeitando o modo privado). 13/13 testes em
+  `history.test.tsx` reescritos pro novo fluxo (abrir seletor pelo
+  `accessibilityLabel` do botão, escolher a opção dentro do modal).
+
+### 2. Dois filtros empilhados pareciam um grupo só — ✅ resolvido 2026-09-08
+
+> Status (Todos/Tomado/Pulado/Não tomado/Pendente) e medicamento
+> ficavam em duas linhas de chips sem nenhuma separação visual — fácil
+> de não perceber que são dois filtros independentes, combináveis.
+
+- **Implementado**: rótulo (`filterGroupLabel`, "Status" / "Remédio")
+  acima de cada grupo. Simples de propósito — não é o tipo de tela que
+  pede um design mais elaborado, só precisava parar de parecer um
+  grupo confuso só.
+
+### 3. Botão "Foi em outro horário" só com ícone, sem legenda — ✅ resolvido 2026-09-08
+
+> Na Home, o botão que abre o registro de dose em horário diferente
+> (item 8 da sessão de hoje) tinha só o ícone `clock-edit-outline`
+> ("relógio com lápis"), sem nenhum texto — não dava pra adivinhar o
+> que fazia sem tocar (e o público do app é majoritariamente idoso).
+
+- **Implementado**: texto curto ("Outro horário" / "Different time" /
+  "Otro horario") ao lado do ícone, mesmo padrão do botão "Tomei"
+  vizinho. `accessibilityLabel` completo (`customTimeLabel`) mantido
+  inalterado — só o rótulo visível mudou, testes existentes de
+  `home.test.tsx` que buscam por esse label continuam válidos.
+
+### 4-7. Itens menores / de mais longo prazo
+
+- **4. Bolinha de cor no filtro de medicamento**: mantida no botão
+  novo do item 1 — ao contrário da parede de chips antiga (onde a cor
+  repetia em cada chip sem acrescentar nada, já que o nome já
+  identificava o remédio), no botão único a bolinha ajuda a reconhecer
+  visualmente a seleção atual de relance, sem precisar ler o texto.
+  Reconsiderado e mantido, não removido.
+- **5. Vocabulário de chip/pílula fragmentado pelo app** (filtros de
+  Histórico, atalhos de frequência, sort chips de Remédios) — cada tela
+  reimplementa o mesmo padrão visual com nomes de estilo ligeiramente
+  diferentes. Vale uma conversa de design system (extrair um componente
+  `Chip` compartilhado) mais adiante, não é bug nem urgente.
+- **6. Nome "Remédios" na aba, mas o app guarda itens de primeiros
+  socorros também** (gaze, álcool — visto no próprio screenshot que
+  motivou essa revisão) — mismatch entre o nome da funcionalidade e o
+  que ela de fato guarda. Fica registrado pra uma conversa futura sobre
+  nomenclatura/categorização; não implementado agora.
+- **7. Auditoria geral de copy de estado vazio/erro** — não foi feita
+  uma varredura sistemática ainda; fica como item de backlog pra uma
+  sessão dedicada só a isso.
+
+---
+
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
 
 Trabalho direto no código a partir do levantamento abaixo.

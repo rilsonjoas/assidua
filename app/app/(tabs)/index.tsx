@@ -520,7 +520,10 @@ export default function HomeScreen() {
                     {/* "Dose fora do horário" (item 8, 2026-09-08) — ação
                         secundária explícita, ao lado do botão principal
                         (não escondida atrás de toque longo, mais fácil
-                        de descobrir pro público idoso do app). */}
+                        de descobrir pro público idoso do app). Rótulo
+                        visível adicionado depois (achado de UX,
+                        2026-09-08): só o ícone confundia — não dava pra
+                        adivinhar o que "relógio com lápis" faz. */}
                     <TouchableOpacity
                       style={styles.customTimeButton}
                       onPress={() => openCustomTimeModal(item)}
@@ -529,6 +532,7 @@ export default function HomeScreen() {
                       accessibilityLabel={t('home.customTimeLabel', { name: maskedName })}
                     >
                       <MaterialCommunityIcons name="clock-edit-outline" size={16} color={colors.textMuted} />
+                      <Text style={styles.customTimeButtonText}>{t('home.customTimeButton')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.skipButton}
@@ -740,9 +744,16 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
     },
     takeButtonText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
-    // "Foi em outro horário" (item 8, 2026-09-08) — mesmo tamanho/raio
-    // do skipButton ao lado, pra não desequilibrar a fileira de ações.
-    customTimeButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
+    // "Foi em outro horário" (item 8, 2026-09-08; rótulo visível
+    // adicionado em 2026-09-08 num achado de UX à parte — ícone sozinho
+    // não dava pra entender o que fazia). Ganhou texto, então não usa
+    // mais o mesmo padding quadrado do skipButton ao lado.
+    customTimeButton: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8,
+      backgroundColor: c.surfaceSecondary,
+    },
+    customTimeButtonText: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
     skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
     // Modal "Foi em outro horário?" — mesmo padrão visual de
     // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
