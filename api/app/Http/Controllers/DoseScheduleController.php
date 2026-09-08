@@ -81,16 +81,26 @@ class DoseScheduleController extends Controller
             ], 422);
         }
 
+        // Fuso horário (2026-09-08, achado de auditoria registrado no
+        // roadmap) — antes recebia "H:i" nu, montado no fuso do
+        // APARELHO de quem confirma o ajuste (`format(anchor, 'HH:mm')`
+        // no app, sem conversão nenhuma). Para o dono do perfil isso
+        // sempre bate, mas um cuidador remoto em outro fuso enviava um
+        // "horário local dele" que o backend guardava como se já fosse
+        // o horário do perfil — deslocamento real quando os fusos
+        // diferem. Agora recebe o instante absoluto (ISO 8601, com
+        // offset) e converte pro fuso do PERFIL aqui, não do aparelho.
         $data = $request->validate([
-            'anchor_time' => 'required|date_format:H:i',
+            'anchor_time' => 'required|date',
         ]);
 
         $profile = $doseSchedule->medication->profile;
         $today = Carbon::today($profile->timezone);
+        $anchorInProfileTimezone = Carbon::parse($data['anchor_time'])->setTimezone($profile->timezone);
 
         $doseSchedule->update([
             'today_override_date' => $today,
-            'today_override_time' => $data['anchor_time'],
+            'today_override_time' => $anchorInProfileTimezone->format('H:i'),
         ]);
         // Um `fresh()` só (achado de revisão de código, 2026-09-08) — os
         // dois usos abaixo liam o mesmo registro duas vezes à toa.

@@ -310,9 +310,10 @@ class DoseLogTodayTest extends TestCase
             'status' => 'taken',
         ]);
 
-        // Confirma "Ajustar as próximas doses de hoje" com a âncora 10:00.
+        // Confirma "Ajustar as próximas doses de hoje" com a âncora
+        // 10:00 (instante absoluto — perfil em UTC, então bate igual).
         $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
-            'anchor_time' => '10:00',
+            'anchor_time' => '2026-07-15T10:00:00Z',
         ])->assertOk();
 
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");

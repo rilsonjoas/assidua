@@ -203,7 +203,7 @@ class DoseScheduleTest extends TestCase
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
 
         $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
-            'anchor_time' => '10:00',
+            'anchor_time' => '2026-09-08T10:00:00Z',
         ]);
 
         $response->assertOk();
@@ -221,6 +221,37 @@ class DoseScheduleTest extends TestCase
         Carbon::setTestNow();
     }
 
+    // Fuso horário (2026-09-08, achado de auditoria registrado no
+    // roadmap) — `anchor_time` agora é um instante absoluto (ISO 8601),
+    // não mais "H:i" nu montado no fuso do APARELHO de quem confirma.
+    // Um cuidador remoto num fuso diferente do perfil não pode mais
+    // deslocar o recálculo sem querer: o backend converte pro fuso do
+    // PERFIL antes de gravar.
+    public function test_recalcula_hoje_converte_anchor_time_pro_fuso_do_perfil_nao_do_aparelho(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-08 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        // Perfil em São Paulo (UTC-3) — o "cuidador remoto" que confirma
+        // o ajuste está em outro fuso qualquer, só o do PERFIL importa.
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
+
+        // 13:00 UTC = 10:00 em America/Sao_Paulo (UTC-3) — o aparelho de
+        // quem confirma pode estar em qualquer fuso, o que chega aqui é
+        // o instante absoluto.
+        $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '2026-09-08T13:00:00Z',
+        ]);
+
+        $response->assertOk();
+        $schedule->refresh();
+        $this->assertSame('10:00:00', Carbon::parse($schedule->today_override_time)->format('H:i:s'));
+
+        Carbon::setTestNow();
+    }
+
     public function test_recalcular_hoje_rejeita_schedule_de_horario_fixo(): void
     {
         $user = User::factory()->create();
@@ -229,7 +260,7 @@ class DoseScheduleTest extends TestCase
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
         $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
-            'anchor_time' => '10:00',
+            'anchor_time' => '2026-09-08T10:00:00Z',
         ]);
 
         $response->assertUnprocessable();
@@ -260,7 +291,7 @@ class DoseScheduleTest extends TestCase
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
 
         $response = $this->actingAs($intruder)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
-            'anchor_time' => '10:00',
+            'anchor_time' => '2026-09-08T10:00:00Z',
         ]);
 
         $response->assertForbidden();
