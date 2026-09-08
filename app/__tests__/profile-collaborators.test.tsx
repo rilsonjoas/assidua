@@ -79,29 +79,16 @@ describe('ProfileScreen — cuidador remoto (Fase 1.5, Etapa 5)', () => {
     expect(screen.getByText('Cuidando de')).toBeTruthy();
   });
 
-  it('gera convite pro perfil próprio e compartilha o código', async () => {
-    mockedCollaborators.createInvite.mockResolvedValueOnce({
-      id: 5,
-      profile_id: 1,
-      invited_by_user_id: 10,
-      user_id: null,
-      role: 'viewer',
-      invite_code: 'AB3D9F2K',
-      expires_at: '2026-08-16T00:00:00.000Z',
-      accepted_at: null,
-      user: null,
-    });
-
+  // "Quem tem acesso" (2026-09-08) — o botão de convidar direto virou um
+  // botão "Cuidadores" que navega pra tela de gerenciamento (lista +
+  // revogar + convidar com confirmação); o fluxo de convidar/compartilhar
+  // em si passou pra `collaborators.test.tsx`, testado na tela nova.
+  it('botão "Cuidadores" navega pra tela de gerenciamento do perfil certo', () => {
     renderProfile();
 
     fireEvent.press(screen.getByTestId('invite-btn-1'));
 
-    await waitFor(() => {
-      expect(mockedCollaborators.createInvite).toHaveBeenCalledWith(1);
-      expect(Share.share).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining('AB3D9F2K') }),
-      );
-    });
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/collaborators', params: { profileId: '1' } });
   });
 
   it('resgata código de convite e atualiza a lista de perfis', async () => {

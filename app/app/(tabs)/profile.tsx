@@ -6,7 +6,6 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Share,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -29,7 +28,7 @@ import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { useLanguage } from '../../hooks/useLanguage';
 import { ThemeColors } from '../../constants/theme';
 import { logout, deleteAccount } from '../../services/auth';
-import { createInvite, acceptInvite } from '../../services/collaborators';
+import { acceptInvite } from '../../services/collaborators';
 import { api } from '../../services/api';
 import { getDeviceTimezone, SupportedLanguage } from '../../services/device';
 import { LanguageMode } from '../../store/languageStore';
@@ -120,7 +119,6 @@ export default function ProfileScreen() {
   // Achado real de uso (2026-09-02): "salvar sem feedback visual" —
   // mesmo padrão do toast global usado no cadastro de remédio.
   const showToast = useToastStore((s) => s.showToast);
-  const [invitingProfileId, setInvitingProfileId] = useState<number | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
   const [redeemingLoading, setRedeemingLoading] = useState(false);
@@ -164,23 +162,6 @@ export default function ProfileScreen() {
   useEffect(() => {
     refetchProfiles();
   }, []);
-
-  // Fase 1.5, Etapa 5 — dono gera o convite e compartilha o código por
-  // fora do app (WhatsApp, SMS, o que for — Share nativo cobre isso sem
-  // precisar de integração própria).
-  async function handleInvite(profileId: number) {
-    setInvitingProfileId(profileId);
-    try {
-      const { invite_code } = await createInvite(profileId);
-      await Share.share({
-        message: t('profile.inviteMessage', { code: invite_code }),
-      });
-    } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('profile.errorInvite'));
-    } finally {
-      setInvitingProfileId(null);
-    }
-  }
 
   async function handleRedeem() {
     if (!redeemCode.trim()) return;
@@ -352,19 +333,21 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           {item.is_owner !== false && (
+            // "Quem tem acesso" (2026-09-08) — antes este botão convidava na
+            // hora (`handleInvite`, sem pausa nem contexto). Agora abre a
+            // tela de gerenciamento de cuidadores: lista quem já tem acesso
+            // (com opção de revogar) e só de lá dá pra convidar alguém novo
+            // — com uma confirmação explicando o que a pessoa vai poder
+            // fazer antes de gerar/compartilhar qualquer código.
             <TouchableOpacity
               testID={`invite-btn-${item.id}`}
-              onPress={() => handleInvite(item.id)}
-              disabled={invitingProfileId === item.id}
+              onPress={() => router.push({ pathname: '/collaborators', params: { profileId: String(item.id) } })}
               style={styles.inviteBtn}
               accessibilityRole="button"
-              accessibilityLabel={t('profile.inviteLabel', { name: item.name })}
+              accessibilityLabel={t('profile.collaboratorsButtonLabel', { name: item.name })}
             >
-              <MaterialCommunityIcons
-                name="account-plus-outline"
-                size={18}
-                color={invitingProfileId === item.id ? colors.textMuted : colors.brand}
-              />
+              <MaterialCommunityIcons name="account-heart-outline" size={18} color={colors.brand} />
+              <Text style={styles.inviteBtnText}>{t('profile.collaboratorsButton')}</Text>
             </TouchableOpacity>
           )}
           {activeProfile?.id === item.id && (
@@ -628,13 +611,20 @@ export default function ProfileScreen() {
         </View>
       </TouchableOpacity>
 
+      {/* Seções "Suporte"/"Dados"/"Conta" separadas (2026-09-08, achado
+          real revisando a tela): antes Ajuda, Exportar dados, Sair e
+          Excluir conta ficavam todos pendurados sob o título
+          "Acessibilidade" (só o Alto Contraste acima é acessibilidade
+          de verdade) — sem separação visual entre coisas bem diferentes
+          entre si. */}
+      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>{t('profile.supportSection')}</Text>
       {/* Ajuda (2026-08-14) — pergunta direta do Rilson: "não tem como
           facilitar pra novos usuários com um guia?". O onboarding só
           aparece uma vez; isto fica sempre acessível, pra quem
           esqueceu o que algo significa ou nunca chegou a ver o
           onboarding (porque foi o cuidador quem configurou). */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 24 }]}
+        style={[styles.helpBtn, { marginTop: 4 }]}
         onPress={() => router.push('/help')}
         accessibilityRole="button"
         accessibilityLabel={t('help.headerTitle')}
@@ -644,11 +634,12 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('profile.dataSection')}</Text>
       {/* Exportar meus dados (LGPD art. 18, 2026-08-22) — portabilidade
           de verdade, independente de plano pago. Mesma UI do botão de
           Ajuda; hint explica o que sai no arquivo. */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 10 }]}
+        style={[styles.helpBtn, { marginTop: 4 }]}
         onPress={() => setExportModalVisible(true)}
         disabled={exporting}
         accessibilityRole="button"
@@ -669,15 +660,21 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
-      {/* Logout */}
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('profile.accountSection')}</Text>
+      {/* Logout — cor neutra (2026-09-08, achado real revisando a tela):
+          antes usava o mesmo vermelho de alerta do botão "Excluir conta"
+          logo abaixo. Sair é uma ação corriqueira e reversível (só faz
+          login de novo); não devia parecer tão alarmante quanto apagar a
+          conta pra sempre. Vermelho fica reservado só pro que é
+          realmente destrutivo. */}
       <TouchableOpacity
-        style={styles.logoutBtn}
+        style={[styles.logoutBtn, { marginTop: 4 }]}
         onPress={() => setConfirmingLogout(true)}
         accessibilityRole="button"
         accessibilityLabel={t('profile.logout')}
       >
-        <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
-        <Text style={styles.logoutText}>{t('profile.logout')}</Text>
+        <MaterialCommunityIcons name="logout" size={18} color={colors.textSecondary} />
+        <Text style={styles.logoutTextNeutral}>{t('profile.logout')}</Text>
       </TouchableOpacity>
 
       {/* Excluir conta */}
@@ -749,13 +746,15 @@ export default function ProfileScreen() {
     </ScrollView>
     </KeyboardAvoidingView>
 
+    {/* Sem `destructive` (2026-09-08, mesmo achado do botão acima) —
+        logout não é uma ação perigosa, não devia usar o mesmo tratamento
+        visual (vermelho/alarmante) da confirmação de excluir conta. */}
     <ConfirmDialog
       visible={confirmingLogout}
       title={t('profile.logoutConfirmTitle')}
       message={t('profile.logoutConfirmMessage')}
       cancelLabel={t('common.cancel')}
       confirmLabel={t('profile.logoutShort')}
-      destructive
       busy={loggingOut}
       onCancel={() => setConfirmingLogout(false)}
       onConfirm={handleLogout}
@@ -905,7 +904,8 @@ function makeStyles(c: ThemeColors) {
     profileName: { fontSize: 15, color: c.text, fontWeight: '600' },
     sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
     sharedBadgeText: { fontSize: 11, color: c.brand, fontWeight: '600' },
-    inviteBtn: { padding: 8, marginRight: 4 },
+    inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, marginRight: 4 },
+    inviteBtnText: { fontSize: 12, fontWeight: '600', color: c.brand },
     createBox: { backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
     createTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 14 },
     createLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8, marginTop: 4 },
@@ -972,6 +972,8 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12,
     },
     logoutText: { color: c.error, fontWeight: '600', fontSize: 15 },
+    // Ver comentário no botão de logout: mesma silhueta, cor neutra.
+    logoutTextNeutral: { color: c.textSecondary, fontWeight: '600', fontSize: 15 },
     deleteBox: {
       backgroundColor: c.surface, borderRadius: 16, padding: 16, marginTop: 12,
       borderWidth: 1, borderColor: c.error,

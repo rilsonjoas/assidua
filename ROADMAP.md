@@ -882,6 +882,183 @@ localmente pra debugar, não só neste teste específico.
   uma varredura sistemática ainda; fica como item de backlog pra uma
   sessão dedicada só a isso.
 
+### Segunda leva — achados extras a pedido do Rilson (2026-09-08) — ⏳ implementado, aguardando commit/deploy
+
+> Depois de instalar o build e usar a tela de Estoque, o Rilson trouxe
+> uma queixa concreta (screenshot) e pediu 5-10 sugestões extras de
+> UI/UX pensando no público idoso. Levantamento feito lendo o código de
+> verdade (Perfil, Remédios, Estoque), não achados genéricos. Confirmado
+> implementar os 4 novos (o 1º, o card de Estoque, já tinha sido
+> corrigido antes deste levantamento) — **implementado e testado, mas
+> aguardando autorização explícita pra commit/`eas update`.**
+
+- [x] **1. Card de Estoque bagunçado ao editar** (queixa original com
+      screenshot) — o card usava `alignItems: 'center'` na linha
+      externa; ao abrir o formulário de edição (card cresce), a bolinha
+      de cor ficava flutuando centralizada na altura toda, longe do
+      nome. Corrigido: `flex-start` + `marginTop` de ajuste óptico nos
+      elementos que dependiam do centering antigo. Os 3 botões
+      (Cancelar/Adicionar/Definir) numa fileira só com pesos visuais
+      diferentes viraram: "Adicionar"/"Definir" dividindo uma fileira
+      com peso igual (`flex: 1` nos dois — são as ações que de fato
+      mudam o estoque), "Cancelar" sozinho embaixo, discreto. `minHeight
+      48` mantido em todos (WCAG AAA).
+- [x] **2. "Sair" e "Excluir conta" visualmente idênticos** (Perfil) —
+      mesmo botão vermelho (`logoutBtn`/`logoutText`, cor `c.error`),
+      mesmo ícone de alerta, e a confirmação de ambos usava
+      `destructive` (fundo vermelho). Sair é reversível e corriqueiro;
+      excluir conta é permanente. Corrigido: logout ganhou estilo neutro
+      (`logoutTextNeutral`, ícone `colors.textSecondary`) e a
+      `ConfirmDialog` de logout perdeu o `destructive` (fica com o
+      `confirmBtn` padrão, cor de marca). Excluir conta continua
+      vermelho/destacado, sem mudança — é genuinamente perigoso.
+- [x] **3. Botão de convidar cuidador só com ícone** (Perfil, lista de
+      perfis) — mesma categoria do achado #3 da primeira leva ("Foi em
+      outro horário"). Ganhou texto visível ao lado do ícone;
+      `accessibilityLabel` completo mantido inalterado, teste existente
+      usa `testID` (não quebrou). **Superado pela terceira leva abaixo**:
+      o botão virou "Cuidadores" (não mais "Convidar"), abrindo a tela
+      de gerenciamento em vez de convidar na hora.
+- [x] **4. Seção "Acessibilidade" virando gaveta geral** (Perfil) — Alto
+      Contraste (acessibilidade de verdade) dividia o mesmo bloco sem
+      separação com Ajuda, Exportar dados, Sair e Excluir conta.
+      Corrigido: três seções novas — "Suporte" (Ajuda), "Dados"
+      (Exportar), "Conta" (Sair/Excluir conta) — cada uma com seu
+      próprio `sectionTitle`, mesmo padrão visual das seções existentes
+      (Perfis/Aparência/Idioma/Acessibilidade).
+- [x] **5. CTA duplicado em Remédios vazio** — com a lista vazia, o
+      estado vazio já mostra um botão grande "Adicionar medicamento" no
+      centro, mas o FAB "+" flutuante continuava aparecendo por cima,
+      redundante (a Home já resolve isso certo, escondendo o próprio FAB
+      quando não há doses). Corrigido: FAB de Remédios agora só aparece
+      com `medications.length > 0`, mesma regra da Home.
+
+> Verificação: `npm test` (comando exato do CI) 2x estável, 44/44
+> suítes, 304/304 testes. Typecheck limpo. **Ainda não commitado nem
+> publicado** — Rilson pediu pra segurar até ele mandar.
+
+### Terceira leva — "cuidado compartilhado" de verdade (2026-09-08) — ⏳ implementado, aguardando commit/deploy
+
+> O Rilson perguntou direto: o uso normal do app é do usuário final
+> (o próprio paciente ou quem configurou pra ele), e o cuidador
+> convidado é só um papel a mais — isso já estava claro, com contexto
+> de segurança, e com o usuário final podendo revogar o compartilhamento
+> quando quiser? Resposta honesta depois de ler o código: o **modelo de
+> permissões já era sólido** (`ProfilePolicy`/`MedicationPolicy`/
+> `DoseSchedulePolicy`/`DoseLogPolicy` no backend, cada um documentando a
+> decisão — cuidador vê remédios, marca/desfaz doses e repõe estoque, mas
+> nunca edita/apaga cadastro nem convida/revoga outro cuidador), mas o
+> **ciclo de confiança do lado do app estava incompleto**: `listCollaborators`/
+> `revokeCollaborator` já existiam no serviço, chamando endpoints reais do
+> Laravel que já funcionavam, mas nenhuma tela do app chamava essas
+> funções — código morto do ponto de vista da UI. Quem aceitava um
+> convite ficava com acesso permanente, sem o dono do perfil ter como
+> ver quem é ou tirar esse acesso depois.
+
+- [x] **1. Tela "Quem tem acesso"** (`app/collaborators.tsx`, nova) —
+      lista cuidadores aceitos (nome/e-mail) e convites pendentes
+      separadamente, com botão de revogar/cancelar em cada linha
+      (`ConfirmDialog destructive`, nomeando a pessoa). Acessada pelo
+      botão "Cuidadores" em cada perfil próprio na tela de Perfil
+      (substituiu o antigo botão "Convidar" direto). Rota registrada em
+      `_layout.tsx` como modal, mesmo padrão de `help`/`pro`.
+- [x] **2. Convite ganha pausa e contexto** — convidar deixou de ser
+      instantâneo (tocar já gerava o código e abria o compartilhamento).
+      Agora vive dentro da tela nova: um botão "Convidar cuidador" abre
+      uma confirmação explicando exatamente o que a pessoa vai poder
+      fazer (ver remédios, marcar doses, repor estoque) e o que não vai
+      (editar/excluir nada) — e lembra que dá pra revogar depois, ali
+      mesmo. Só gera/compartilha o código depois de confirmado.
+- [x] **3. Lembrete "Cuidando de {{nome}}" na Home** — antes o único
+      sinal de que a pessoa via dados de outro perfil era um selo
+      pequeno na tela de Perfil. Banner discreto e persistente no topo
+      da Home (`caregiverBanner`), visível só em `isCaregiverView`,
+      evita a confusão "é meu remédio ou da minha mãe?".
+- [x] **4. Remédios (lista) não avisa estoque baixo** — só a aba Estoque
+      tinha o alerta visual (ícone + cor + borda); a lista de Remédios,
+      olhada no dia a dia, não mostrava nada. Mesmo tratamento
+      (`cardAlert`/`alertRow`, mesmo limiar `LOW_STOCK_DAYS_THRESHOLD`)
+      replicado lá.
+
+> `patientProfilesHint` (tela de Perfil) atualizado pra mencionar o
+> botão "Cuidadores" em vez do ícone de convite antigo. Testes: nova
+> suíte `collaborators.test.tsx` (8 testes — vazio, listar aceito vs.
+> pendente, revogar com confirmação nomeando a pessoa, cancelar convite
+> pendente com confirmação diferente, convidar com pausa/contexto,
+> cancelar sem gerar nada); `profile-collaborators.test.tsx` atualizado
+> (o botão agora só navega, o fluxo de convidar/compartilhar de verdade
+> mudou pra suíte nova). Verificação: `npm test` (comando exato do CI)
+> 2x estável, 45/45 suítes, 312/312 testes. Typecheck limpo. **Ainda não
+> commitado nem publicado** — aguardando o Rilson mandar.
+
+---
+
+## Auditoria de segurança (2026-09-08) — ⏳ corrigido, aguardando commit/deploy
+
+> Relatório gerado por outra sessão do Claude Code rodando em paralelo
+> (`docs/security-audit/`, não rastreado no git — script Python +
+> venv local, fora do escopo desta sessão). Rilson pediu pra eu
+> verificar os achados no código real e corrigir. Todos os 3 achados
+> foram confirmados lendo o código (nenhum especulativo) antes de
+> corrigir.
+
+- [x] **A1 (Alta) — IDOR em `POST /dose-logs`** — `dose_schedule_id`/
+      `medication_id` só eram validados como "existe em algum lugar do
+      banco" (`exists:tabela,id`), sem checar que pertencem ao
+      `profile_id` já autorizado pelo Gate — os três IDs eram tratados
+      como independentes. Um usuário autenticado podia enviar seu
+      PRÓPRIO `profile_id` (passa no Gate) junto com `dose_schedule_id`/
+      `medication_id` de OUTRO perfil: o `updateOrCreate` casava por
+      `dose_schedule_id` + `scheduled_at`, então isso vazava nome/
+      dosagem do medicamento alheio na resposta e podia sobrescrever o
+      `DoseLog` (status/notas) de um perfil de terceiro, sem nunca
+      passar pela Policy do perfil-alvo.
+  - **Fix**: `DoseLogController::store` agora resolve o `DoseSchedule`
+    escopado ao `$profile` já autorizado
+    (`whereHas('medication', fn($q) => $q->where('profile_id', ...))`,
+    404 se não pertencer) e confere que o `medication_id` enviado bate
+    com o do schedule, antes de tocar em qualquer registro.
+  - 2 testes novos em `DoseLogStoreTest.php`: `dose_schedule_id` de
+    outro perfil rejeitado com 404 (e a resposta não vaza o nome do
+    medicamento da vítima), `medication_id` que não bate com o schedule
+    também rejeitado.
+- [x] **A2 (Baixa) — CSV Formula Injection na exportação LGPD** —
+      `DataExportController::downloadCsv` escrevia nome/dosagem/
+      instruções/notas do medicamento (texto livre do usuário) direto
+      em células CSV sem neutralizar valores começando com `=`, `+`,
+      `-` ou `@` — Excel/Sheets pode interpretar como fórmula ao abrir
+      o arquivo. Risco só de auto-injeção (todo campo exportado só pode
+      ter sido escrito pelo próprio dono do perfil), mas vale corrigir
+      como defesa em profundidade.
+  - **Fix**: `csvSafe()` novo, prefixa apóstrofo (padrão OWASP) em
+    qualquer célula de texto livre que comece com um desses caracteres,
+    aplicado a perfil/nome/dosagem/unidade/instruções/notas do
+    medicamento nos dois pontos onde `fputcsv` escreve essas colunas.
+  - 1 teste novo em `DataExportTest.php`: medicamento com nome `=1+1` e
+    notas `+CMD` saem prefixados com apóstrofo no CSV gerado.
+- [x] **A3 (Informativa) — comparação do webhook secret não era
+      constant-time** — `RevenueCatWebhookController::handle` comparava
+      `$request->header('Authorization') !== $secret` (retorna assim
+      que acha o primeiro byte diferente — janela teórica de timing
+      side-channel). Nenhum segredo hardcoded encontrado (achado
+      positivo da auditoria); é só a forma da comparação.
+  - **Fix**: trocado por `hash_equals($secret, (string)
+    $request->header('Authorization'))`, sempre tempo constante.
+  - Testes existentes de `RevenueCatWebhookTest.php` (secret correto/
+    incorreto/ausente) continuam cobrindo o comportamento, sem mudança
+    de contrato.
+
+> **Pontos fortes confirmados pela auditoria** (sem correção
+> necessária): isolamento de tenant via Policies em todo Controller,
+> paridade entre o gate `is_owner` do app e as Policies do backend,
+> nenhum segredo hardcoded, fluxo de magic link + OAuth robusto,
+> exportação LGPD via signed URL com expiração curta, mass assignment
+> de `subscription_tier` sob controle.
+>
+> Verificação: `./vendor/bin/sail artisan test` 2x estável, 255/255
+> testes backend. **Ainda não commitado nem publicado** — aguardando o
+> Rilson mandar.
+
 ---
 
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web

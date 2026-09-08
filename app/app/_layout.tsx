@@ -231,6 +231,19 @@ function ThemedLayout() {
                 headerLeft: () => <ModalCloseButton />,
               }}
             />
+            <Stack.Screen
+              name="collaborators"
+              options={{
+                headerShown: true,
+                title: t('profile.collaboratorsTitle'),
+                presentation: 'modal',
+                headerStyle: { backgroundColor: colors.surface },
+                headerTitleStyle: { color: colors.text, fontWeight: '700' },
+                headerTintColor: colors.text,
+                headerShadowVisible: false,
+                headerLeft: () => <ModalCloseButton />,
+              }}
+            />
           </Stack>
         </View>
       </View>

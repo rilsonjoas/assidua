@@ -402,6 +402,18 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
         </View>
+        {/* "Cuidando de {{nome}}" (2026-09-08, achado real revisando a
+            tela) — antes o único sinal de que a pessoa está vendo dados
+            de outro perfil era um selo pequeno lá na tela de Perfil. Aqui
+            na Home, onde de fato se age (marcar dose), não tinha nenhum
+            lembrete de quem são os dados — risco de confundir "é meu
+            remédio ou da minha mãe?". */}
+        {isCaregiverView && !!activeProfile && (
+          <View style={styles.caregiverBanner} accessible accessibilityLabel={t('home.caregiverBanner', { name: activeProfile.name })}>
+            <MaterialCommunityIcons name="account-heart-outline" size={14} color={colors.headerText} />
+            <Text style={styles.caregiverBannerText}>{t('home.caregiverBanner', { name: activeProfile.name })}</Text>
+          </View>
+        )}
         {profiles.length > 0 && (
           <FlatList
             data={profiles}
@@ -679,6 +691,12 @@ function makeStyles(c: ThemeColors) {
       position: 'absolute', top: -44, right: -32, width: 170, height: 170, opacity: 0.12,
     },
     headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    caregiverBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+      backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20,
+      paddingHorizontal: 12, paddingVertical: 6, marginTop: 12,
+    },
+    caregiverBannerText: { color: c.headerText, fontSize: 13, fontWeight: '600' },
     brandMark: { width: 30, height: 30, opacity: 0.92 },
     date: { color: c.headerSubtext, fontSize: 13, textTransform: 'capitalize' },
     title: { color: c.headerText, fontSize: 24, fontWeight: '700', marginTop: 2 },

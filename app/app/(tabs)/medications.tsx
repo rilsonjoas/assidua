@@ -14,7 +14,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useMedicationsSortStore, MedicationsSort } from '../../store/medicationsSortStore';
 import { maskMedicationName } from '../../lib/privacy';
-import { getMedications, formatDosageUnit } from '../../services/medications';
+import { getMedications, formatDosageUnit, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
@@ -123,10 +123,16 @@ export default function MedicationsScreen() {
           }
           renderItem={({ item }) => {
             const maskedName = maskMedicationName(item.name, isPrivate);
+            // "Remédios não avisa estoque baixo" (2026-09-08, achado real
+            // revisando a tela): só a aba Estoque tinha esse alerta —
+            // quem só olha a lista de Remédios no dia a dia não via nada.
+            // Mesmo limiar/cor/ícone que já existiam lá (`stock.tsx`).
+            const daysRemaining = item.days_remaining;
+            const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
             return (
               <Link href={`/medication/${item.id}`} asChild>
                 <TouchableOpacity
-                  style={StyleSheet.flatten([styles.card, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
+                  style={StyleSheet.flatten([styles.card, isLow && styles.cardAlert, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
                   accessibilityRole="button"
                   accessibilityLabel={
                     item.is_paused
@@ -156,6 +162,14 @@ export default function MedicationsScreen() {
                   <Text style={styles.schedules}>
                     {t('medications.scheduleCount', { count: item.schedules.length })} · {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? t('medications.defaultUnit')} {t('medications.stockCount')}
                   </Text>
+                  {isLow && (
+                    <View style={styles.alertRow}>
+                      <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
+                      <Text style={styles.alertText}>
+                        {daysRemaining! <= 0 ? t('stock.stockOut') : t('stock.endsIn', { count: daysRemaining })}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
               </TouchableOpacity>
@@ -165,7 +179,12 @@ export default function MedicationsScreen() {
         />
       )}
 
-      {activeProfile?.is_owner !== false && (
+      {/* Só aparece com a lista não-vazia (2026-09-08, achado real
+          revisando a tela) — com a lista vazia, o estado vazio acima já
+          tem seu próprio botão grande "Adicionar medicamento"; o FAB por
+          cima virava um segundo botão fazendo a mesma coisa, redundante.
+          Mesma regra que a Home já aplica certo no próprio FAB dela. */}
+      {activeProfile?.is_owner !== false && medications.length > 0 && (
         <Link href="/medication/new" asChild>
           <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
             <MaterialCommunityIcons name="plus" size={28} color="#fff" />
@@ -211,6 +230,10 @@ function makeStyles(c: ThemeColors) {
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardPaused: { opacity: 0.6 },
+    // Mesmo tratamento visual do alerta de estoque baixo na aba Estoque.
+    cardAlert: { borderWidth: 1.5, borderColor: c.warning },
+    alertRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    alertText: { fontSize: 13, color: c.warning },
     colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14 },
     colorDotPaused: { opacity: 0.4 },
     photoThumb: { width: 40, height: 40, borderRadius: 8, marginRight: 14 },
