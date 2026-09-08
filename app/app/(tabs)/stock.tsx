@@ -177,7 +177,46 @@ export default function StockScreen() {
                           menu escondido; o que o usuário digitou acima
                           significa a mesma coisa nos dois, quem muda é a
                           operação. */}
+                      {/* Reorganizado (2026-09-08, achado real do Rilson com
+                          screenshot): os 3 botões numa fileira só ficavam
+                          espremidos com pesos visuais diferentes (texto
+                          solto, contornado, preenchido) competindo por
+                          atenção. Agora "Adicionar"/"Definir" — as duas
+                          ações que de fato mudam o estoque — dividem uma
+                          fileira com o mesmo peso visual, e "Cancelar"
+                          (sair sem salvar) fica sozinho embaixo, discreto. */}
                       <View style={styles.editActions}>
+                        <View style={styles.editPrimaryRow}>
+                          <TouchableOpacity
+                            onPress={() => addQty(item)}
+                            style={styles.addBtn}
+                            disabled={mutation.isPending}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('stock.addLabel', { name: maskedName })}
+                            accessibilityState={{ busy: pendingAction === 'add' }}
+                          >
+                            {pendingAction === 'add'
+                              ? <ActivityIndicator color={colors.brand} size="small" />
+                              : (
+                                <>
+                                  <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                                  <Text style={styles.addBtnText}>{t('stock.add')}</Text>
+                                </>
+                              )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setQtyAbsolute(item)}
+                            style={styles.saveBtn}
+                            disabled={mutation.isPending}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('stock.setLabel', { name: maskedName })}
+                            accessibilityState={{ busy: pendingAction === 'set' }}
+                          >
+                            {pendingAction === 'set'
+                              ? <ActivityIndicator color={colors.onBrand} size="small" />
+                              : <Text style={styles.saveBtnText}>{t('stock.set')}</Text>}
+                          </TouchableOpacity>
+                        </View>
                         <TouchableOpacity
                           onPress={cancelEdit}
                           style={styles.cancelBtn}
@@ -185,35 +224,6 @@ export default function StockScreen() {
                           accessibilityLabel={t('common.cancel')}
                         >
                           <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => addQty(item)}
-                          style={styles.addBtn}
-                          disabled={mutation.isPending}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('stock.addLabel', { name: maskedName })}
-                          accessibilityState={{ busy: pendingAction === 'add' }}
-                        >
-                          {pendingAction === 'add'
-                            ? <ActivityIndicator color={colors.brand} size="small" />
-                            : (
-                              <>
-                                <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
-                                <Text style={styles.addBtnText}>{t('stock.add')}</Text>
-                              </>
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => setQtyAbsolute(item)}
-                          style={styles.saveBtn}
-                          disabled={mutation.isPending}
-                          accessibilityRole="button"
-                          accessibilityLabel={t('stock.setLabel', { name: maskedName })}
-                          accessibilityState={{ busy: pendingAction === 'set' }}
-                        >
-                          {pendingAction === 'set'
-                            ? <ActivityIndicator color={colors.onBrand} size="small" />
-                            : <Text style={styles.saveBtnText}>{t('stock.set')}</Text>}
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -259,7 +269,13 @@ function makeStyles(c: ThemeColors) {
     empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
     card: {
       backgroundColor: c.surface, borderRadius: 16,
-      flexDirection: 'row', alignItems: 'center', padding: 16,
+      // "Card cresce ao editar e a bolinha de cor fica flutuando no meio"
+      // (2026-09-08, achado real do Rilson com screenshot): era
+      // `alignItems: 'center'`, então ao abrir o formulário de edição a
+      // bolinha se centralizava na altura toda do card (que cresce),
+      // ficando longe do nome — flex-start prende ela no topo, junto do
+      // nome, não importa quanto o card cresça.
+      flexDirection: 'row', alignItems: 'flex-start', padding: 16,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardAlert: { borderWidth: 1.5, borderColor: c.warning },
@@ -268,9 +284,11 @@ function makeStyles(c: ThemeColors) {
     // tela, mas quem enxerga e não é fluente em ícone de app não sabia
     // o que fazia sem tocar. Cartão tem espaço de sobra pra texto,
     // diferente da linha apertada de perfil.
-    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
+    // marginTop nos dois: alinha opticamente com a primeira linha do nome
+    // agora que o card usa `alignItems: 'flex-start'` (ver nota em `card`).
+    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginTop: 2 },
     editBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
-    colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14 },
+    colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14, marginTop: 3 },
     info: { flex: 1 },
     name: { fontSize: 16, fontWeight: '600', color: c.text },
     alertRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
@@ -286,26 +304,30 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface,
     },
     unit: { color: c.textSecondary, fontSize: 14 },
-    // "Adicionar" (soma ao estoque atual) e "Definir" (substitui pelo
-    // valor exato) lado a lado — achado real de uso (2026-09-02): um
-    // botão só ("Salvar") sempre reescrevia, sem opção de somar uma
-    // compra ao que já tinha. `flexWrap` cobre telas estreitas, mesmo
-    // padrão já usado no Histórico.
-    editActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    // Reorganizado (2026-09-08, achado real com screenshot): antes os 3
+    // botões viviam numa fileira só, com pesos visuais bem diferentes
+    // brigando por atenção (texto solto "Cancelar", contornado
+    // "Adicionar", preenchido "Definir") — ficava bagunçado, especialmente
+    // com o card já maior por causa do formulário. Agora "Adicionar" e
+    // "Definir" — as ações que de fato mudam o estoque — dividem uma
+    // fileira com o mesmo peso (mesma largura, `flex: 1` nos dois), e
+    // "Cancelar" fica sozinho embaixo, discreto, claramente secundário.
+    editActions: { gap: 8 },
+    editPrimaryRow: { flexDirection: 'row', gap: 8 },
     // minHeight 48 nos três (WCAG AAA, achado revisando toque mínimo
     // 2026-09-05) — sem isso ficavam ~30-32px de altura real, abaixo do
     // alvo mínimo pro público idoso/baixa destreza motora do app.
-    cancelBtn: { paddingHorizontal: 10, paddingVertical: 6, minHeight: 48, justifyContent: 'center' },
+    cancelBtn: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 6, minHeight: 48, justifyContent: 'center' },
     cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
     addBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
       borderWidth: 1.5, borderColor: c.brand, borderRadius: 8,
-      paddingHorizontal: 12, paddingVertical: 5, minHeight: 48,
+      paddingVertical: 5, minHeight: 48,
     },
     addBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
     saveBtn: {
-      backgroundColor: c.brand, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
-      minWidth: 64, minHeight: 48, alignItems: 'center', justifyContent: 'center',
+      flex: 1, backgroundColor: c.brand, borderRadius: 8, paddingVertical: 6,
+      minHeight: 48, alignItems: 'center', justifyContent: 'center',
     },
     saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
   });

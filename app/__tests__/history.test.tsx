@@ -81,6 +81,14 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
   });
 
+  // Timeout maior que o padrão do Jest (2026-09-08): achado real em CI
+  // (GitHub Actions) — este teste faz 3 `findByLabelText` em sequência
+  // (botão inicial, abrir modal, achar item dentro dele) mais o
+  // `renderHistory()` a frio; sob a suíte cheia num runner mais lento
+  // que a máquina local, passou a estourar os 5000ms padrão mesmo
+  // passando estável em isolamento e local (2x). Mesma categoria de
+  // flakiness por carga já vista antes nesta sessão — não é bug de
+  // lógica, é o teste fazendo mais trabalho sequencial que os vizinhos.
   it('botão de filtro começa em "Todos os remédios" e o seletor lista cada medicamento cadastrado', async () => {
     renderHistory();
 
@@ -90,7 +98,7 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
 
     expect(await screen.findByLabelText('Losartana')).toBeTruthy();
     expect(screen.getByLabelText('Paracetamol')).toBeTruthy();
-  });
+  }, 15000);
 
   it('ao escolher um medicamento, refaz a busca com medication_id', async () => {
     renderHistory();
