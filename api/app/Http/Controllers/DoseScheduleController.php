@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\GenerateScheduleOccurrences;
 use App\Models\DoseSchedule;
 use App\Models\Medication;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -60,5 +62,49 @@ class DoseScheduleController extends Controller
         $doseSchedule->delete();
 
         return response()->json(null, 204);
+    }
+
+    // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado
+    // real do Rilson: tomar um remédio "de X em X horas" bem fora do
+    // previsto deveria poder deslocar as doses RESTANTES daquele dia
+    // (ex.: tomou o das 8h só às 10h → próxima aparece às 18h, não
+    // 16h), sem virar o horário permanente. Só faz sentido pra modo
+    // intervalo — horário fixo não tem "próxima dose" pra deslocar, só
+    // registra atrasado (decisão de produto confirmada, ver roadmap).
+    public function recalculateToday(Request $request, DoseSchedule $doseSchedule, GenerateScheduleOccurrences $generateOccurrences): JsonResponse
+    {
+        Gate::authorize('update', $doseSchedule);
+
+        if ($doseSchedule->interval_hours === null) {
+            return response()->json([
+                'message' => 'Recalcular a próxima dose só se aplica a horário do tipo "a cada X horas".',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'anchor_time' => 'required|date_format:H:i',
+        ]);
+
+        $profile = $doseSchedule->medication->profile;
+        $today = Carbon::today($profile->timezone);
+
+        $doseSchedule->update([
+            'today_override_date' => $today,
+            'today_override_time' => $data['anchor_time'],
+        ]);
+        // Um `fresh()` só (achado de revisão de código, 2026-09-08) — os
+        // dois usos abaixo liam o mesmo registro duas vezes à toa.
+        $fresh = $doseSchedule->fresh();
+
+        return response()->json([
+            'schedule' => $fresh,
+            // Devolve as ocorrências já recalculadas pra hoje — poupa o
+            // client de um segundo round-trip só pra saber o que
+            // reagendar como notificação local.
+            'today_occurrences' => array_map(
+                fn ($occurrence) => $occurrence->toIso8601String(),
+                $generateOccurrences->handle($fresh, $today),
+            ),
+        ]);
     }
 }

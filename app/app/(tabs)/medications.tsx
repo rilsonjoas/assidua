@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
+import { useMedicationsSortStore, MedicationsSort } from '../../store/medicationsSortStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
@@ -20,22 +21,73 @@ import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 
+// "Ordenar por" (2026-09-07, item 11) — v1 traz só as duas baratas
+// (dado já pronto, sem mudança de backend): nome já vem em toda
+// resposta, `days_remaining` já é calculado no backend
+// (`Medication.php`, `$appends`). "Próxima dose" fica pra depois — pra
+// horário de intervalo, o horário real depende de quando a última dose
+// foi tomada de verdade, dado que hoje só existe na tela Hoje.
+const SORT_OPTIONS: { key: MedicationsSort; labelKey: string }[] = [
+  { key: 'alphabetical', labelKey: 'medications.sortAlphabetical' },
+  { key: 'stock-low', labelKey: 'medications.sortStockLow' },
+];
+
 export default function MedicationsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { activeProfile } = useProfileStore();
   const { isPrivate } = usePrivacyStore();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
+  const sort = useMedicationsSortStore((s) => s.sort);
+  const setSort = useMedicationsSortStore((s) => s.setSort);
 
-  const { data: medications = [], isLoading } = useQuery({
+  const { data: rawMedications = [], isLoading } = useQuery({
     queryKey: ['medications', activeProfile?.id],
     queryFn: () => getMedications(activeProfile!.id),
     enabled: !!activeProfile,
   });
 
+  const medications = useMemo(() => {
+    const list = [...rawMedications];
+    if (sort === 'alphabetical') {
+      list.sort((a, b) => a.name.localeCompare(b.name, i18n.language));
+    } else {
+      // "Estoque acabando primeiro" — `days_remaining` nulo (sem
+      // estoque rastreado ainda) vai pro fim, não pro topo: ausência de
+      // dado não é a mesma coisa que urgência.
+      list.sort((a, b) => {
+        if (a.days_remaining === null && b.days_remaining === null) return 0;
+        if (a.days_remaining === null) return 1;
+        if (b.days_remaining === null) return -1;
+        return a.days_remaining - b.days_remaining;
+      });
+    }
+    return list;
+  }, [rawMedications, sort, i18n.language]);
+
   return (
     <View style={styles.container}>
+      {!isLoading && medications.length > 0 && (
+        <View style={styles.sortRow}>
+          {SORT_OPTIONS.map((option) => {
+            const label = t(option.labelKey);
+            const active = sort === option.key;
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={[styles.sortChip, active && styles.sortChipActive]}
+                onPress={() => setSort(option.key)}
+                accessibilityRole="button"
+                accessibilityLabel={t('medications.sortAccessibilityLabel', { label })}
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.sortChipText, active && styles.sortChipTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
       {isLoading ? (
         <SkeletonList lines={3} />
       ) : (
@@ -127,6 +179,20 @@ export default function MedicationsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    // "Ordenar por" (2026-09-07, item 11) — chips no topo, mesmo padrão
+    // visual já usado em presets de dias/intervalo no cadastro de
+    // remédio, não um menu escondido.
+    sortRow: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+      paddingHorizontal: 16, paddingTop: 16,
+    },
+    sortChip: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
+    },
+    sortChipActive: { backgroundColor: c.brand, borderColor: c.brand },
+    sortChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    sortChipTextActive: { color: c.onBrand },
     list: { padding: 16, gap: 12 },
     listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
     gridRow: { gap: 12 },

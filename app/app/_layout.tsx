@@ -21,6 +21,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { PrivacyBlur } from '../components/PrivacyBlur';
 import { Toast } from '../components/Toast';
 import { ModalCloseButton } from '../components/ModalCloseButton';
+import { shouldEnableSentry } from '../lib/sentryInit';
 
 import * as SentryWeb from '@sentry/react';
 
@@ -28,14 +29,24 @@ const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
 const isNative = Platform.OS !== 'web';
 
+// Achado real (2026-09-08): rodar o app localmente pra debugar/testar
+// (`expo start`, `expo start --web`) sempre reportava pro Sentry de
+// PRODUÇÃO — nada aqui distinguia "isso é um teste local" de "isso é
+// um usuário de verdade", porque a checagem só olhava se existe DSN
+// configurado, não se é um build de desenvolvimento. Um 401 esperado
+// de um teste local virou alerta real, notificando gente de verdade.
+// `shouldEnableSentry` (lib/sentryInit.ts, com teste próprio) decide
+// isso puro, sem efeito colateral — `__DEV__` é `true` só rodando via
+// Metro (`expo start`); falso em qualquer bundle de release de
+// verdade, inclusive o profile `preview` do EAS.
 if (isNative) {
   Sentry.init({
     dsn: sentryDsn,
-    enabled: !!sentryDsn,
+    enabled: shouldEnableSentry(sentryDsn, __DEV__),
     tracesSampleRate: 1.0,
   });
 } else {
-  if (sentryDsn) {
+  if (shouldEnableSentry(sentryDsn, __DEV__)) {
     SentryWeb.init({
       dsn: sentryDsn,
       enabled: true,

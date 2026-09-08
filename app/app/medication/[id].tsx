@@ -22,6 +22,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { useToastStore } from '../../store/toastStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
+import { parseStockQuantity, isStockNeverSet } from '../../lib/stockQuantity';
 import {
   createMedication,
   updateMedication,
@@ -32,11 +33,15 @@ import {
   uploadMedicationPhoto,
   deleteMedicationPhoto,
   updateStock,
+  deleteMedication,
   DoseSchedule,
+  StockItem,
+  LOW_STOCK_DAYS_THRESHOLD,
 } from '../../services/medications';
 import {
   scheduleScheduleNotifications,
   cancelScheduleNotifications,
+  scheduleRefillAlert,
 } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
@@ -157,6 +162,16 @@ export default function MedicationFormScreen() {
   // sem preencher fica 0 (comportamento de sempre) e ajusta depois na
   // aba Estoque.
   const [initialStock, setInitialStock] = useState('');
+  // "Estoque editável na tela do remédio" (2026-09-07, item 13) —
+  // achado real do Rilson: dava pra ajustar a quantidade pela aba
+  // Estoque, mas não editando o remédio diretamente (só tinha "Estoque
+  // inicial" ao criar, que some depois). Mesmo padrão de
+  // Adicionar/Definir já usado em `app/(tabs)/stock.tsx` — reaproveita
+  // `updateStock`, sem endpoint novo.
+  const [stock, setStock] = useState<StockItem | null>(null);
+  const [editingStock, setEditingStock] = useState(false);
+  const [stockQty, setStockQty] = useState('');
+  const [stockAction, setStockAction] = useState<'add' | 'set' | null>(null);
   const [color, setColor] = useState('#6366f1');
   const [instructions, setInstructions] = useState('');
   // Achado real (2026-08-13): campo já existia no backend (validação em
@@ -165,13 +180,30 @@ export default function MedicationFormScreen() {
   const [notes, setNotes] = useState('');
   // "Foto do medicamento" (2026-08-13) — valor real pro público
   // idoso/cuidador: reconhecer visualmente costuma valer mais que ler o
-  // nome. Só disponível depois de criado (precisa de id pra anexar).
+  // nome.
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  // "Foto no cadastro" (2026-09-07): achado real do Rilson — só dava pra
+  // anexar foto editando um remédio já criado, nunca no cadastro, que é
+  // exatamente quando a pessoa está com a caixa/bula na mão. Trava
+  // técnica real: `uploadMedicationPhoto` exige um `id`, que só existe
+  // depois do POST de criação. Mesmo padrão já usado pro estoque inicial
+  // (`initialStock`): guarda o URI local aqui, sobe como uma chamada
+  // extra assim que `createMedication` retorna o id (ver saveMedication).
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  // O que aparece no círculo: a foto já salva no servidor (editando) ou
+  // a foto escolhida ainda não enviada (cadastrando).
+  const displayPhotoUri = isNew ? localPhotoUri : photoUrl;
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // "Excluir medicamento" (2026-09-07, item 15) — hard delete em cascata
+  // no backend (schedules, dose logs e estoque somem junto), por isso
+  // atrás de ConfirmDialog destrutivo, mesmo padrão de "Remover
+  // horário".
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(!isNew);
 
   // Horários existentes
@@ -201,7 +233,22 @@ export default function MedicationFormScreen() {
   // horas". `interval_hours` setado ignora `days_of_week` no backend
   // (ver GenerateScheduleOccurrences) — remédio de intervalo é
   // tipicamente de curso contínuo, não "só às terças".
-  const [scheduleMode, setScheduleMode] = useState<'fixed' | 'interval'>('fixed');
+  // "Horário fixo" vs "A cada X horas" (2026-09-07) — achado real do
+  // Rilson: a feature de intervalo já existia (14/08) mas ficava
+  // escondida dentro do formulário de UM horário individual, terceiro
+  // nível de profundidade — ele foi checar achando que não tinha sido
+  // feita. Decisão de produto confirmada: um remédio inteiro usa um
+  // modo só, escolhido PRIMEIRO, no topo da seção Horários (não mais
+  // repetido a cada horário adicionado — menos decisão repetida pro
+  // público idoso). `scheduleKind` é essa escolha; o formulário de
+  // horário individual só reflete o que já foi decidido lá em cima.
+  const [scheduleKind, setScheduleKind] = useState<'fixed' | 'interval'>('fixed');
+  // Trocar de modo num remédio JÁ SALVO apaga e recria os horários de
+  // verdade no backend — destrutivo, por isso passa por confirmação
+  // (ver requestScheduleKindChange/confirmScheduleKindChange). Na
+  // criação a troca só mexe no rascunho local, sem custo nenhum.
+  const [pendingScheduleKind, setPendingScheduleKind] = useState<'fixed' | 'interval' | null>(null);
+  const [switchingScheduleKind, setSwitchingScheduleKind] = useState(false);
   const [newIntervalHours, setNewIntervalHours] = useState('8');
   const [savingSchedule, setSavingSchedule] = useState(false);
 
@@ -231,7 +278,13 @@ export default function MedicationFormScreen() {
         setNotes(med.notes ?? '');
         setPhotoUrl(med.photo_url);
         setIsPaused(med.is_paused ?? false);
+        setStock(med.stock);
         setSchedules(med.schedules ?? []);
+        // Modo inicial inferido dos horários reais — remédios antigos
+        // são sempre um só modo na prática (a UI nunca ofereceu misturar
+        // de propósito antes desta mudança), então basta olhar o
+        // primeiro horário com interval_hours setado.
+        setScheduleKind((med.schedules ?? []).some((s) => s.interval_hours != null) ? 'interval' : 'fixed');
         setLoading(false);
       });
     }
@@ -261,20 +314,22 @@ export default function MedicationFormScreen() {
       }
       treatmentDurationToSend = parsed;
     }
-    // "Quantas vezes por dia" (2026-08-21) — todo remédio aqui nasce
-    // com ao menos um horário; quem não quer lembrete nenhum remove os
-    // rascunhos e recebe um aviso claro em vez de um remédio invisível
-    // no dashboard.
-    if (isNew && draftSchedules.length === 0) {
-      showAlert(t('medicationForm.errorNoSchedule'));
-      return;
-    }
+    // "Cadastrar sem horário = só estoque" (2026-09-07) — achado real do
+    // Rilson: já era possível REMOVER todos os horários de um remédio
+    // existente (fica só no estoque, sem lembrete — sempre foi aceito
+    // assim); só faltava a mesma liberdade no CADASTRO. Inconsistência
+    // sem motivo — bloquear aqui não impedia nada, só empurrava a
+    // mesma ação pra depois de criar. A tela já deixa claro que é um
+    // estado escolhido, não um erro (ver o aviso "Nenhum horário" na
+    // seção Horários e o toast de confirmação diferente em
+    // saveMedication).
     // '' vira null no envio — não salva string vazia como se fosse
     // uma dosagem de verdade. Unidade sem preencher fica de fora do
     // payload — o backend já tem um default sensato (`comprimidos` no
     // estoque, `mg` no próprio medicamento) pra quando não é enviada.
     const dosageToSend = dosage.trim() || null;
     const unitToSend = unit.trim() || undefined;
+    let photoUploadFailed = false;
     setSaving(true);
     try {
       if (isNew) {
@@ -321,6 +376,22 @@ export default function MedicationFormScreen() {
             unit,
           });
         }
+        // Foto escolhida durante o cadastro (2026-09-07) — sobe agora
+        // que o `id` existe. Tolerante a falha: o remédio já foi criado
+        // com sucesso, uma foto que não subiu não pode travar o fluxo
+        // nem apagar o resto do que a pessoa acabou de preencher. Erro
+        // vira aviso no toast final, não bloqueia o `router.back()`.
+        if (localPhotoUri) {
+          try {
+            await uploadMedicationPhoto(med.id, localPhotoUri);
+          } catch (err: any) {
+            console.error('[uploadPhoto on create error]', err);
+            if (typeof Sentry !== 'undefined' && Sentry.captureException) {
+              Sentry.captureException(err);
+            }
+            photoUploadFailed = true;
+          }
+        }
       } else {
         await updateMedication(Number(id), {
           name,
@@ -335,10 +406,35 @@ export default function MedicationFormScreen() {
       queryClient.invalidateQueries({ queryKey: ['medications'] });
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       const toastName = maskMedicationName(name, isPrivate);
-      showToast(isNew ? t('medicationForm.createdToast', { name: toastName }) : t('medicationForm.savedToast', { name: toastName }));
+      showToast(
+        photoUploadFailed
+          ? t('medicationForm.createdPhotoFailedToast', { name: toastName })
+          : isNew && draftSchedules.length === 0
+            // Cadastro sem horário (2026-09-07) — reforça que foi uma
+            // escolha reconhecida, não um remédio "esquecido" sem
+            // lembrete nenhum.
+            ? t('medicationForm.createdStockOnlyToast', { name: toastName })
+            : isNew
+              ? t('medicationForm.createdToast', { name: toastName })
+              : t('medicationForm.savedToast', { name: toastName }),
+      );
       router.back();
     } catch (err: any) {
-      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSave'));
+      // Limite de medicamentos do plano gratuito (2026-09-07, item 14)
+      // — achado real do Rilson: esse erro específico caía no alerta
+      // genérico ("Erro" + só "OK"), sem caminho pra resolver. É
+      // provavelmente o primeiro momento de conversão real que a
+      // pessoa encontra organicamente — merece um título convidativo e
+      // um botão que já leva pra tela de planos Pro, não só informar.
+      const backendMessage = err.response?.data?.message;
+      if (err.response?.status === 403 && backendMessage?.includes('Limite de 15 medicamentos')) {
+        showAlert(t('medicationForm.limitReachedTitle'), backendMessage, {
+          label: t('medicationForm.limitReachedAction'),
+          onPress: () => router.push('/pro'),
+        });
+      } else {
+        showAlert(t('common.error'), backendMessage ?? t('medicationForm.errorSave'));
+      }
     } finally {
       setSaving(false);
     }
@@ -382,6 +478,89 @@ export default function MedicationFormScreen() {
       showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPauseToggle'));
     } finally {
       setPausing(false);
+    }
+  }
+
+  // "Estoque editável na tela do remédio" (2026-09-07, item 13) — mesma
+  // validação/semântica de app/(tabs)/stock.tsx: um campo só, dois
+  // botões (Adicionar soma, Definir substitui), nunca ambíguo sobre o
+  // que o número digitado significa. Validação em si extraída pra
+  // lib/stockQuantity.ts (achado de revisão de código, 2026-09-08) —
+  // as duas telas reimplementavam a mesma regra separadamente.
+  function parseTypedStockQty(): number | null {
+    const quantity = parseStockQuantity(stockQty);
+    if (quantity === null) {
+      showAlert(t('stock.invalidValue'));
+    }
+    return quantity;
+  }
+
+  async function saveStockQuantity(quantity: number, action: 'add' | 'set') {
+    setStockAction(action);
+    try {
+      const updated = await updateStock(Number(id), { current_quantity: quantity });
+      setStock(updated);
+      // Reagenda o alerta de estoque baixo com o `days_remaining`
+      // recalculado — precisa do medicamento fresco (o retorno de
+      // updateStock é só o StockItem, sem esse campo), mesmo padrão de
+      // app/(tabs)/stock.tsx pra não duplicar a notificação divergindo
+      // entre os dois lugares que editam estoque.
+      const fresh = await getMedication(Number(id));
+      await scheduleRefillAlert({
+        medicationId: fresh.id,
+        medicationName: fresh.name,
+        daysRemaining: fresh.days_remaining,
+        thresholdDays: LOW_STOCK_DAYS_THRESHOLD,
+      });
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      setEditingStock(false);
+      showToast(t('stock.savedToast', { name: maskMedicationName(name, isPrivate) }));
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('stock.errorSave'));
+    } finally {
+      setStockAction(null);
+    }
+  }
+
+  function addStockQty() {
+    const typed = parseTypedStockQty();
+    if (typed === null) return;
+    const current = stock?.current_quantity ?? 0;
+    saveStockQuantity(current + typed, 'add');
+  }
+
+  function setStockAbsolute() {
+    const quantity = parseTypedStockQty();
+    if (quantity === null) return;
+    saveStockQuantity(quantity, 'set');
+  }
+
+  function cancelStockEdit() {
+    setEditingStock(false);
+    setStockQty('');
+  }
+
+  // "Excluir medicamento" (2026-09-07, item 15) — hard delete em
+  // cascata no backend (MedicationController::destroy apaga
+  // dose_schedules, dose_logs e stock_items junto, sem soft-delete).
+  // Cancela as notificações locais de cada horário antes — o backend
+  // não sabe nada sobre elas, ficariam avisando um remédio que não
+  // existe mais.
+  async function confirmDeleteMedication() {
+    setDeleting(true);
+    try {
+      await Promise.all(schedules.map((s) => cancelScheduleNotifications(s.id)));
+      await deleteMedication(Number(id));
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
+      showToast(t('medicationForm.deletedToast', { name: maskMedicationName(name, isPrivate) }));
+      router.back();
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorDelete'));
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -442,6 +621,14 @@ export default function MedicationFormScreen() {
     // sozinho, sem essa camada extra de risco.
     const uploadUri = result.assets[0].uri;
 
+    // No cadastro (2026-09-07) ainda não existe `id` pra anexar a foto —
+    // guarda o URI local e sobe de verdade em saveMedication, assim que
+    // o remédio é criado. Nada de rede aqui, então sem `uploadingPhoto`.
+    if (isNew) {
+      setLocalPhotoUri(uploadUri);
+      return;
+    }
+
     setUploadingPhoto(true);
     try {
       const med = await uploadMedicationPhoto(Number(id), uploadUri);
@@ -460,6 +647,13 @@ export default function MedicationFormScreen() {
   }
 
   async function removePhoto() {
+    // No cadastro, a foto ainda só existe localmente — nada pra apagar
+    // no servidor, só descarta a escolha.
+    if (isNew) {
+      setLocalPhotoUri(null);
+      return;
+    }
+
     setUploadingPhoto(true);
     try {
       const med = await deleteMedicationPhoto(Number(id));
@@ -480,7 +674,6 @@ export default function MedicationFormScreen() {
   function resetScheduleFields() {
     setNewTime('08:00');
     setNewDays(ALL_DAYS);
-    setScheduleMode('fixed');
     setNewIntervalHours('8');
   }
 
@@ -489,7 +682,6 @@ export default function MedicationFormScreen() {
     setEditingDraftIndex(null);
     setNewTime('08:00');
     setNewDays(ALL_DAYS);
-    setScheduleMode('fixed');
     setNewIntervalHours('8');
     // Mesmo botão "+", destinos diferentes: na criação alimenta a lista
     // de rascunhos (nada vai pro backend até salvar o remédio); num
@@ -504,7 +696,6 @@ export default function MedicationFormScreen() {
     setAddingDraft(false);
     setNewTime(draft.time);
     setNewDays([...draft.days]);
-    setScheduleMode(draft.mode);
     setNewIntervalHours(draft.intervalHours);
   }
 
@@ -545,7 +736,6 @@ export default function MedicationFormScreen() {
     setEditingScheduleId(schedule.id);
     setNewTime(schedule.time.slice(0, 5)); // backend manda "HH:MM:SS"
     setNewDays(schedule.days_of_week ?? ALL_DAYS);
-    setScheduleMode(schedule.interval_hours !== null ? 'interval' : 'fixed');
     setNewIntervalHours(String(schedule.interval_hours ?? 8));
     setAddingSchedule(true);
   }
@@ -563,7 +753,7 @@ export default function MedicationFormScreen() {
       showAlert(t('medicationForm.errorInvalidFormat'), t('medicationForm.errorInvalidFormatText'));
       return;
     }
-    const isInterval = scheduleMode === 'interval';
+    const isInterval = scheduleKind === 'interval';
     const intervalHours = isInterval ? parseInt(newIntervalHours, 10) : null;
     if (isInterval && (isNaN(intervalHours!) || intervalHours! < 1 || intervalHours! > 168)) {
       showAlert(t('medicationForm.errorInvalidInterval'));
@@ -578,7 +768,7 @@ export default function MedicationFormScreen() {
     // schedules de verdade nascem quando o remédio é salvo (ver
     // saveMedication). Validação idêntica ao fluxo de backend.
     if (isNew) {
-      const draft: DraftSchedule = { time: newTime, mode: scheduleMode, days: [...newDays], intervalHours: newIntervalHours };
+      const draft: DraftSchedule = { time: newTime, mode: scheduleKind, days: [...newDays], intervalHours: newIntervalHours };
       setDraftSchedules((prev) =>
         editingDraftIndex !== null && !addingDraft
           ? prev.map((d, i) => (i === editingDraftIndex ? draft : d))
@@ -638,6 +828,92 @@ export default function MedicationFormScreen() {
     }
   }
 
+  // Cadastro (2026-09-07): nada foi salvo ainda, então trocar de modo é
+  // de graça — só reinicia o rascunho com um padrão sensato do modo
+  // novo, sem perguntar nada.
+  function applyDraftScheduleKindChange(kind: 'fixed' | 'interval') {
+    setScheduleKind(kind);
+    setDraftSchedules(
+      kind === 'interval'
+        ? [{ time: '08:00', mode: 'interval', days: [...ALL_DAYS], intervalHours: '8' }]
+        : [{ ...DEFAULT_DRAFT, days: [...ALL_DAYS] }],
+    );
+    cancelScheduleForm();
+  }
+
+  // Remédio já existente: trocar de modo com horários de verdade
+  // cadastrados é destrutivo (apaga e recria no backend + cancela/
+  // reagenda notificação) — passa por confirmação. Sem horário nenhum
+  // hoje, não há nada a perder: troca direto, sem perguntar.
+  function requestScheduleKindChange(kind: 'fixed' | 'interval') {
+    if (kind === scheduleKind) return;
+    if (isNew) {
+      applyDraftScheduleKindChange(kind);
+      return;
+    }
+    if (schedules.length === 0) {
+      setScheduleKind(kind);
+      return;
+    }
+    setPendingScheduleKind(kind);
+  }
+
+  async function confirmScheduleKindChange() {
+    if (!pendingScheduleKind) return;
+    const kind = pendingScheduleKind;
+    setSwitchingScheduleKind(true);
+    try {
+      // Apaga tudo que existe no modo antigo — local e notificação.
+      await Promise.all(
+        schedules.map(async (s) => {
+          await deleteSchedule(s.id);
+          await cancelScheduleNotifications(s.id);
+        }),
+      );
+      // Recria um horário-padrão no modo novo, usando o horário do
+      // primeiro schedule antigo como âncora (menos surpresa do que
+      // forçar sempre 08:00) — a pessoa ajusta depois se quiser.
+      const anchorTime = schedules[0]?.time?.slice(0, 5) ?? '08:00';
+      const interval_hours = kind === 'interval' ? 8 : null;
+      const created = await createSchedule(Number(id), { time: anchorTime, days_of_week: null, interval_hours });
+      await scheduleScheduleNotifications({
+        scheduleId: created.id,
+        time: anchorTime,
+        days_of_week: null,
+        interval_hours,
+        medicationName: name,
+        dosage: dosage.trim() || null,
+        unit,
+      });
+      setSchedules([created]);
+      setScheduleKind(kind);
+      cancelScheduleForm();
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('medicationForm.scheduleKindChangedToast'));
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorSaveSchedule'));
+      // Achado real de revisão de código (2026-09-08): o `Promise.all`
+      // acima não é atômico — se UM `deleteSchedule` falhar no meio
+      // (rede instável), os que já rodaram antes dele já apagaram de
+      // verdade no backend, mas o estado local (`schedules`) continuava
+      // mostrando a lista antiga até recarregar a tela manualmente.
+      // Busca o remédio fresco do backend pra sincronizar de novo com a
+      // realidade, em vez de deixar a UI mentindo sobre o que existe.
+      try {
+        const fresh = await getMedication(Number(id));
+        setSchedules(fresh.schedules ?? []);
+        setScheduleKind((fresh.schedules ?? []).some((s) => s.interval_hours != null) ? 'interval' : 'fixed');
+      } catch {
+        // Re-sincronizar é best-effort — se isso também falhar (rede
+        // ainda pior), o erro original já foi mostrado acima; reabrir a
+        // tela resolve, não vale travar o usuário numa segunda falha.
+      }
+    } finally {
+      setSwitchingScheduleKind(false);
+      setPendingScheduleKind(null);
+    }
+  }
+
   function toggleDay(day: number) {
     setNewDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort(),
@@ -646,39 +922,17 @@ export default function MedicationFormScreen() {
 
   // "Frequência de horário" (2026-08-14) — usado nos dois lugares que
   // têm formulário de horário (criar remédio novo e adicionar/editar
-  // horário de um já existente), evita duplicar o toggle fixo/intervalo
-  // duas vezes. `time` continua sempre visível fora daqui — é o campo
-  // de âncora nos dois modos.
+  // horário de um já existente). Antes tinha aqui dentro o próprio
+  // toggle "Horário fixo" / "A cada X horas" — subiu pro topo da seção
+  // Horários (ver `scheduleKind`, 2026-09-07): a escolha de modo é uma
+  // decisão do remédio inteiro, não de cada horário, e precisa ser a
+  // primeira coisa visível, não a terceira camada de um formulário.
+  // `time` continua sempre visível fora daqui — é o campo de âncora nos
+  // dois modos.
   function renderFrequencyFields() {
     return (
       <>
-        <Text style={styles.label}>{t('medicationForm.frequencyLabel')}</Text>
-        <View style={styles.freqRow}>
-          <TouchableOpacity
-            style={[styles.freqBtn, scheduleMode === 'fixed' && styles.freqBtnActive]}
-            onPress={() => setScheduleMode('fixed')}
-            accessibilityRole="button"
-            accessibilityLabel={t('medicationForm.frequencyFixed')}
-            accessibilityState={{ selected: scheduleMode === 'fixed' }}
-          >
-            <Text style={[styles.freqBtnText, scheduleMode === 'fixed' && styles.freqBtnTextActive]}>
-              {t('medicationForm.frequencyFixed')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.freqBtn, scheduleMode === 'interval' && styles.freqBtnActive]}
-            onPress={() => setScheduleMode('interval')}
-            accessibilityRole="button"
-            accessibilityLabel={t('medicationForm.frequencyInterval')}
-            accessibilityState={{ selected: scheduleMode === 'interval' }}
-          >
-            <Text style={[styles.freqBtnText, scheduleMode === 'interval' && styles.freqBtnTextActive]}>
-              {t('medicationForm.frequencyInterval')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {scheduleMode === 'interval' ? (
+        {scheduleKind === 'interval' ? (
           <>
             <Text style={styles.label}>{t('medicationForm.intervalHoursLabel')}</Text>
             {/* Atalhos dos intervalos mais prescritos — um toque no
@@ -794,27 +1048,31 @@ export default function MedicationFormScreen() {
         </View>
       )}
 
-      {/* Foto (2026-08-13) — só depois de criado, precisa de id pra anexar */}
-      {!isNew && (
-        <TouchableOpacity
-          style={styles.photoCircle}
-          onPress={handlePhotoPress}
-          disabled={uploadingPhoto}
-          accessibilityRole="button"
-          accessibilityLabel={photoUrl ? t('medicationForm.photoChangeLabel') : t('medicationForm.photoAddLabel')}
-          accessibilityState={{ busy: uploadingPhoto }}
-        >
-          {uploadingPhoto ? (
-            <ActivityIndicator color={colors.brand} />
-          ) : photoUrl ? (
-            <Image source={{ uri: photoUrl }} style={styles.photoImage} />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <MaterialCommunityIcons name="camera-plus-outline" size={28} color={colors.textMuted} />
-              <Text style={styles.photoPlaceholderText}>{t('medicationForm.photoAddLabel')}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+      {/* Foto (2026-08-13; disponível também no cadastro desde 2026-09-07) */}
+      <TouchableOpacity
+        style={styles.photoCircle}
+        onPress={handlePhotoPress}
+        disabled={uploadingPhoto}
+        accessibilityRole="button"
+        accessibilityLabel={displayPhotoUri ? t('medicationForm.photoChangeLabel') : t('medicationForm.photoAddLabel')}
+        accessibilityState={{ busy: uploadingPhoto }}
+      >
+        {uploadingPhoto ? (
+          <ActivityIndicator color={colors.brand} />
+        ) : displayPhotoUri ? (
+          <Image source={{ uri: displayPhotoUri }} style={styles.photoImage} />
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <MaterialCommunityIcons name="camera-plus-outline" size={28} color={colors.textMuted} />
+            <Text style={styles.photoPlaceholderText}>{t('medicationForm.photoAddLabel')}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+      {/* Foto escolhida mas ainda não enviada (cadastrando) — confirma
+          pro idoso que ela não foi perdida, só vai subir junto do
+          resto ao salvar (ver saveMedication). */}
+      {isNew && localPhotoUri && (
+        <Text style={styles.photoPendingHint}>{t('medicationForm.photoPendingHint')}</Text>
       )}
 
       {/* — Dados do medicamento — */}
@@ -862,8 +1120,8 @@ export default function MedicationFormScreen() {
           o remédio, ir pra aba Estoque, achar ele na lista, editar.
           Reaproveita o mesmo endpoint de sempre (`updateStock`), só
           num segundo request logo depois de criar — sem mudar schema
-          nem rota nova. Só aparece ao criar; em remédio já existente,
-          a aba Estoque continua sendo o lugar certo de editar. */}
+          nem rota nova. Só aparece ao criar; remédio já existente usa o
+          bloco de estoque logo abaixo (item 13, 2026-09-07). */}
       {isNew && (
         <>
           <Text style={styles.label}>{t('medicationForm.initialStockLabel')}</Text>
@@ -876,6 +1134,90 @@ export default function MedicationFormScreen() {
             keyboardType="decimal-pad"
             accessibilityLabel={t('medicationForm.initialStockAccessibilityLabel')}
           />
+        </>
+      )}
+
+      {/* "Estoque editável na tela do remédio" (2026-09-07, item 13) —
+          achado real do Rilson: dava pra ajustar o estoque pela aba
+          Estoque, mas não editando o remédio diretamente. Mesmo padrão
+          de Adicionar/Definir de app/(tabs)/stock.tsx — reaproveita
+          `updateStock`, sem endpoint novo, editar aqui ou lá reflete no
+          outro (mesmo dado, mesma tabela). */}
+      {!isNew && (
+        <>
+          <Text style={styles.label}>{t('medicationForm.stockLabel')}</Text>
+          {editingStock ? (
+            <View style={styles.stockEditForm}>
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={stockQty}
+                  onChangeText={setStockQty}
+                  keyboardType="decimal-pad"
+                  placeholder={t('stock.quantityPlaceholder')}
+                  placeholderTextColor={colors.textMuted}
+                  accessibilityLabel={t('stock.quantityLabel', { name: maskMedicationName(name, isPrivate) })}
+                  autoFocus
+                />
+                <Text style={styles.stockUnit}>{stock?.unit}</Text>
+              </View>
+              <View style={styles.stockEditActions}>
+                <TouchableOpacity
+                  onPress={cancelStockEdit}
+                  style={styles.cancelBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.cancel')}
+                >
+                  <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={addStockQty}
+                  style={styles.stockAddBtn}
+                  disabled={stockAction !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('stock.addLabel', { name: maskMedicationName(name, isPrivate) })}
+                  accessibilityState={{ busy: stockAction === 'add' }}
+                >
+                  {stockAction === 'add'
+                    ? <ActivityIndicator color={colors.brand} size="small" />
+                    : (
+                      <>
+                        <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                        <Text style={styles.stockAddBtnText}>{t('stock.add')}</Text>
+                      </>
+                    )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={setStockAbsolute}
+                  style={styles.confirmBtn}
+                  disabled={stockAction !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('stock.setLabel', { name: maskMedicationName(name, isPrivate) })}
+                  accessibilityState={{ busy: stockAction === 'set' }}
+                >
+                  {stockAction === 'set'
+                    ? <ActivityIndicator color={colors.onBrand} size="small" />
+                    : <Text style={styles.confirmBtnText}>{t('stock.set')}</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.row}>
+              <Text style={styles.stockCurrentText}>
+                {isStockNeverSet(stock)
+                  ? t('stock.neverSetHint')
+                  : `${stock?.current_quantity ?? 0} ${stock?.unit ?? t('stock.defaultUnit')}`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setEditingStock(true); setStockQty(String(stock?.current_quantity ?? 0)); }}
+                style={styles.editBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('stock.editLabel', { name: maskMedicationName(name, isPrivate) })}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
         </>
       )}
 
@@ -946,11 +1288,69 @@ export default function MedicationFormScreen() {
           tudo (padrão comum: preenche, confirma por último). */}
 
       {/* — Horários — */}
+      <Text style={styles.sectionTitle}>{t('medicationForm.sectionSchedules')}</Text>
+
+      {/* "Horário salva sozinho" (2026-09-07, item 12) — achado real do
+          Rilson: diferente do resto do formulário (que só persiste ao
+          tocar em "Salvar alterações"), cada horário já salva na hora
+          (ver saveScheduleForm/confirmRemoveSchedule). Isso é
+          intencional desde a Fase 2 — não muda a lógica agora, só deixa
+          o modelo explícito, permanente na tela (o toast já confirma
+          cada ação, mas passa rápido demais pra funcionar como
+          explicação). Só faz sentido editando um remédio já existente —
+          no cadastro (isNew) os horários são rascunho local até o botão
+          final, igual ao resto do formulário. */}
+      {!isNew && (
+        <Text style={styles.fieldHint}>{t('medicationForm.scheduleAutosaveHint')}</Text>
+      )}
+
+      {/* "Horário fixo" vs "A cada X horas" (2026-09-07) — a primeira
+          coisa que a pessoa decide na seção inteira, não mais algo
+          escondido dentro do formulário de um horário individual (ver
+          `scheduleKind`). Cards grandes de propósito — o público idoso
+          do app não deveria precisar entender um chip pequeno pra
+          entender a pergunta mais importante desta tela. */}
+      <Text style={styles.label}>{t('medicationForm.scheduleKindQuestion')}</Text>
+      <View style={styles.scheduleKindRow}>
+        <TouchableOpacity
+          style={[styles.scheduleKindCard, scheduleKind === 'fixed' && styles.scheduleKindCardActive]}
+          onPress={() => requestScheduleKindChange('fixed')}
+          accessibilityRole="button"
+          accessibilityLabel={t('medicationForm.frequencyFixed')}
+          accessibilityState={{ selected: scheduleKind === 'fixed' }}
+        >
+          <MaterialCommunityIcons name="clock-outline" size={26} color={scheduleKind === 'fixed' ? colors.onBrand : colors.textMuted} />
+          <Text style={[styles.scheduleKindCardTitle, scheduleKind === 'fixed' && styles.scheduleKindCardTitleActive]}>
+            {t('medicationForm.frequencyFixed')}
+          </Text>
+          <Text style={[styles.scheduleKindCardExample, scheduleKind === 'fixed' && styles.scheduleKindCardExampleActive]}>
+            {t('medicationForm.frequencyFixedExample')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.scheduleKindCard, scheduleKind === 'interval' && styles.scheduleKindCardActive]}
+          onPress={() => requestScheduleKindChange('interval')}
+          accessibilityRole="button"
+          accessibilityLabel={t('medicationForm.frequencyInterval')}
+          accessibilityState={{ selected: scheduleKind === 'interval' }}
+        >
+          <MaterialCommunityIcons name="timer-outline" size={26} color={scheduleKind === 'interval' ? colors.onBrand : colors.textMuted} />
+          <Text style={[styles.scheduleKindCardTitle, scheduleKind === 'interval' && styles.scheduleKindCardTitleActive]}>
+            {t('medicationForm.frequencyInterval')}
+          </Text>
+          <Text style={[styles.scheduleKindCardExample, scheduleKind === 'interval' && styles.scheduleKindCardExampleActive]}>
+            {t('medicationForm.frequencyIntervalExample')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {!isNew && (
         <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('medicationForm.sectionSchedules')}</Text>
-            {!addingSchedule && (
+          {/* "A cada X horas" já cobre o dia inteiro sozinho — não faz
+              sentido oferecer um segundo horário de intervalo enquanto
+              já existe um. */}
+          {!addingSchedule && (scheduleKind === 'fixed' || schedules.length === 0) && (
+            <View style={styles.scheduleAddRow}>
               <TouchableOpacity
                 style={styles.addScheduleBtn}
                 onPress={startAddSchedule}
@@ -960,8 +1360,8 @@ export default function MedicationFormScreen() {
                 <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
                 <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {schedules.length === 0 && !addingSchedule && (
             <View style={styles.emptySchedules}>
@@ -1050,9 +1450,8 @@ export default function MedicationFormScreen() {
           visuais no mesmo formulário. */}
       {isNew && (
         <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('medicationForm.sectionSchedules')}</Text>
-            {!addingDraft && editingDraftIndex === null && (
+          {!addingDraft && editingDraftIndex === null && (scheduleKind === 'fixed' || draftSchedules.length === 0) && (
+            <View style={styles.scheduleAddRow}>
               <TouchableOpacity
                 style={styles.addScheduleBtn}
                 onPress={startAddSchedule}
@@ -1062,41 +1461,59 @@ export default function MedicationFormScreen() {
                 <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
                 <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Resposta direta a "quantas vezes tomar?" — um toque monta
-              a lista toda; depois ajusta horário individual à vontade. */}
-          <Text style={styles.label}>{t('medicationForm.frequencyQuickLabel')}</Text>
-          <View style={styles.presetRow}>
-            {(
-              [
-                ['once', t('medicationForm.quickOnce')],
-                ['twice', t('medicationForm.quickTwice')],
-                ['thrice', t('medicationForm.quickThrice')],
-                ['fourTimes', t('medicationForm.quickFourTimes')],
-              ] as const
-            ).map(([key, label]) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.presetChip, isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipActive]}
-                onPress={() => applyFrequencyPreset(FREQUENCY_PRESET_TIMES[key])}
-                accessibilityRole="button"
-                accessibilityLabel={t('medicationForm.quickAccessibilityLabel', { preset: label })}
-                accessibilityState={{ selected: isPresetActive(FREQUENCY_PRESET_TIMES[key]) }}
-              >
-                <Text
-                  style={[
-                    styles.presetChipText,
-                    isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipTextActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              a lista toda; depois ajusta horário individual à vontade.
+              Só faz sentido em modo fixo — "a cada X horas" já responde
+              sozinho quantas vezes por dia. */}
+          {scheduleKind === 'fixed' && (
+            <>
+              <Text style={styles.label}>{t('medicationForm.frequencyQuickLabel')}</Text>
+              <View style={styles.presetRow}>
+                {(
+                  [
+                    ['once', t('medicationForm.quickOnce')],
+                    ['twice', t('medicationForm.quickTwice')],
+                    ['thrice', t('medicationForm.quickThrice')],
+                    ['fourTimes', t('medicationForm.quickFourTimes')],
+                  ] as const
+                ).map(([key, label]) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.presetChip, isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipActive]}
+                    onPress={() => applyFrequencyPreset(FREQUENCY_PRESET_TIMES[key])}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('medicationForm.quickAccessibilityLabel', { preset: label })}
+                    accessibilityState={{ selected: isPresetActive(FREQUENCY_PRESET_TIMES[key]) }}
+                  >
+                    <Text
+                      style={[
+                        styles.presetChipText,
+                        isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Cadastrar sem horário nenhum (2026-09-07) — deliberadamente
+              permitido: controlar que remédio tem em estoque é um uso
+              válido por si só, sem precisar decidir horário agora. O
+              aviso deixa claro que é uma escolha reconhecida, não um
+              remédio "esquecido" sem lembrete algum. */}
+          {draftSchedules.length === 0 && !addingDraft && editingDraftIndex === null && (
+            <View style={styles.emptySchedules}>
+              <MaterialCommunityIcons name="package-variant-closed" size={32} color={colors.textMuted} />
+              <Text style={styles.emptySchedulesText}>{t('medicationForm.noSchedules')}</Text>
+            </View>
+          )}
 
           {draftSchedules.map((draft, index) => {
             const draftInterval = draft.mode === 'interval' ? parseIntOrNull(draft.intervalHours) : null;
@@ -1219,6 +1636,25 @@ export default function MedicationFormScreen() {
         </TouchableOpacity>
       )}
 
+      {/* "Excluir medicamento" (2026-09-07, item 15) — achado real do
+          Rilson: o serviço/rota de exclusão já existiam, sem botão em
+          lugar nenhum da UI. Fica no fim da tela, de propósito menos
+          chamativo que Salvar — ação permanente, não é pra ser a
+          primeira coisa que a mão encontra. Só pro dono do perfil, igual
+          Salvar (cuidador não deveria poder apagar remédio de quem
+          cuida). */}
+      {!isNew && activeProfile?.is_owner !== false && (
+        <TouchableOpacity
+          style={styles.deleteMedicationBtn}
+          onPress={() => setConfirmingDelete(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('medicationForm.deleteMedication')}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+          <Text style={styles.deleteMedicationBtnText}>{t('medicationForm.deleteMedication')}</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={{ height: 32 }} />
     </ScrollView>
     </KeyboardAvoidingView>
@@ -1233,6 +1669,28 @@ export default function MedicationFormScreen() {
       busy={removingSchedule}
       onCancel={() => setScheduleToRemove(null)}
       onConfirm={confirmRemoveSchedule}
+    />
+    <ConfirmDialog
+      visible={!!pendingScheduleKind}
+      title={t('medicationForm.scheduleKindChangeConfirmTitle')}
+      message={t('medicationForm.scheduleKindChangeConfirmMessage')}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('common.confirm')}
+      destructive
+      busy={switchingScheduleKind}
+      onCancel={() => setPendingScheduleKind(null)}
+      onConfirm={confirmScheduleKindChange}
+    />
+    <ConfirmDialog
+      visible={confirmingDelete}
+      title={t('medicationForm.deleteConfirmTitle')}
+      message={t('medicationForm.deleteConfirmMessage', { name: maskMedicationName(name, isPrivate) })}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('medicationForm.deleteMedication')}
+      destructive
+      busy={deleting}
+      onCancel={() => setConfirmingDelete(false)}
+      onConfirm={confirmDeleteMedication}
     />
     <Modal
       visible={photoModalVisible}
@@ -1270,7 +1728,7 @@ export default function MedicationFormScreen() {
             <Text style={styles.modalOptionText}>{t('medicationForm.photoGallery')}</Text>
           </TouchableOpacity>
 
-          {photoUrl && (
+          {displayPhotoUri && (
             <TouchableOpacity
               style={styles.modalOption}
               onPress={() => {
@@ -1310,7 +1768,23 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1, borderColor: c.brand,
     },
     caregiverNoticeText: { color: c.brand, fontSize: 13, fontWeight: '600', flex: 1 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 32, marginBottom: 12 },
+    // "Como você toma esse remédio?" (2026-09-07) — cards grandes de
+    // propósito, não chips pequenos: é a decisão mais importante da
+    // seção Horários, tem que ser impossível de perder de vista.
+    scheduleKindRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
+    scheduleKindCard: {
+      flex: 1, alignItems: 'center', gap: 6, padding: 16, borderRadius: 16,
+      backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
+    },
+    scheduleKindCardActive: { backgroundColor: c.brand, borderColor: c.brand },
+    scheduleKindCardTitle: { fontSize: 14, fontWeight: '700', color: c.text, textAlign: 'center' },
+    scheduleKindCardTitleActive: { color: c.onBrand },
+    scheduleKindCardExample: { fontSize: 12, color: c.textMuted, textAlign: 'center' },
+    scheduleKindCardExampleActive: { color: c.onBrand, opacity: 0.85 },
+    // Antes esta linha também carregava o título "Horários" (agora fica
+    // fixo acima dos cards de modo, valendo pros dois — fixo/intervalo
+    // — não só um deles).
+    scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20, marginBottom: 12 },
     photoCircle: {
       width: 96, height: 96, borderRadius: 48, alignSelf: 'center', marginBottom: 20,
       backgroundColor: c.surfaceSecondary, alignItems: 'center', justifyContent: 'center',
@@ -1319,6 +1793,7 @@ function makeStyles(c: ThemeColors) {
     photoImage: { width: '100%', height: '100%' },
     photoPlaceholder: { alignItems: 'center', gap: 4 },
     photoPlaceholderText: { fontSize: 10, color: c.textMuted, fontWeight: '600', textAlign: 'center', paddingHorizontal: 6 },
+    photoPendingHint: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: -12, marginBottom: 20 },
     sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 14 },
     input: {
@@ -1347,6 +1822,15 @@ function makeStyles(c: ThemeColors) {
     pausedNotice: {
       fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 8,
     },
+    // "Excluir medicamento" (2026-09-07, item 15) — de propósito menos
+    // chamativo que o botão Salvar acima (ação permanente, não deveria
+    // ser fácil de tocar por engano), mas com toque mínimo de 48px
+    // (WCAG AAA) igual ao resto do app.
+    deleteMedicationBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      marginTop: 20, paddingVertical: 12, minHeight: 48,
+    },
+    deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: 14 },
     addScheduleBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
       backgroundColor: c.brandSubtle, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
@@ -1390,17 +1874,6 @@ function makeStyles(c: ThemeColors) {
     dayBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
     dayBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     dayBtnTextActive: { color: c.onBrand },
-    // "Frequência de horário" (2026-08-14) — toggle fixo/intervalo,
-    // mesmo padrão visual dos seletores de tema/idioma/fonte em Perfil.
-    freqRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-    freqBtn: {
-      flex: 1, alignItems: 'center', justifyContent: 'center',
-      paddingVertical: 10, borderRadius: 10,
-      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
-    },
-    freqBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
-    freqBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
-    freqBtnTextActive: { color: c.onBrand },
     // Chips de atalho (presets de frequência/dias/intervalo, 2026-08-21)
     // — largura pelo conteúdo e quebra de linha, diferente dos botões
     // flex:1 acima: "4x por dia" não cabe espremido em quarto de tela.
@@ -1421,6 +1894,19 @@ function makeStyles(c: ThemeColors) {
     cancelBtnText: { color: c.textSecondary, fontWeight: '600' },
     confirmBtn: { flex: 1, backgroundColor: c.brand, padding: 12, borderRadius: 10, alignItems: 'center' },
     confirmBtnText: { color: c.onBrand, fontWeight: '600' },
+    // Estoque editável na tela do remédio (2026-09-07, item 13) — mesmo
+    // par Adicionar/Definir de app/(tabs)/stock.tsx, adaptado aos
+    // estilos já existentes deste formulário.
+    stockEditForm: { marginTop: 4, gap: 8 },
+    stockUnit: { color: c.textSecondary, fontSize: 14, marginLeft: 8 },
+    stockEditActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    stockAddBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      borderWidth: 1.5, borderColor: c.brand, borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 10, minHeight: 48,
+    },
+    stockAddBtnText: { color: c.brand, fontWeight: '600' },
+    stockCurrentText: { flex: 1, fontSize: 16, color: c.brand, fontWeight: '600' },
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',

@@ -1,19 +1,26 @@
 import React from 'react';
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import HomeScreen from '../app/(tabs)/index';
 import { useProfileStore } from '../store/profileStore';
 import * as dosesService from '../services/doses';
+import * as medicationsService from '../services/medications';
 import { api } from '../services/api';
 import * as Haptics from 'expo-haptics';
 
 jest.mock('../services/doses');
+jest.mock('../services/medications', () => ({
+  ...(jest.requireActual('../services/medications') as object),
+  recalculateScheduleToday: jest.fn(),
+}));
 jest.mock('../services/api', () => ({
-  api: { get: jest.fn(), put: jest.fn() },
+  api: { get: jest.fn(), put: jest.fn(), post: jest.fn() },
 }));
 
 const mockedDoses = jest.mocked(dosesService);
+const mockedMedications = jest.mocked(medicationsService);
 const mockedApi = jest.mocked(api);
 
 const profile = {
@@ -339,5 +346,195 @@ describe('HomeScreen — "+" também na Home, não só em Remédios (2026-09-02)
 
     await screen.findByText('Losartana');
     expect(screen.queryByLabelText('Adicionar medicamento')).toBeNull();
+  });
+});
+
+// "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado real
+// do Rilson: só dava pra marcar "tomei" como agora, sem jeito de
+// registrar que foi em outro horário, nem de ajustar as próximas doses
+// de um remédio "de X em X horas" quando isso acontece.
+describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
+  const intervalDose = {
+    id: 200,
+    dose_schedule_id: 7,
+    medication_id: 10,
+    profile_id: 1,
+    scheduled_at: '2026-08-08T08:00:00.000Z',
+    taken_at: null,
+    status: 'pending' as const,
+    notes: null,
+    medication,
+    dose_schedule: { id: 7, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: 8, is_active: true },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T08:00:00.000Z'));
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    jest.spyOn(Haptics, 'notificationAsync').mockResolvedValue();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('"Foi em outro horário" abre um modal pedindo a hora, pré-preenchido com agora', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+
+    expect(await screen.findByText('Que horas você tomou Losartana?')).toBeTruthy();
+    // Comparado via horário local calculado (não um literal UTC fixo)
+    // pra não depender do fuso de quem roda o teste — o "agora" congelado
+    // é o mesmo instante, só exibido no horário local de cada máquina/CI.
+    expect(screen.getByLabelText('Horário em que tomou, formato HH:MM').props.value).toBe(format(new Date(), 'HH:mm'));
+  });
+
+  it('registra a dose com o horário digitado, não "agora"', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...intervalDose, status: 'taken' });
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '10:00');
+    fireEvent.press(screen.getByText('Registrar'));
+
+    // Horário esperado calculado do mesmo jeito que o componente monta
+    // (hora/minuto LOCAIS num Date do instante congelado) — evita
+    // assumir um fuso específico de quem roda o teste.
+    const expectedTakenAt = new Date();
+    expectedTakenAt.setHours(10, 0, 0, 0);
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalledWith(
+        expect.objectContaining({ dose_schedule_id: 7, taken_at: expectedTakenAt.toISOString(), status: 'taken' }),
+      );
+    });
+  });
+
+  it('formato de horário inválido mostra erro e não registra nada', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '25:99');
+    fireEvent.press(screen.getByText('Registrar'));
+
+    expect(await screen.findByText('Use o formato HH:MM, ex: 14:30')).toBeTruthy();
+    expect(mockedDoses.logDose).not.toHaveBeenCalled();
+  });
+
+  it('diferença grande num remédio de intervalo oferece ajustar as próximas doses de hoje', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...intervalDose, status: 'taken' });
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    // 12h de diferença do horário previsto (08:00) — bem acima do limiar de 30min.
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '20:00');
+    fireEvent.press(screen.getByText('Registrar'));
+
+    expect(await screen.findByText('Ajustar as próximas doses de hoje?')).toBeTruthy();
+  });
+
+  it('confirmar o ajuste chama recalculateScheduleToday com o novo horário', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...intervalDose, status: 'taken' });
+    mockedMedications.recalculateScheduleToday.mockResolvedValueOnce({
+      schedule: { ...intervalDose.dose_schedule, today_override_date: '2026-08-08', today_override_time: '20:00:00' },
+      today_occurrences: ['2026-08-08T20:00:00+00:00'],
+    } as any);
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '20:00');
+    fireEvent.press(screen.getByText('Registrar'));
+    fireEvent.press(await screen.findByLabelText('Ajustar'));
+
+    await waitFor(() => {
+      expect(mockedMedications.recalculateScheduleToday).toHaveBeenCalledWith(7, '20:00');
+    });
+  });
+
+  it('diferença pequena (menos de 30min) não oferece recalcular', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...intervalDose, status: 'taken' });
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    // Não muda o campo — confirma com o valor pré-preenchido (mesmo
+    // horário previsto, diferença zero).
+    fireEvent.press(screen.getByText('Registrar'));
+
+    await waitFor(() => expect(mockedDoses.logDose).toHaveBeenCalled());
+    expect(screen.queryByText('Ajustar as próximas doses de hoje?')).toBeNull();
+  });
+
+  // Achado real de revisão de código (2026-09-08): o horário digitado
+  // era montado em cima de "hoje", não do dia da dose prevista — uma
+  // dose de antes da meia-noite, só registrada depois dela, virava 24h+
+  // no futuro em vez do horário real de ontem à noite.
+  it('registrar horário de antes da meia-noite não vira o dia seguinte', async () => {
+    // Construído via componentes LOCAIS (`new Date(y, m, d, h, min)`),
+    // não strings ISO/UTC fixas — o teste vale igual em qualquer fuso
+    // de quem roda a suíte, sem assumir um específico.
+    const now = new Date(2026, 7, 9, 0, 10, 0, 0); // 9/ago, 00:10 local — pouco após a meia-noite
+    const scheduledAt = new Date(now.getTime() - 20 * 60000); // 8/ago, 23:50 local — ainda não registrada
+    jest.setSystemTime(now);
+
+    const lateNightDose = {
+      ...intervalDose,
+      id: 202,
+      dose_schedule_id: 9,
+      scheduled_at: scheduledAt.toISOString(),
+      dose_schedule: { id: 9, medication_id: 10, time: '23:50', days_of_week: null, interval_hours: 8, is_active: true },
+    };
+    mockedDoses.getTodayDoses.mockResolvedValue([lateNightDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...lateNightDose, status: 'taken' });
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '23:50');
+    fireEvent.press(screen.getByText('Registrar'));
+
+    // Corrigido (2026-09-08): base no dia do `scheduled_at` (ontem à
+    // noite), não em "hoje" — a pessoa digitou o horário certo, o
+    // resultado deve ser exatamente o próprio `scheduled_at`.
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalledWith(
+        expect.objectContaining({ taken_at: scheduledAt.toISOString() }),
+      );
+    });
+
+    // Prova de que o bug antigo (base = "hoje") não voltou: "hoje
+    // 23:50" seria quase 24h depois do horário correto.
+    const wrongDayIfBugged = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 50, 0, 0);
+    expect(mockedDoses.logDose).not.toHaveBeenCalledWith(
+      expect.objectContaining({ taken_at: wrongDayIfBugged.toISOString() }),
+    );
+  });
+
+  it('remédio de horário fixo não oferece recalcular, mesmo com diferença grande', async () => {
+    const fixedDose = {
+      ...intervalDose,
+      id: 201,
+      dose_schedule_id: 8,
+      dose_schedule: { id: 8, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
+    };
+    mockedDoses.getTodayDoses.mockResolvedValue([fixedDose]);
+    mockedDoses.logDose.mockResolvedValueOnce({ ...fixedDose, status: 'taken' });
+
+    renderHome();
+    fireEvent.press(await screen.findByLabelText('Registrar Losartana em outro horário'));
+    fireEvent.changeText(screen.getByLabelText('Horário em que tomou, formato HH:MM'), '20:00');
+    fireEvent.press(screen.getByText('Registrar'));
+
+    await waitFor(() => expect(mockedDoses.logDose).toHaveBeenCalled());
+    expect(screen.queryByText('Ajustar as próximas doses de hoje?')).toBeNull();
   });
 });

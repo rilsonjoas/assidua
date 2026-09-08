@@ -279,4 +279,61 @@ class DoseLogTodayTest extends TestCase
         $this->assertSame('missed', $byTime['15:00']['status']);
         $this->assertSame('pending', $byTime['23:00']['status']);
     }
+
+    // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado
+    // real de revisão de código: recalcular o dia depois de registrar
+    // uma dose atrasada criava uma dose "perdida" fantasma no horário
+    // que a pessoa ACABOU de registrar como tomada, porque a ocorrência
+    // recalculada batia em cima da própria âncora do recálculo, sem
+    // achar o DoseLog (que continua com o `scheduled_at` original).
+    public function test_recalcular_apos_dose_atrasada_nao_cria_perdida_fantasma_no_horario_registrado(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 11:00:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create([
+            'time' => '08:00:00',
+            'days_of_week' => null,
+            'interval_hours' => 8,
+        ]);
+
+        // A pessoa tomou o remédio das 08h só às 10h — dose real, já
+        // registrada (mesmo payload que app/(tabs)/index.tsx manda).
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'taken_at' => '2026-07-15 10:00:00',
+            'status' => 'taken',
+        ]);
+
+        // Confirma "Ajustar as próximas doses de hoje" com a âncora 10:00.
+        $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '10:00',
+        ])->assertOk();
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk();
+        $statuses = collect($response->json())->pluck('status', 'scheduled_at');
+        // Nenhuma ocorrência às 10h (a âncora do recálculo) — só a
+        // próxima de verdade, 18h, ainda pendente.
+        $this->assertFalse($statuses->keys()->contains(fn ($k) => str_contains($k, '10:00')));
+        $this->assertSame(['pending'], $statuses->values()->all());
+
+        // A dose das 08h continua tomada no banco — o recálculo não
+        // desfez nem duplicou o log real, só parou de listá-la entre as
+        // ocorrências "de hoje" (ela já é passado, resolvida).
+        $this->assertDatabaseHas('dose_logs', [
+            'dose_schedule_id' => $schedule->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'status' => 'taken',
+        ]);
+        // A garantia principal: só existe 1 log pra este schedule hoje —
+        // nenhuma dose "perdida" fantasma foi criada pelo recálculo.
+        $this->assertSame(1, DoseLog::where('dose_schedule_id', $schedule->id)->count());
+    }
 }

@@ -8,11 +8,20 @@ import { AlertDialog } from '../components/AlertDialog';
 // `showAlert` cru de `lib/alert.ts` (window.alert/Alert.alert nativo,
 // destoa do resto do design) — login.tsx era uma delas, achado do
 // Rilson testando o app de verdade.
+//
+// `action` (2026-09-07, item 14) — opcional: pra alertas que precisam
+// de um caminho pra resolver, não só fechar (ex.: limite do plano
+// gratuito → "Ver planos Pro"). Chamadas existentes com 2 argumentos
+// continuam idênticas, sem nada pra mudar.
 export function useAlertDialog() {
-  const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
+  const [alertInfo, setAlertInfo] = useState<{
+    title: string;
+    message: string;
+    action?: { label: string; onPress: () => void };
+  } | null>(null);
 
-  function showAlert(title: string, message?: string) {
-    setAlertInfo({ title, message: message ?? '' });
+  function showAlert(title: string, message?: string, action?: { label: string; onPress: () => void }) {
+    setAlertInfo({ title, message: message ?? '', action });
   }
 
   const alertDialog = (
@@ -22,6 +31,15 @@ export function useAlertDialog() {
       message={alertInfo?.message ?? ''}
       okLabel="OK"
       onDismiss={() => setAlertInfo(null)}
+      actionLabel={alertInfo?.action?.label}
+      onAction={
+        alertInfo?.action
+          ? () => {
+              alertInfo.action!.onPress();
+              setAlertInfo(null);
+            }
+          : undefined
+      }
     />
   );
 

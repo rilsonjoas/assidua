@@ -17,6 +17,11 @@ class DoseSchedule extends Model
         'days_of_week',
         'interval_hours',
         'is_active',
+        // "Dose fora do horário" (item 8, 2026-09-08) — override de
+        // âncora só pro dia salvo em `today_override_date`; ver
+        // GenerateScheduleOccurrences e RecalculateTodayOccurrences.
+        'today_override_date',
+        'today_override_time',
     ];
 
     protected function casts(): array
@@ -24,6 +29,7 @@ class DoseSchedule extends Model
         return [
             'days_of_week' => 'array',
             'is_active' => 'boolean',
+            'today_override_date' => 'date',
         ];
     }
 

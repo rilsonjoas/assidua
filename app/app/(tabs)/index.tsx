@@ -1,11 +1,12 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-
+  Modal,
+  TextInput,
   Image,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
@@ -21,7 +22,7 @@ import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
-import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit } from '../../services/medications';
+import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit, recalculateScheduleToday } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -63,6 +64,48 @@ export default function HomeScreen() {
   const isWide = useIsWideScreen();
   const queryClient = useQueryClient();
 
+  // "Dose fora do horário" (item 8, 2026-09-08) — "Tomei" continua 1
+  // toque = agora, sem mudança nenhuma no caso comum; este modal só
+  // abre por uma ação secundária explícita ("Foi em outro horário"),
+  // decisão de produto confirmada com o Rilson pra não virar uma
+  // pergunta obrigatória toda vez que alguém marca uma dose.
+  const [customTimeDose, setCustomTimeDose] = useState<DoseLog | null>(null);
+  const [customTime, setCustomTime] = useState('');
+
+  function openCustomTimeModal(dose: DoseLog) {
+    const now = new Date();
+    setCustomTime(format(now, 'HH:mm'));
+    setCustomTimeDose(dose);
+  }
+
+  function closeCustomTimeModal() {
+    setCustomTimeDose(null);
+    setCustomTime('');
+  }
+
+  function confirmCustomTime() {
+    if (!customTimeDose) return;
+    if (!/^\d{2}:\d{2}$/.test(customTime)) {
+      showAlert(t('home.errorInvalidTimeFormat'));
+      return;
+    }
+    const [hour, minute] = customTime.split(':').map(Number);
+    if (hour > 23 || minute > 59) {
+      showAlert(t('home.errorInvalidTimeFormat'));
+      return;
+    }
+    // Base no DIA do horário previsto, não "hoje" (achado de revisão de
+    // código, 2026-09-08): sem isso, registrar depois da meia-noite uma
+    // dose de antes dela (ex.: prevista 23:50, só registrada às 00:10)
+    // jogava o horário digitado pro dia seguinte — 13h+ no futuro em vez
+    // de minutos atrás — distorcendo o cálculo de diferença/recálculo.
+    const takenAt = parseISO(customTimeDose.scheduled_at);
+    takenAt.setHours(hour, minute, 0, 0);
+    const dose = customTimeDose;
+    closeCustomTimeModal();
+    markDose.mutate({ dose, takenAt });
+  }
+
   useEffect(() => {
     api.get('/profiles').then(({ data }) => {
       setProfiles(data);
@@ -101,13 +144,19 @@ export default function HomeScreen() {
   // nenhuma chave de idempotência própria.
 
   const markDose = useMutation({
-    mutationFn: async (dose: DoseLog) => {
+    // "Dose fora do horário" (item 8, 2026-09-08) — achado real do
+    // Rilson: só dava pra marcar "tomei" como agora, sem jeito de
+    // registrar que foi em outro horário (ex.: tomou o das 8h só às
+    // 10h). `takenAt` opcional mantém o caso comum idêntico a antes (1
+    // toque, sem seletor nenhum) — só passa um valor quando vem do
+    // fluxo "Foi em outro horário" (ver openCustomTimeModal).
+    mutationFn: async ({ dose, takenAt }: { dose: DoseLog; takenAt?: Date }) => {
       const payload = {
         dose_schedule_id: dose.dose_schedule_id,
         medication_id: dose.medication_id,
         profile_id: dose.profile_id,
         scheduled_at: dose.scheduled_at,
-        taken_at: new Date().toISOString(),
+        taken_at: (takenAt ?? new Date()).toISOString(),
         status: 'taken' as const,
       };
       try {
@@ -118,7 +167,7 @@ export default function HomeScreen() {
         return { ...dose, status: 'taken' as const, taken_at: payload.taken_at, streak_milestone: null, _pendingSync: true };
       }
     },
-    onSuccess: (log, dose) => {
+    onSuccess: (log, { dose, takenAt }) => {
       queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
         old?.map((d) => (d.id === dose.id ? { ...d, ...log } : d)),
       );
@@ -142,9 +191,55 @@ export default function HomeScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const key = log.streak_milestone as 7 | 30 | 60;
         showAlert(t(`home.milestone${key}Title`), t(`home.milestone${key}Text`));
+        return; // um alerta de cada vez — marco de streak tem prioridade
+      }
+
+      // "Dose fora do horário": oferece recalcular o resto do dia só
+      // quando (a) a pessoa realmente escolheu um horário diferente,
+      // (b) o remédio é modo intervalo — horário fixo não tem "próxima
+      // dose" pra deslocar, só registra atrasado (decisão de produto
+      // confirmada, ver roadmap item 8) — e (c) a diferença é grande o
+      // bastante pra valer a pena perguntar (limiar de 30min também
+      // decidido: atraso pequeno não interrompe com pergunta nenhuma).
+      if (takenAt && dose.dose_schedule.interval_hours != null) {
+        const diffMinutes = Math.abs(takenAt.getTime() - parseISO(dose.scheduled_at).getTime()) / 60000;
+        if (diffMinutes >= 30) {
+          offerRecalculateToday(dose.dose_schedule_id, takenAt);
+        }
       }
     },
   });
+
+  // ⚠️ Limitação conhecida e aceita (2026-09-08): isto só muda o que a
+  // tela Hoje mostra (via invalidateQueries — o backend já recalcula
+  // certo, ver GenerateScheduleOccurrences). Os LEMBRETES LOCAIS
+  // (notificação push) do resto do dia continuam nos horários antigos
+  // — `scheduleScheduleNotifications` usa gatilho `DAILY` recorrente
+  // (mesmo horário todo dia), sem conceito de "só hoje" no
+  // `expo-notifications`. Ajustar isso direito exigiria cancelar as
+  // notificações recorrentes de hoje e restaurá-las à meia-noite (job
+  // em background, nada garantido sem o app aberto) — risco/esforço
+  // não valeu a pena pro ganho, já que a tela (fonte de verdade real)
+  // já fica correta. Documentado aqui de propósito, não escondido.
+  function offerRecalculateToday(scheduleId: number, anchor: Date) {
+    const anchorLabel = format(anchor, 'HH:mm');
+    showAlert(
+      t('home.recalculateTitle'),
+      t('home.recalculateMessage', { time: anchorLabel }),
+      {
+        label: t('home.recalculateAction'),
+        onPress: async () => {
+          try {
+            await recalculateScheduleToday(scheduleId, anchorLabel);
+            queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+            showToast(t('home.recalculatedToast'));
+          } catch (err: any) {
+            showAlert(t('common.error'), err.response?.data?.message ?? t('home.errorRecalculate'));
+          }
+        },
+      },
+    );
+  }
 
   const skipDose = useMutation({
     mutationFn: async (dose: DoseLog) => {
@@ -414,13 +509,26 @@ export default function HomeScreen() {
                   <View style={styles.actions}>
                     <TouchableOpacity
                       style={styles.takeButton}
-                      onPress={() => markDose.mutate(item)}
+                      onPress={() => markDose.mutate({ dose: item })}
                       disabled={markDose.isPending}
                       accessibilityRole="button"
                       accessibilityLabel={t('home.markTakenLabel', { name: maskedName, time })}
                     >
                       <MaterialCommunityIcons name="check" size={18} color="#fff" />
                       <Text style={styles.takeButtonText}>{t('home.take')}</Text>
+                    </TouchableOpacity>
+                    {/* "Dose fora do horário" (item 8, 2026-09-08) — ação
+                        secundária explícita, ao lado do botão principal
+                        (não escondida atrás de toque longo, mais fácil
+                        de descobrir pro público idoso do app). */}
+                    <TouchableOpacity
+                      style={styles.customTimeButton}
+                      onPress={() => openCustomTimeModal(item)}
+                      disabled={markDose.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('home.customTimeLabel', { name: maskedName })}
+                    >
+                      <MaterialCommunityIcons name="clock-edit-outline" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.skipButton}
@@ -503,6 +611,54 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </Link>
       )}
+      {/* "Foi em outro horário?" (item 8, 2026-09-08) — mesmo padrão de
+          entrada HH:MM já usado no formulário de horário do remédio
+          (texto simples, não um seletor nativo novo — menos risco,
+          mais consistente com o resto do app). */}
+      <Modal
+        visible={!!customTimeDose}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCustomTimeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {t('home.customTimeModalTitle', {
+                name: customTimeDose ? maskMedicationName(customTimeDose.medication.name, isPrivate) : '',
+              })}
+            </Text>
+            <TextInput
+              style={styles.customTimeInput}
+              value={customTime}
+              onChangeText={setCustomTime}
+              placeholder="14:30"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numbers-and-punctuation"
+              autoFocus
+              accessibilityLabel={t('home.customTimeInputLabel')}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={closeCustomTimeModal}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.cancel')}
+              >
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={confirmCustomTime}
+                accessibilityRole="button"
+                accessibilityLabel={t('home.customTimeConfirm')}
+              >
+                <Text style={styles.modalConfirmText}>{t('home.customTimeConfirm')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {alertDialog}
     </View>
   );
@@ -584,7 +740,32 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
     },
     takeButtonText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
+    // "Foi em outro horário" (item 8, 2026-09-08) — mesmo tamanho/raio
+    // do skipButton ao lado, pra não desequilibrar a fileira de ações.
+    customTimeButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
     skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
+    // Modal "Foi em outro horário?" — mesmo padrão visual de
+    // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
+    // arredondados), só que local a esta tela por precisar de um
+    // TextInput no meio (os dois componentes genéricos não suportam).
+    modalOverlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+      alignItems: 'center', justifyContent: 'center', padding: 24,
+    },
+    modalContent: {
+      width: '100%', maxWidth: 360, backgroundColor: c.surface,
+      borderRadius: 18, padding: 20,
+    },
+    modalTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 14 },
+    customTimeInput: {
+      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, padding: 14, fontSize: 18, color: c.text, textAlign: 'center',
+    },
+    modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    modalCancelBtn: { flex: 1, padding: 13, borderRadius: 10, alignItems: 'center' },
+    modalCancelText: { color: c.textSecondary, fontWeight: '600' },
+    modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center' },
+    modalConfirmText: { color: c.onBrand, fontWeight: '600' },
     statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4 },
     undoIcon: { marginLeft: 2, opacity: 0.6 },
     reactButton: { paddingHorizontal: 12, paddingVertical: 8 },

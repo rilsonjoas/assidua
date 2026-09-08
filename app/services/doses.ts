@@ -82,8 +82,12 @@ export interface ConsultationSummary {
   missed: { medication_name: string; scheduled_at: string }[];
 }
 
-export async function getConsultationSummary(profileId: number, days: number): Promise<ConsultationSummary> {
-  const { data } = await api.get(`/profiles/${profileId}/consultation-summary`, { params: { days } });
+// `medicationId` (2026-09-08, item 16) — opcional: sem ele, comportamento
+// idêntico a antes (resumo de todos os remédios do perfil).
+export async function getConsultationSummary(profileId: number, days: number, medicationId?: number): Promise<ConsultationSummary> {
+  const { data } = await api.get(`/profiles/${profileId}/consultation-summary`, {
+    params: { days, medication_id: medicationId },
+  });
   return data;
 }
 

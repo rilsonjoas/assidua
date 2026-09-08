@@ -15,14 +15,19 @@ jest.mock('../services/doses', () => ({
   // real do componente resolvia undefined e o react-query reclamava
   // (achado rodando esta suíte depois de adicionar o calendário).
   getDailyAdherence: jest.fn(),
+  getConsultationSummary: jest.fn(),
 }));
 jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
   getMedications: jest.fn(),
 }));
+jest.mock('../lib/reportPdf', () => ({
+  exportConsultationReportPdf: jest.fn(),
+}));
 
 const mockedDoses = jest.mocked(dosesService);
 const mockedMedications = jest.mocked(medicationsService);
+const mockedReportPdf = jest.mocked(require('../lib/reportPdf'));
 
 const profile = { id: 1, user_id: 1, name: 'Rilson', color: '#6366f1', avatar_emoji: 'account', is_active: true };
 
@@ -166,5 +171,82 @@ describe('HistoryScreen — gráfico de adesão (Fase 2, 2026-08-13)', () => {
 
     await screen.findByText('Losartana'); // espera a tela terminar de carregar
     expect(screen.queryByText('Adesão por semana')).toBeNull();
+  });
+});
+
+// "PDF respeita o filtro da tela" (2026-09-08, item 16) — achado real do
+// Rilson: o relatório sempre saía fixo (todos os remédios), ignorando o
+// filtro por medicamento visível aqui. Confirmação nomeando o recorte
+// antes de gerar, não em silêncio.
+describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedications.mockResolvedValue([losartana, paracetamol] as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
+    mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedDoses.getConsultationSummary.mockResolvedValue({ percentage: 90, taken: 9, due: 10, missed: [] } as any);
+    mockedReportPdf.exportConsultationReportPdf.mockResolvedValue('file://relatorio.pdf');
+  });
+
+  it('sem filtro, a confirmação menciona "todos os medicamentos" e ainda não gerou nada', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Gerar Relatório Médico (PDF)'));
+
+    expect(await screen.findByText('Vai gerar o relatório de todos os medicamentos, últimos 30 dias.')).toBeTruthy();
+    expect(mockedDoses.getConsultationSummary).not.toHaveBeenCalled();
+  });
+
+  it('com um medicamento filtrado, a confirmação nomeia esse medicamento', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByText('Paracetamol'));
+    fireEvent.press(screen.getByLabelText('Gerar Relatório Médico (PDF)'));
+
+    expect(await screen.findByText('Vai gerar o relatório de Paracetamol, últimos 30 dias.')).toBeTruthy();
+  });
+
+  it('confirmar com medicamento filtrado passa medication_id e o nome do recorte pro PDF', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByText('Paracetamol'));
+    fireEvent.press(screen.getByLabelText('Gerar Relatório Médico (PDF)'));
+    fireEvent.press(await screen.findByText('Gerar relatório'));
+
+    await waitFor(() => {
+      expect(mockedDoses.getConsultationSummary).toHaveBeenCalledWith(1, 30, 11);
+      expect(mockedReportPdf.exportConsultationReportPdf).toHaveBeenCalledWith(
+        expect.objectContaining({
+          medicationName: 'Paracetamol',
+          medications: [expect.objectContaining({ name: 'Paracetamol' })],
+        }),
+      );
+    });
+  });
+
+  it('confirmar sem filtro passa todos os medicamentos e medicationName null', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Gerar Relatório Médico (PDF)'));
+    fireEvent.press(await screen.findByText('Gerar relatório'));
+
+    await waitFor(() => {
+      expect(mockedDoses.getConsultationSummary).toHaveBeenCalledWith(1, 30, undefined);
+      expect(mockedReportPdf.exportConsultationReportPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ medicationName: null }),
+      );
+    });
+  });
+
+  it('cancelar a confirmação não gera nada', async () => {
+    renderHistory();
+
+    fireEvent.press(await screen.findByLabelText('Gerar Relatório Médico (PDF)'));
+    fireEvent.press(screen.getByText('Cancelar'));
+
+    expect(screen.queryByText('Vai gerar o relatório de todos os medicamentos, últimos 30 dias.')).toBeNull();
+    expect(mockedDoses.getConsultationSummary).not.toHaveBeenCalled();
   });
 });

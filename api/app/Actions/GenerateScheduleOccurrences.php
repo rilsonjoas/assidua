@@ -47,10 +47,38 @@ class GenerateScheduleOccurrences
         return [$date->copy()->setTimeFromTimeString($schedule->time)];
     }
 
+    // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado
+    // real do Rilson: tomar um remédio de intervalo bem fora do previsto
+    // (ex.: das 8h, só às 10h) deveria poder deslocar as doses
+    // RESTANTES daquele dia, sem virar o novo horário permanente (isso
+    // já existe em editar horário). `today_override_date`/`_time`
+    // guardam esse ajuste; só valem quando a data bate com o `$date`
+    // pedido aqui — dia seguinte, o override simplesmente não bate mais
+    // e a âncora volta sozinha a ser `time`, sem job de limpeza.
     private function intervalOccurrences(DoseSchedule $schedule, Carbon $date): array
     {
+        $usingOverride = (bool) $schedule->today_override_date?->isSameDay($date);
+        $anchorTime = $usingOverride ? $schedule->today_override_time : $schedule->time;
+
         $occurrences = [];
-        $cursor = $date->copy()->setTimeFromTimeString($schedule->time);
+        $cursor = $date->copy()->setTimeFromTimeString($anchorTime);
+
+        // Achado real (revisão de código, 2026-09-08): quando a âncora
+        // vem de um recálculo, ela É o horário que a pessoa acabou de
+        // registrar como tomado — foi exatamente esse `taken_at` que
+        // disparou a oferta de ajustar. Gerar uma ocorrência EM CIMA
+        // dessa âncora aqui orfanaria o DoseLog recém-criado (o
+        // `scheduled_at` antigo dele deixa de bater com qualquer
+        // ocorrência do dia) e criaria uma dose "perdida" fantasma no
+        // lugar de uma dose que a pessoa literalmente acabou de tomar.
+        // Recalcular sempre significa "a partir de agora pra frente",
+        // nunca "esse instante também é uma dose nova" — por isso pula
+        // a própria âncora e só começa a listar a partir do intervalo
+        // seguinte, só no caso de vir de um override.
+        if ($usingOverride) {
+            $cursor->addHours($schedule->interval_hours);
+        }
+
         $endOfDay = $date->copy()->endOfDay();
 
         while ($cursor->lte($endOfDay)) {

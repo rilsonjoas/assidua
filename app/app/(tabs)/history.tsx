@@ -29,6 +29,7 @@ import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';
 import { AdherenceCalendar } from '../../components/AdherenceCalendar';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
@@ -115,6 +116,13 @@ export default function HistoryScreen() {
   const totalCount = logs.length;
   const adherence = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : null;
 
+  // "PDF respeita o filtro da tela" (2026-09-08, item 16) — achado real
+  // do Rilson: o relatório sempre saía fixo (todos os remédios),
+  // ignorando o filtro por medicamento visível aqui. Nome mascarado só
+  // no que entra no relatório (payload), não no diálogo de confirmação
+  // — que mostra pra própria pessoa o que ela mesma selecionou.
+  const selectedMedication = medicationFilter !== 'all' ? medications.find((m) => m.id === medicationFilter) ?? null : null;
+  const [confirmingPrint, setConfirmingPrint] = useState(false);
   const [sharingSummary, setSharingSummary] = useState(false);
   const { showAlert, alertDialog } = useAlertDialog();
   async function handleShareSummary() {
@@ -145,11 +153,23 @@ export default function HistoryScreen() {
     }
   }
 
+  // "PDF respeita o filtro da tela" (2026-09-08, item 16) — pede
+  // confirmação nomeando o recorte antes de gerar, em vez de aplicar o
+  // filtro em silêncio. `requestPrintReport` abre o diálogo;
+  // `handlePrintReport` é o que de fato gera, chamado só depois de
+  // confirmar.
+  function requestPrintReport() {
+    if (!activeProfile) return;
+    setConfirmingPrint(true);
+  }
+
   async function handlePrintReport() {
+    setConfirmingPrint(false);
     if (!activeProfile) return;
     setSharingSummary(true);
     try {
-      const summary = await getConsultationSummary(activeProfile.id, 30);
+      const medicationId = selectedMedication?.id;
+      const summary = await getConsultationSummary(activeProfile.id, 30, medicationId);
       await exportConsultationReportPdf({
         profileName: activeProfile.name,
         periodDays: 30,
@@ -160,12 +180,13 @@ export default function HistoryScreen() {
           ...m,
           medication_name: maskMedicationName(m.medication_name, isPrivate),
         })),
-        medications: medications.map((m) => ({
+        medications: (selectedMedication ? [selectedMedication] : medications).map((m) => ({
           name: maskMedicationName(m.name, isPrivate),
           dosage: m.dosage,
           unit: m.unit,
           schedules: m.schedules,
         })),
+        medicationName: selectedMedication ? maskMedicationName(selectedMedication.name, isPrivate) : null,
       });
     } catch (err: any) {
       console.error('[printReport error]', err);
@@ -216,7 +237,7 @@ export default function HistoryScreen() {
             <View style={[styles.consultationButtonsRow, isWide && styles.consultationButtonsRowWide]}>
               <TouchableOpacity
                 style={[styles.consultationButton, styles.consultationPdfButton]}
-                onPress={handlePrintReport}
+                onPress={requestPrintReport}
                 disabled={sharingSummary}
                 accessibilityRole="button"
                 accessibilityLabel={t('history.exportPdf')}
@@ -342,6 +363,20 @@ export default function HistoryScreen() {
             </View>
           );
         }}
+      />
+      <ConfirmDialog
+        visible={confirmingPrint}
+        title={t('history.printConfirmTitle')}
+        message={
+          selectedMedication
+            ? t('history.printConfirmMessageFiltered', { name: maskMedicationName(selectedMedication.name, isPrivate) })
+            : t('history.printConfirmMessageAll')
+        }
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('history.printConfirmAction')}
+        busy={sharingSummary}
+        onCancel={() => setConfirmingPrint(false)}
+        onConfirm={handlePrintReport}
       />
       {alertDialog}
     </View>

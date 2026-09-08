@@ -279,7 +279,16 @@ class DoseLogController extends Controller
         $maxDays = $request->user()->isPro() ? 90 : 30;
         $days = max(1, min($requested, $maxDays));
 
-        return response()->json($generateSummary->handle($profile, $days));
+        // Filtro opcional por medicamento (2026-09-08, item 16) — sem
+        // validar que pertence ao perfil de propósito: a query em
+        // GenerateConsultationSummary já escopa por profile_id junto,
+        // um id de outro perfil simplesmente não bate em nada (resumo
+        // vazio), não vaza dado de ninguém.
+        $medicationId = $request->query('medication_id') !== null
+            ? (int) $request->query('medication_id')
+            : null;
+
+        return response()->json($generateSummary->handle($profile, $days, $medicationId));
     }
 
     public function weeklyAdherence(Request $request, Profile $profile, CalculateWeeklyAdherence $calculateAdherence): JsonResponse

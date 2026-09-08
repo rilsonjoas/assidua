@@ -188,4 +188,83 @@ class DoseScheduleTest extends TestCase
         $response->assertForbidden();
         $this->assertDatabaseHas('dose_schedules', ['id' => $schedule->id]);
     }
+
+    // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado
+    // real do Rilson: tomar o remédio de intervalo bem fora do previsto
+    // deveria poder deslocar as doses restantes DAQUELE DIA, sem virar
+    // o horário permanente.
+    public function test_recalcula_hoje_para_schedule_de_intervalo(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-08 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
+
+        $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '10:00',
+        ]);
+
+        $response->assertOk();
+        // Só 18h — não repete a âncora (10h) na lista de ocorrências
+        // restantes: esse horário É a dose que a pessoa acabou de
+        // registrar como tomada (ver GenerateScheduleOccurrencesTest,
+        // achado de revisão de código 2026-09-08).
+        $response->assertJsonPath('today_occurrences', [
+            '2026-09-08T18:00:00+00:00',
+        ]);
+        $schedule->refresh();
+        $this->assertSame('2026-09-08', $schedule->today_override_date->toDateString());
+        $this->assertSame('10:00:00', Carbon::parse($schedule->today_override_time)->format('H:i:s'));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_recalcular_hoje_rejeita_schedule_de_horario_fixo(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '10:00',
+        ]);
+
+        $response->assertUnprocessable();
+        $schedule->refresh();
+        $this->assertNull($schedule->today_override_date);
+    }
+
+    public function test_recalcular_hoje_rejeita_horario_invalido(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
+
+        $response = $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '25:99',
+        ]);
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_nao_permite_recalcular_hoje_de_schedule_de_outro_usuario(): void
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $owner->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
+
+        $response = $this->actingAs($intruder)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '10:00',
+        ]);
+
+        $response->assertForbidden();
+        $schedule->refresh();
+        $this->assertNull($schedule->today_override_date);
+    }
 }

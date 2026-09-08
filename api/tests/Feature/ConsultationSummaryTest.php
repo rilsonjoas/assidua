@@ -98,4 +98,57 @@ class ConsultationSummaryTest extends TestCase
         Sanctum::actingAs($stranger);
         $this->getJson("/api/profiles/{$profile->id}/consultation-summary")->assertForbidden();
     }
+
+    // "PDF respeita o filtro da tela" (2026-09-08, item 16) — achado
+    // real do Rilson: o relatório sempre saía fixo (todos os
+    // medicamentos), ignorando o filtro por medicamento visível no
+    // Histórico.
+    public function test_filtra_por_medicamento_quando_medication_id_informado(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-23 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $losartana = Medication::factory()->create(['profile_id' => $profile->id, 'name' => 'Losartana']);
+        $losartanaSchedule = $losartana->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+        $paracetamol = Medication::factory()->create(['profile_id' => $profile->id, 'name' => 'Paracetamol']);
+        $paracetamolSchedule = $paracetamol->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        // Losartana: 1 tomada. Paracetamol: sem log (conta como perdida).
+        DoseLog::create([
+            'dose_schedule_id' => $losartanaSchedule->id,
+            'medication_id' => $losartana->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today('UTC')->setTimeFromTimeString('08:00:00'),
+            'taken_at' => now(),
+            'status' => 'taken',
+        ]);
+
+        Sanctum::actingAs($user);
+        $response = $this->getJson("/api/profiles/{$profile->id}/consultation-summary?days=1&medication_id={$losartana->id}");
+
+        $response->assertOk();
+        $response->assertJsonPath('due', 1);
+        $response->assertJsonPath('taken', 1);
+        $response->assertJsonPath('percentage', 100);
+        $response->assertJsonCount(0, 'missed');
+    }
+
+    public function test_sem_medication_id_continua_somando_todos_os_medicamentos(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-23 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $losartana = Medication::factory()->create(['profile_id' => $profile->id, 'name' => 'Losartana']);
+        $losartana->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+        $paracetamol = Medication::factory()->create(['profile_id' => $profile->id, 'name' => 'Paracetamol']);
+        $paracetamol->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        Sanctum::actingAs($user);
+        $response = $this->getJson("/api/profiles/{$profile->id}/consultation-summary?days=1");
+
+        $response->assertOk();
+        $response->assertJsonPath('due', 2);
+    }
 }

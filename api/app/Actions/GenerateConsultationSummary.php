@@ -17,13 +17,23 @@ class GenerateConsultationSummary
 {
     public function __construct(private GenerateScheduleOccurrences $generateOccurrences) {}
 
-    public function handle(Profile $profile, int $days): array
+    // `$medicationId` (2026-09-08, item 16) — achado real do Rilson: o
+    // PDF de consulta sempre saía fixo (todos os remédios, 30 dias),
+    // ignorando o filtro por medicamento que a pessoa via e mexia na
+    // tela de Histórico. Opcional: sem ele, comportamento idêntico a
+    // antes (todos os remédios do perfil).
+    public function handle(Profile $profile, int $days, ?int $medicationId = null): array
     {
         $today = Carbon::today($profile->timezone);
         $periodStart = $today->copy()->subDays($days - 1);
 
         $schedules = DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id))
+            ->whereHas('medication', function ($q) use ($profile, $medicationId) {
+                $q->where('profile_id', $profile->id);
+                if ($medicationId !== null) {
+                    $q->where('id', $medicationId);
+                }
+            })
             ->with('medication:id,name')
             ->get();
 

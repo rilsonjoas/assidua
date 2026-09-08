@@ -6,15 +6,37 @@ export interface ReportData {
   due: number;
   missed: { medication_name: string; scheduled_at: string }[];
   medications: { name: string; dosage?: string | null; unit?: string | null; schedules?: { time: string }[] }[];
+  // "PDF respeita o filtro da tela" (2026-09-08, item 16) — achado real
+  // do Rilson: o relatório sempre saía fixo (todos os remédios),
+  // ignorando o filtro por medicamento visível no Histórico. Quando
+  // preenchido, o próprio documento deixa explícito o recorte usado —
+  // não é pra aplicar o filtro em silêncio.
+  medicationName?: string | null;
+}
+
+// Achado real de revisão de código (2026-09-08): nome de remédio é
+// texto livre que a própria pessoa digita no cadastro — um "&" ou "<"
+// sem querer (ex.: "Vitamina C & D") já bastava pra quebrar a
+// formatação do HTML gerado. Escapa todo texto de fora antes de
+// interpolar, não só o campo novo (`medicationName`) que a revisão
+// apontou — os outros (`m.name`, `m.medication_name`, `profileName`)
+// tinham exatamente o mesmo risco, só ninguém tinha reparado ainda.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function generateConsultationReportHtml(data: ReportData): string {
-  const { profileName, periodDays, percentage, taken, due, missed, medications } = data;
+  const { profileName, periodDays, percentage, taken, due, missed, medications, medicationName } = data;
 
   const missedRows = missed.length > 0
     ? missed.map((m) => `
       <tr>
-        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${m.medication_name}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(m.medication_name)}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${new Date(m.scheduled_at).toLocaleString('pt-BR')}</td>
         <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; color: #e11d48; font-weight: 600;">Não tomada</td>
       </tr>
@@ -23,11 +45,11 @@ export function generateConsultationReportHtml(data: ReportData): string {
 
   const medRows = medications.length > 0
     ? medications.map((m) => {
-      const times = m.schedules?.map((s) => s.time).join(', ') || 'Nenhum horário';
-      const dosage = m.dosage ? `${m.dosage} ${m.unit || ''}` : '-';
+      const times = escapeHtml(m.schedules?.map((s) => s.time).join(', ') || 'Nenhum horário');
+      const dosage = escapeHtml(m.dosage ? `${m.dosage} ${m.unit || ''}` : '-');
       return `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${m.name}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${escapeHtml(m.name)}</td>
           <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${dosage}</td>
           <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${times}</td>
         </tr>
@@ -64,10 +86,12 @@ export function generateConsultationReportHtml(data: ReportData): string {
       <div class="subtitle">Relatório de Adesão ao Tratamento Médico</div>
     </div>
     <div style="text-align: right;">
-      <div style="font-weight: 600; font-size: 16px;">${profileName}</div>
+      <div style="font-weight: 600; font-size: 16px;">${escapeHtml(profileName)}</div>
       <div style="font-size: 12px; color: #64748b;">Últimos ${periodDays} dias</div>
     </div>
   </div>
+
+  ${medicationName ? `<div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; color: #4338ca;">Filtrado por: <strong>${escapeHtml(medicationName)}</strong></div>` : ''}
 
   <div class="summary-grid">
     <div class="summary-card">

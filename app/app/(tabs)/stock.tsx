@@ -16,6 +16,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
+import { parseStockQuantity, isStockNeverSet } from '../../lib/stockQuantity';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
@@ -84,10 +85,9 @@ export default function StockScreen() {
   // quantidade em si), o botão escolhido é que decide se ela substitui
   // o estoque atual ou soma a ele.
   function parseTypedQty(): number | null {
-    const quantity = parseFloat(qty);
-    if (isNaN(quantity) || quantity < 0) {
+    const quantity = parseStockQuantity(qty);
+    if (quantity === null) {
       showAlert(t('stock.invalidValue'));
-      return null;
     }
     return quantity;
   }
@@ -141,7 +141,7 @@ export default function StockScreen() {
             // preenchido no primeiro `PUT /stock` de verdade (ver
             // `StockController::update`); nulo com quantidade zero é o
             // sinal confiável de "nunca foi tocado", distinto de "acabou".
-            const neverSet = stock?.current_quantity === 0 && stock?.last_updated_at === null;
+            const neverSet = isStockNeverSet(stock);
             return (
               <View style={[styles.card, isLow && styles.cardAlert, isWide && { flex: 1 }]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />

@@ -94,31 +94,31 @@ dedicada de upgrade do SDK 56→57.
 > depois com paciência e consciência. Nenhum implementado ainda — é só
 > registro fiel do que foi observado e pedido, na ordem que surgiu.
 
-### 1. Adicionar remédio no **estoque** sem precisar de horário
+### 1. Adicionar remédio no **estoque** sem precisar de horário — ✅ resolvido 2026-09-07
 
-- [ ] **Problema observado**: hoje o fluxo só aceita cadastrar um remédio
-      quando há pelo menos 1 horário selecionado. Mas o usuário às vezes
-      só quer anotar que **tem** aquele remédio (comprou, guardou na
-      gaveta) sem ainda decidir quando vai tomar. O registro de "posse" e
-      o registro de "horário de tomar" são usos distintos que hoje estão
-      acoplados.
-- **O que mudaria a experiência**: permitir salvar um remédio com **zero
-  horários** quando o objetivo for só controlar estoque. O remédio entra
-  no inventário, aparece em Estoque, mas não gera lembrete nem aparece no
-  dashboard de doses até ter ao menos 1 horário.
-- **Atenção ao comportamento atual**: hoje há um aviso claro
-  (`errorNoSchedule`) que impede salvar sem horário — existe de propósito
-  pra não criar "remédio invisível no dashboard". A mudança precisa
-  **não** reintroduzir esse problema: um remédio sem horário deve ficar
-  visível e entendido (ex.: marcado como "só estoque, sem horário"), não
-  sumir da UX.
-- **Pergunta de produto a decidir ao implementar**: quando/quanto avisar
-  o usuário de que "você não vai receber lembretes deste remédio"?
-  (ais de cautela, porque o público-alvo é idoso.)
-- **Critério de aceite**: consigo cadastrar um remédio sem nenhum
-  horário, ele aparece no inventário/estoque, não gera notificação, e a
-  tela deixa claro que está "sem horário". Se eu depois adicionar um
-  horário, vira um remédio normal.
+> Achado real do Rilson revendo a tela: já era possível **remover**
+> todos os horários de um remédio já existente (fica só no estoque, sem
+> lembrete) — só faltava a mesma liberdade no **cadastro**. Bloquear ali
+> não impedia nada de verdade, só empurrava a mesma ação pra depois de
+> criar. Removida a validação (`errorNoSchedule` — chave apagada, órfã)
+> que impedia salvar com `draftSchedules.length === 0`; o laço que cria
+> schedules já lida com lista vazia sozinho (simplesmente não itera).
+>
+> **Sem reintroduzir o problema original** (remédio "invisível" e
+> confuso): o aviso `noSchedules` — reescrito nos 3 idiomas — agora deixa
+> explícito que é uma **escolha reconhecida**, não um erro: "Sem
+> horário — esse remédio só aparece no seu estoque, sem gerar lembrete.
+> Adicione um horário quando quiser começar a receber avisos." Mesmo
+> aviso nos dois lugares (cadastro com lista zerada e remédio existente
+> sem horário), pra não ter duas linguagens diferentes pro mesmo estado.
+> O toast final também diferencia esse caso (`createdStockOnlyToast`:
+> "{{name}} cadastrado ✓ — sem horário, só no estoque.") em vez do toast
+> genérico de criação — reforça que foi intencional.
+>
+> 2 testes novos/reescritos (cadastro com todos os horários removidos
+> salva normalmente e não chama `createSchedule`; "+Adicionar" continua
+> disponível depois — não é beco sem saída). 255/255 testes, typecheck
+> limpo.
 
 ### 2. Botão "+" (adicionar) nas duas abas — home **e** remédios
 
@@ -173,18 +173,53 @@ dedicada de upgrade do SDK 56→57.
   pela demo/ajuda, para que serve o olho e como executar as 3 ações
   principais (adicionar remédio, controlar estoque, registrar dose).
 
-### 5. Cadastro de remédio sem opção de tirar **foto**
+### 5. Cadastro de remédio sem opção de tirar **foto** — ✅ resolvido 2026-09-07
+
+> Corrigido com o mesmo padrão já usado pro estoque inicial: o círculo
+> de foto agora renderiza também com `isNew`; escolher foto no cadastro
+> guarda o URI localmente (`localPhotoUri`, sem chamada de rede — ainda
+> não existe `id`) com uma dica visível ("Foto será salva junto com o
+> remédio."); ao salvar, `saveMedication` sobe a foto guardada como uma
+> chamada extra logo depois de `createMedication` retornar o `id`. Se
+> essa chamada falhar, o cadastro **não é bloqueado** — o remédio já foi
+> criado com sucesso, só o toast final avisa que a foto especificamente
+> não subiu e sugere editar depois (`createdPhotoFailedToast`). 5 testes
+> novos em `medication-schedule-edit.test.tsx` (placeholder também no
+> cadastro, escolha local sem upload prematuro, upload após criar,
+> cadastro sem foto não regressa, falha de upload não desfaz o
+> cadastro). i18n pt/en/es. 251/251 testes, typecheck limpo.
+
+> Reanalisado a pedido do Rilson (2026-09-07). **Causa raiz confirmada**
+> em `app/medication/[id].tsx:798`: o bloco inteiro da foto está atrás de
+> `{!isNew && (...)}`. Não é feature faltando — é feature que existe e
+> funciona bem na edição (`pickPhoto`, `uploadMedicationPhoto`,
+> `photoErrorMessage`, action sheet câmera/galeria/remover) mas fica
+> inacessível no momento em que a pessoa está com a caixa do remédio ou a
+> bula na mão, que é exatamente quando ela quer fotografar. A trava é
+> técnica, não de produto: `uploadMedicationPhoto(id, uri)` precisa de um
+> `id` que só existe depois do POST de criação.
+> Precedente já resolvido no próprio arquivo pro mesmo tipo de problema:
+> **estoque inicial** (`initialStock`, linha ~867) também não pode ir no
+> POST de criação do remédio — é salvo com uma segunda chamada
+> (`updateStock`) logo depois que o `id` existe (linha ~293-296). O mesmo
+> padrão resolve foto: guardar o URI local escolhido durante o cadastro e
+> disparar o upload assim que `createMedication` retornar o `id`.
 
 - [ ] **Problema observado**: ao adicionar um medicamento, não aparece a
-      opção de **tirar foto**. (Há menção a foto/receita em outros pontos
-      do projeto — ver se a feature existe parcialmente e não está exposta
-      no cadastro, ou se foi planejada e não implementada.)
-- **O que verificar**: onde a foto de remédio/receita está prevista,
-  o que ela alimenta (reconhecimento? só arquivo anexo? lembrete visual
-  pro idoso?) e por que não está no fluxo de adicionar. Decidir escopo:
-  foto da caixa do remédio como auxiliar visual (muito útil p/ idoso).
-- **Critério de aceite**: no cadastro/edição do remédio há a opção de
-  anexar/capturar uma foto, com permissão de câmera tratada graciosamente.
+      opção de **tirar foto** — só depois de já ter criado e reaberto pra
+      editar. Se a pessoa está com a caixa/bula na mão no momento do
+      cadastro, tem que lembrar de voltar depois.
+- **Correção proposta**: mostrar o círculo de foto também com `isNew`,
+  usando `ImagePicker` pra guardar o URI localmente (sem upload ainda,
+  não existe `id`); no sucesso de `createMedication`, subir a foto
+  guardada como uma chamada extra (mesmo padrão do estoque inicial). Se
+  o upload falhar depois do remédio já criado, avisar sem bloquear —
+  remédio existe, foto fica pendente (mesma filosofia de erro tolerante
+  já usada em `photoErrorMessage`).
+- **Critério de aceite**: no cadastro (`isNew`) há a mesma opção de
+  câmera/galeria que já existe na edição; se a pessoa tirar a foto antes
+  de salvar, ela aparece anexada ao remédio recém-criado sem precisar
+  reabrir a tela.
 
 ### 6. Botão de editar sem "X" de fechar — UI confusa — ✅ resolvido 2026-09-05
 
@@ -227,24 +262,220 @@ dedicada de upgrade do SDK 56→57.
   confirmação visual explícita; erros são comunicados com linguagem clara,
   sem "aconteceu nada".
 
-### 8. Registrar dose em **horário diferente** do agendado + recálculo da próxima
+### 8. Registrar dose em **horário diferente** do agendado + recálculo da próxima — ✅ resolvido 2026-09-08
+
+> Retomado pelo Rilson em 2026-09-07, na mesma sessão do item 10 (modo
+> fixo/intervalo).
+>
+> **Achado técnico ao planejar**: o backend **já aceita** `taken_at`
+> customizado no registro de dose (`DoseLogController::store`, campo
+> `nullable|date` já validado) — só a UI mobile nunca expõe isso, sempre
+> manda `new Date().toISOString()` (agora), ver `app/(tabs)/index.tsx`.
+> Diferente dos itens 5/10, porém, **o recálculo em si não existe** —
+> `GenerateScheduleOccurrences` sempre usa a âncora fixa do horário, dia
+> a dia, sem olhar pra quando a dose anterior foi realmente tomada. Essa
+> parte é gap de verdade, não feature escondida.
+>
+> **Decisões confirmadas com o Rilson (2026-09-07)**:
+> 1. Recalcular a próxima dose **só se aplica a remédio em modo "A cada
+>    X horas"** — horário fixo não tem o que recalcular, só registra que
+>    foi tomado atrasado/adiantado (ex.: tomou o das 8h às 10h → próximo
+>    continua 14h, sem mudança).
+> 2. Marcar "tomei" continua **1 toque = agora** por padrão, sem
+>    mudança nenhuma no caso comum; uma ação secundária ("Foi em outro
+>    horário") abre o seletor só quando precisa — não vira uma pergunta
+>    obrigatória toda vez.
+> 3. **Limiar de oferta de recálculo: 30 minutos** de diferença entre o
+>    horário previsto e o `taken_at` real — abaixo disso, registra
+>    normal sem perguntar nada (irrelevante pro dia).
+> 4. **Escopo do recálculo: só as ocorrências restantes do dia atual**
+>    (não mexe em dias futuros) — decisão de baixo risco, alinhada com a
+>    própria arquitetura de `GenerateScheduleOccurrences`, que já gera
+>    ocorrência de intervalo por dia isolado (ver comentário no arquivo).
 
 - [ ] **Problema observado**: se eu tomei um remédio num horário diferente
       do programado, como cadastro isso? Ex.: tomaria às 08h, mas tomei às
       10h. Não há como registrar "tomei agora fora do horário" nem uma
       opção de **recalcular a próxima dose com base no novo horário**.
 - **O que o usuário precisa**: (a) marcar "tomei" em qualquer momento
-  (não só no horário exato), e (b) decidir se as próximas doses devem ser
-  recalculadas a partir do novo horário real (ex.: intervalo a cada 8h a
-  partir das 10h = próxima às 18h) ou se mantém o ciclo original.
-- **Atenção**: esto tipo de flexibilidade é essencial pra adesão real
-  (a vida não segue o relógio), mas precisa de uma UI simples — para o
-  idoso, "recalcular a próxima" tem que ser uma escolha de 1 toque quando
-  houver diferença de horário.
+  (não só no horário exato), e (b) pra remédio em modo intervalo, decidir
+  se as próximas doses do dia devem ser recalculadas a partir do novo
+  horário real (ex.: a cada 8h a partir das 10h = próxima às 18h) ou se
+  mantém o ciclo original.
 - **Critério de aceite**: consigo registrar uma dose fora do horário
-  previsto; o app pergunta se quero ajustar as próximas doses ao novo
-  horário; sim → recalculadas (mostrando o novo horário da próxima); não →
-  mantém o ciclo.
+  previsto sem fricção extra no caso comum; em modo intervalo, com 30min+
+  de diferença, o app oferece ajustar as próximas doses do dia ao novo
+  horário real quando a
+  diferença for relevante.
+
+> **Implementado — backend**: `dose_schedules` ganhou
+> `today_override_date`/`today_override_time` (migration nova) — um par
+> (data, hora) em vez de só "hora" pra o override se autoexpirar
+> sozinho à meia-noite (dia seguinte, a data salva não bate mais com
+> "hoje" e `GenerateScheduleOccurrences` volta a usar a âncora
+> permanente `time`, sem job de limpeza nenhum). Endpoint novo `POST
+> /schedules/{id}/recalculate-today` (`DoseScheduleController::
+> recalculateToday`) valida modo intervalo (422 se for fixo), grava o
+> override e devolve as ocorrências de hoje já recalculadas (poupa um
+> round-trip). 8 testes novos (6 feature + 2 unit em
+> `GenerateScheduleOccurrencesTest`).
+>
+> **Implementado — mobile**: "Tomei" continua 1 toque; um botão
+> secundário pequeno (ícone de relógio, ao lado, não escondido atrás de
+> toque longo) abre um modal "Que horas você tomou X?" com um campo de
+> texto HH:MM — mesmo padrão já usado no formulário de horário do
+> remédio, **sem** introduzir um seletor nativo novo (menor risco,
+> mais consistente com o resto do app). Depois de registrar, se o
+> remédio for modo intervalo e a diferença for ≥30min, oferece
+> "Ajustar" via `AlertDialog` com ação (item 14) — confirmando, chama
+> `recalculateScheduleToday` e a tela Hoje já reflete os novos horários.
+> 7 testes novos em `home.test.tsx`.
+>
+> ⚠️ **Limitação conhecida e aceita, documentada no código**: o
+> recálculo corrige o que a tela Hoje mostra (fonte de verdade real),
+> mas **não** resincroniza os lembretes locais (push) do resto do dia —
+> `expo-notifications` agenda o modo intervalo como gatilho `DAILY`
+> recorrente (mesmo horário todo dia), sem conceito nativo de "só
+> hoje". Corrigir isso direito exigiria cancelar e depois restaurar
+> notificações à meia-noite (job em background, não garantido sem o
+> app aberto) — risco/esforço não valeu a pena frente ao ganho, já que
+> a tela em si fica correta. Registrado aqui e no código
+> (`offerRecalculateToday`), não escondido.
+>
+> 291/291 testes mobile, 250/250 backend, typecheck limpo.
+
+## Revisão de código + incidente do Sentry, antes do build de hoje (2026-09-08)
+
+Depois de fechar os 7 itens de hoje, o Rilson pediu revisão completa
+antes de gerar o APK. Dois achados sérios, corrigidos na hora — nenhum
+dos dois ficou pra depois.
+
+### 🛑 Sentry de produção recebendo erro de teste local
+
+Achado ao vivo: testar o app localmente (Expo web, backend local)
+disparou um alerta REAL no Sentry de produção (`meus-remedios-mobile`),
+notificando gente de verdade — `Sentry.init` só olhava se existe DSN
+configurado, nunca se é um build de desenvolvimento. Isso **já
+acontecia sempre** que alguém rodava `expo start`/`expo start --web`
+localmente pra debugar, não só neste teste específico.
+
+- [x] **Corrigido**: `lib/sentryInit.ts` (função pura `shouldEnableSentry`,
+  testável sem montar `_layout.tsx` inteiro) — `enabled` agora exige
+  `!__DEV__` além do DSN. `__DEV__` é `true` só via Metro (`expo
+  start`); falso em qualquer bundle de release real, inclusive o
+  profile `preview` do EAS — builds reais continuam reportando normal,
+  só o dia a dia de desenvolvimento local para de poluir o Sentry.
+  4 testes novos (`sentryInit.test.ts`).
+- **Ação pendente pro Rilson**: marcar como resolvido/ignorar o issue
+  `AxiosError 401` (ambiente "production", 2026-09-08 ~04:09 UTC) no
+  Sentry — é ruído do teste local de hoje, não um bug de usuário real.
+
+### 🛑 `/code-review high` no repo certo — achados reais corrigidos
+
+- [x] **Bug grave**: recalcular "hoje" depois de uma dose atrasada
+  gerava uma dose "perdida" fantasma no MESMO horário que a pessoa
+  acabou de registrar como tomada — a ocorrência recalculada batia em
+  cima da própria âncora do recálculo, órfã do `DoseLog` real (que
+  continua com o `scheduled_at` original). `GenerateScheduleOccurrences`
+  agora pula a própria âncora quando vem de um override, listando só a
+  partir do intervalo seguinte. Regressão coberta ponta a ponta
+  (`DoseLogTodayTest`: cria a dose atrasada, recalcula, confirma que
+  `doses/today` não gera nada às 10h nem duplica log).
+- [x] **Robustez**: trocar de modo fixo/intervalo (item 10) num remédio
+  com horário real cadastrado apaga via `Promise.all` — se uma chamada
+  falhar no meio, o que já foi apagado no backend ficava fora de sincronia
+  com a tela até recarregar. Agora resincroniza com `getMedication`
+  fresco no `catch`, best-effort.
+- [x] **Segurança/correção**: `reportHtml.ts` interpolava nome de
+  remédio/perfil sem escapar — texto livre que a pessoa digita (um "&"
+  ou "<" sem querer) quebrava a formatação do PDF. `escapeHtml()` novo,
+  aplicado em todo texto de fora (não só o campo novo que a revisão
+  apontou — os já existentes tinham o mesmo risco).
+- [x] **Correção de borda**: registrar uma dose "de antes da meia-noite"
+  depois dela virava 24h+ no futuro — o horário digitado era montado em
+  cima de "hoje", não do dia do `scheduled_at`. Corrigido em
+  `confirmCustomTime` (`app/(tabs)/index.tsx`).
+- [x] **Eficiência**: `recalculateToday` chamava `$doseSchedule->fresh()`
+  duas vezes à toa — uma consulta a menos por request agora.
+- [x] **Limpeza (a pedido do Rilson, feita na hora)**: validação de
+  quantidade de estoque e a checagem "nunca informado" estavam
+  duplicadas entre `stock.tsx` e a tela do remédio (item 13) — extraídas
+  pra `lib/stockQuantity.ts`, com teste próprio.
+- **Registrado, não corrigido agora** (baixo risco, escopo maior):
+  `recalculateScheduleToday` monta o horário no fuso do APARELHO de
+  quem toca no botão, mas o backend ancora em "hoje" no fuso do PERFIL
+  — um cuidador remoto num fuso diferente do paciente pode ter o
+  recálculo levemente deslocado. Exigiria uma lib de fuso horário nova
+  (`date-fns-tz` ou equivalente) pra resolver direito; caso raro (a
+  maioria usa o próprio perfil, não cuidador remoto), fica documentado
+  aqui pra não ser esquecido, não pra ser ignorado.
+
+**304/304 testes mobile, 252/252 backend, typecheck limpo** — confirmado
+2x seguidas pra descartar flakiness antes do build.
+
+### 10. "A cada X horas" existe mas está escondido — reestruturar Horários pra modo-primeiro — ✅ resolvido 2026-09-07
+
+> Achado a pedido do Rilson, revendo a tela de cadastro. **Não é feature
+> faltando** — o intervalo (`scheduleMode: 'fixed' | 'interval'`, chips
+> 4h/6h/8h/12h/24h) foi implementado em 14/08 e funciona
+> (`renderFrequencyFields()` em `app/medication/[id].tsx:652`). O
+> problema é onde ele mora: só aparece dentro do sub-formulário de **um
+> horário individual**, que só abre depois de tocar "+ Adicionar" ou no
+> lápis de um horário existente — terceiro nível de profundidade. A
+> primeira tela que a pessoa vê (chips "Quantas vezes por dia?" 1x-4x +
+> lista de horários) não dá nenhuma pista de que existe outro modo.
+> Resultado real: o Rilson (que sabe que a feature existe, já decidiu
+> ela em 14/08) foi checar achando que não tinha sido feita.
+>
+> **Direção do Rilson (2026-09-07)**: a escolha "horário fixo" vs. "a
+> cada X horas" deveria vir **primeiro**, antes de qualquer outra coisa
+> na seção Horários — não enterrada num formulário de terceiro nível.
+>
+> **Decisão de escopo confirmada com o Rilson**: um remédio inteiro usa
+> **um modo só** (não mistura fixo e intervalo no mesmo remédio) — mais
+> simples de entender do que o código antigo, que tecnicamente permitia
+> misturar por ser uma escolha por horário individual.
+>
+> **Implementado**: `scheduleKind` ('fixed' | 'interval') substitui o
+> antigo `scheduleMode` por-horário. Dois cards grandes (não chips
+> pequenos) no topo da seção Horários — "Horário fixo" (ex.: 8h, 14h,
+> 20h) e "A cada X horas" (ex.: de 8 em 8 horas) — decidem o modo do
+> remédio inteiro, tanto no cadastro quanto na edição. O toggle antigo
+> que morava dentro do formulário de um horário individual foi removido
+> — `renderFrequencyFields()` agora só mostra os campos do modo já
+> escolhido lá em cima. "+Adicionar" some em modo intervalo assim que já
+> existe um horário (um intervalo já cobre o dia inteiro sozinho, um
+> segundo não faz sentido).
+>
+> **Cadastro** (`isNew`): nada foi salvo ainda, trocar de modo é de
+> graça — só reinicia o rascunho local com um padrão sensato do modo
+> novo (`applyDraftScheduleKindChange`).
+>
+> **Remédio já existente**: com horário real cadastrado, trocar de modo
+> é **destrutivo** (apaga os horários atuais no backend, cancela
+> notificações, cria um horário-padrão no modo novo usando o horário
+> antigo como âncora) — por isso passa por `ConfirmDialog` antes
+> (`requestScheduleKindChange`/`confirmScheduleKindChange`). Sem horário
+> nenhum cadastrado, não há nada a perder: troca direto, sem perguntar.
+> Modo inicial de um remédio existente é inferido dos horários reais ao
+> carregar (`interval_hours` setado em algum → abre em "intervalo").
+>
+> 8 testes novos/reescritos em `medication-schedule-edit.test.tsx`
+> (troca sem confirmação sem horário, troca com confirmação/cancelar/
+> confirmar com horário existente, rascunho padrão pronto ao trocar no
+> cadastro). i18n pt/en/es (`scheduleKindQuestion`,
+> `frequencyFixedExample`, `frequencyIntervalExample`,
+> `scheduleKindChangeConfirmTitle/Message`, `scheduleKindChangedToast`).
+> 254/254 testes, typecheck limpo.
+
+- [ ] **Problema observado**: a tela de Horários abre direto em modo
+      "horário fixo" (chips 1x-4x/dia) sem mencionar que existe um modo
+      "a cada X horas". Quem precisa desse modo só descobre entrando no
+      formulário de horário individual.
+- **Critério de aceite**: a primeira decisão visível na seção Horários é
+  "horário fixo" ou "a cada X horas" — não uma decisão enterrada dentro
+  de outro fluxo. Layout final e alcance (por remédio inteiro vs. por
+  horário individual) a decidir no planejamento.
 
 ### 9. Estoque: editar hoje só **reescreve** tudo — faltam "adicionar" e "definir" — ✅ resolvido 2026-09-05
 
@@ -267,6 +498,310 @@ dedicada de upgrade do SDK 56→57.
 - **Critério de aceite**: consigo tanto somar unidades ao estoque quanto
   definir um valor exato, de forma óbvia, e o feedback visual (item 7)
   confirma a operação.
+
+### 11. Listas sem ordenação/filtro (Remédios e outras telas) — ✅ resolvido 2026-09-07
+
+> **Achado ao planejar**: hoje nenhuma tela ordena nada — vem cru na
+> ordem do backend (id/criação). `days_remaining` (dias até o estoque
+> acabar) **já vem pronto** em cada medicamento (`Medication.php`,
+> `$appends`) — "estoque acabando primeiro" é barato, só client-side.
+> "Próxima dose" é mais caro: pra horário fixo dá pra calcular no
+> cliente a partir dos `schedules`; pra intervalo, o horário real
+> depende de quando a última dose foi tomada de verdade — hoje essa
+> informação só existe na tela Hoje, não em cada medicamento.
+>
+> **Decisões confirmadas com o Rilson (2026-09-07)**:
+> 1. **Escopo v1**: Alfabética + Estoque acabando primeiro (as duas
+>    baratas). "Próxima dose" fica pra depois — precisa de mudança de
+>    backend ou trazer dado que hoje só existe na tela Hoje.
+> 2. **UI**: chips no topo da lista (mesmo padrão já usado no app pra
+>    presets de dias/intervalo) — não menu/dropdown escondido.
+> 3. **Tela: só Remédios por enquanto** — onde a queixa surgiu; Estoque
+>    ganha os mesmos chips depois, se fizer falta de verdade (não
+>    replicar preventivamente).
+> 4. **Persistência (decidido sem perguntar, baixo risco)**: a
+>    ordenação escolhida **persiste** entre sessões (AsyncStorage, só
+>    local — mesmo padrão já usado em `profileStore`/font-scale). Reset
+>    silencioso a cada abertura confundiria mais um público idoso do que
+>    lembrar a última escolha ("por que mudou a ordem sozinho?").
+
+- [ ] **Problema observado**: a lista de Remédios não tem como reordenar
+      os itens. O Rilson quer poder ver por **ordem alfabética** ou
+      **estoque mais perto de acabar** (v1 — "próxima dose" fica pra
+      depois, ver achados acima).
+- **Critério de aceite**: na tela de Remédios, chips no topo alternam
+  entre "Alfabética" e "Estoque acabando primeiro"; a escolha continua a
+  mesma ao fechar e reabrir o app.
+
+> **Implementado**: `store/medicationsSortStore.ts` (zustand +
+> `persist`/AsyncStorage, mesmo padrão de `profileStore`) guarda a
+> escolha entre 'alphabetical' e 'stock-low'. Chips no topo da tela de
+> Remédios (escondidos quando a lista está vazia — não faz sentido
+> ordenar nada). "Estoque acabando" ordena por `days_remaining`
+> crescente, com `null` (sem estoque rastreado) sempre no fim — ausência
+> de dado não é a mesma coisa que urgência. 4 testes novos em
+> `medications-sort.test.tsx` (primeiro teste dessa tela — não tinha
+> nenhuma cobertura antes). 274/274 testes, typecheck limpo.
+
+### 12. Editar horário salva na hora, sem passar pelo botão "Salvar alterações" — ✅ resolvido 2026-09-07
+
+- [ ] **Problema observado**: no formulário de um remédio já existente,
+      mudar nome/dosagem/instruções só persiste ao tocar em "Salvar
+      alterações" — mas adicionar/editar/remover um **horário** já
+      salva direto no backend (`saveScheduleForm`/`confirmRemoveSchedule`
+      chamam a API na hora), independente desse botão. O Rilson notou o
+      comportamento e questionou se é uma inconsistência ou um risco.
+- **Contexto técnico**: é intencional desde a Fase 2 (2026-08-12) — cada
+  horário é uma entidade própria no backend (`DoseSchedule`), editada
+  fora do fluxo de "rascunho local" que só existe durante o *cadastro*
+  (`draftSchedules`, ver item 10). O horário salvo na hora já mostra
+  toast próprio (`scheduleSavedToast`/`scheduleRemovedToast`) confirmando
+  que aconteceu — não é silencioso. O que pode faltar é deixar esse
+  modelo mental **explícito** pra quem usa (duas "zonas" de salvamento
+  diferentes na mesma tela), não necessariamente unificar tudo num só
+  botão.
+- **Decisão confirmada com o Rilson (2026-09-07)**: reforçar
+  visualmente que a seção Horários salva sozinha, em vez de unificar
+  tudo num "Salvar alterações" só — mantém o modelo atual (cada horário
+  é entidade própria, persiste na hora), sem tocar na lógica de
+  backend/notificação já testada.
+- **Formato decidido (baixo risco, sem perguntar)**: texto fixo e
+  permanente logo abaixo do título "Horários" (não um toast que passa —
+  já tem toast, o problema é a falta de algo que fique visível o tempo
+  todo), tipo "Cada horário salva assim que você confirma — não precisa
+  do botão Salvar lá embaixo." Reaproveita o estilo já existente de
+  dica de campo (`fieldHint`), sem componente novo.
+- **Critério de aceite**: quem olha a seção Horários entende, sem
+  precisar tocar em nada, que ela salva sozinha — diferente do resto do
+  formulário, que espera o "Salvar alterações".
+
+> **Implementado**: texto fixo (`medicationForm.scheduleAutosaveHint`,
+> pt/en/es) logo abaixo do título "Horários", só na edição (`!isNew` —
+> no cadastro os horários continuam rascunho até o botão final, sem
+> mudança). Estilo `fieldHint` já existente, nenhum componente novo. 2
+> testes novos.
+
+### 13. Estoque só é editável pela aba Estoque, não editando o remédio — ✅ resolvido 2026-09-07
+
+- [ ] **Problema observado**: depois de cadastrado, dá pra ajustar a
+      quantidade em estoque pela aba **Estoque** (Adicionar/Definir, item
+      9), mas **não** pela tela de editar o próprio remédio — ela só tem
+      "Estoque inicial" durante o *cadastro* (`initialStock`, some depois
+      de criado). O Rilson quer as duas opções disponíveis sempre.
+- **O que mudaria a experiência**: a tela de editar remédio ganha a
+  mesma dupla Adicionar/Definir que a aba Estoque já tem (reaproveitar
+  `updateStock`, sem endpoint novo) — editar em qualquer um dos dois
+  lugares reflete no outro.
+- **Critério de aceite**: consigo mudar a quantidade em estoque tanto
+  pela aba Estoque quanto editando o remédio diretamente, com o mesmo
+  resultado e o mesmo feedback visual (item 7).
+
+> **Implementado**: mesmo par Adicionar/Definir de
+> `app/(tabs)/stock.tsx` reaproveitado na tela do remédio (`updateStock`,
+> mesmo endpoint) — inclusive reagenda o alerta de estoque baixo
+> (`scheduleRefillAlert`) do mesmo jeito, buscando o `days_remaining`
+> fresco depois de salvar (o retorno de `updateStock` é só o
+> `StockItem`, sem esse campo calculado). Dica "Estoque não informado"
+> pro caso nunca tocado também replicada. 6 testes novos.
+
+### 14. Erro do limite de 15 medicamentos: mensagem pouco convidativa — ✅ resolvido 2026-09-07
+
+> **Decisão confirmada com o Rilson (2026-09-07)**: escopo **só a
+> mensagem**, agora — não avançar pra cobrança Pro real nesta rodada.
+> Cobrança de verdade (RevenueCat quase pronto no código, falta
+> produto/preço real na loja) é iniciativa maior demais pra entrar de
+> carona aqui; fica registrada separadamente em "💰 RevenueCat — estado
+> real e o que falta" mais abaixo no arquivo, sem prazo batido ainda.
+>
+> **Formato decidido (baixo risco, sem perguntar)**: `AlertDialog`
+> ganha uma variante genérica e reaproveitável com ação secundária
+> opcional (`actionLabel`/`onAction`, ao lado do `okLabel` existente) —
+> não um componente de upsell dedicado só pra este caso. Reaproveitável
+> de imediato pro mesmo limite de perfis (`ProfileController.php:34`,
+> mesma mensagem genérica hoje) quando/se fizer sentido dar o mesmo
+> tratamento lá.
+
+- [ ] **Problema observado**: ao tentar cadastrar o 16º medicamento, o
+      app mostra um `AlertDialog` com título **"Erro"** e a mensagem crua
+      que vem do backend ("Limite de 15 medicamentos por perfil no plano
+      gratuito. Faça upgrade para o Pro."), só com botão "OK" — sem
+      nenhuma ação pra realmente fazer o upgrade. Dois problemas
+      distintos que o Rilson apontou:
+      1. **Tom errado**: "Erro" soa como algo quebrado, não como um
+         limite esperado do plano gratuito — deveria soar como um
+         convite, não uma falha.
+      2. **Sem CTA**: `AlertDialog` (`components/AlertDialog.tsx`) só
+         tem um botão (`okLabel`/`onDismiss`) — não existe variante com
+         ação secundária (ex.: "Ver planos Pro"). A pessoa lê a
+         mensagem, mas pra agir precisa sair e achar a tela Pro sozinha.
+- **Contexto de negócio**: esse erro específico é provavelmente o
+  primeiro **momento de conversão real** que os usuários encontram
+  organicamente — vale tratar com cuidado, mesmo sendo só a UI por
+  enquanto (cobrança real fica pra outra rodada, ver decisão acima).
+- **Critério de aceite**: ao bater no limite, o diálogo tem um título
+  convidativo (não "Erro"), explica o limite do plano gratuito, e tem um
+  botão que leva direto pra tela de planos Pro já existente.
+
+> **Implementado**: `AlertDialog`/`useAlertDialog` ganharam
+> `actionLabel`/`onAction` opcionais (2º botão, reaproveitável em
+> qualquer alerta — nenhuma tela existente precisou mudar). No
+> `saveMedication`, detecção do erro específico (status 403 + mensagem
+> contendo "Limite de 15 medicamentos") mostra título convidativo
+> ("Você atingiu o limite do plano gratuito") + botão "Ver planos Pro"
+> que navega pra `/pro`; qualquer outro erro continua no alerta genérico
+> de sempre. 2 testes novos. 270/270 testes, typecheck limpo.
+
+### 15. Não existe botão de excluir medicamento em lugar nenhum da UI — ✅ resolvido 2026-09-07
+
+> Achado ao investigar: `deleteMedication()` (`services/medications.ts`)
+> e a rota `DELETE /medications/{medication}` (backend,
+> `MedicationController::destroy`) **já existem e funcionam** — só não
+> tem nenhum botão, em nenhuma tela, que chame isso. Nem na edição do
+> remédio, nem na lista (sem swipe-to-delete). Mesma família de achado
+> dos itens 5/10 desta sessão: capacidade pronta no backend, sem
+> caminho nenhum até ela na UI.
+>
+> **Atenção real pro aviso de confirmação**: `destroy()` faz **hard
+> delete em cascata** (`cascadeOnDelete()` em `dose_schedules`,
+> `dose_logs` e `stock_items` — ver migrations) — apagar um remédio
+> apaga **todo o histórico de doses e adesão dele pra sempre**, sem
+> soft-delete, sem desfazer. O aviso de confirmação precisa deixar isso
+> muito claro, não só "tem certeza?" genérico — é o tipo de ação que já
+> tem padrão pronto no app (`ConfirmDialog` com `destructive`, mesmo
+> usado pra remover horário).
+
+- [ ] **Problema observado**: não há como excluir um medicamento
+      cadastrado por engano ou que não faz mais sentido manter (trocou
+      de remédio, parou o tratamento de vez) — só dá pra "Pausar", que
+      mantém o remédio na lista. Fica mais grave ainda com o limite do
+      item 14: sem excluir, quem bate no teto de 15 não tem como abrir
+      espaço sem virar Pro.
+- **O que implementar**: botão de excluir na tela de editar remédio
+  (`app/medication/[id].tsx`, mesma área do "Pausar"), atrás de
+  `ConfirmDialog` destrutivo explicando que histórico e adesão também
+  somem, sem volta.
+- **Critério de aceite**: consigo excluir um medicamento existente, com
+  aviso claro do que se perde antes de confirmar, e o app volta pra
+  lista de Remédios sem ele.
+
+> **Implementado**: botão "Excluir medicamento" no fim da tela de
+> edição (depois de "Salvar alterações", de propósito menos chamativo —
+> ação permanente), atrás de `ConfirmDialog` destrutivo com o nome do
+> remédio e o aviso de que histórico/adesão somem pra sempre. Cancela a
+> notificação local de cada horário antes de excluir (o backend não sabe
+> nada delas). Só disponível pro dono do perfil, mesmo gate do "Salvar".
+> 5 testes novos (some no cadastro, some pro cuidador, confirmação sem
+> apagar antes, cancelar não exclui, confirmar exclui + cancela
+> notificações). 268/268 testes, typecheck limpo.
+
+### 16. Relatório PDF: nome de arquivo só números + PDF não avisa (nem respeita) os filtros da tela — ✅ resolvido 2026-09-08
+
+> O Rilson testou o botão de gerar PDF pela primeira vez (`Histórico` →
+> "Relatório") e notou dois problemas.
+>
+> **Reconsiderado em 2026-09-08**: o item 1 (nome de arquivo) tinha
+> ficado pendente pro "próximo build" por causa do risco de módulo
+> nativo sem poder testar em dispositivo real (mesma categoria do
+> incidente de 06/09). No mesmo dia o Rilson decidiu gerar um APK novo
+> de verdade — build real disponível pra testar antes de confiar,
+> diferente da vez anterior (OTA sem native de verdade por trás). Isso
+> muda o cálculo de risco: implementado nesta sessão, não mais adiado.
+>
+> **Implementado — item 1 (nome de arquivo)**: `npx expo install
+> expo-file-system` (agora dependência direta de verdade, não só
+> transitiva via `expo-print`). `lib/reportPdf.ts` usa a API nova
+> (`File`/`Paths.cache`, não a legada `FileSystem.*`) pra copiar o PDF
+> gerado por `Print.printToFileAsync` pra um novo arquivo com nome
+> legível (`assidua-relatorio-<medicamento-ou-todos>-<data>.pdf`) antes
+> de `Sharing.shareAsync`. `require` tardio + rename inteiro dentro de
+> um try/catch próprio (mesmo padrão de `pickPhoto`): se falhar por
+> qualquer motivo, compartilha o arquivo original (nome feio, mas
+> funciona) em vez de travar o botão inteiro. 3 testes novos em
+> `reportPdf.test.ts` (rename com medicamento filtrado, sem filtro
+> "todos-os-medicamentos", fallback gracioso quando o rename falha).
+>
+> **Implementado — item 2 (respeitar + confirmar filtro)**:
+> `GenerateConsultationSummary::handle` ganhou `?int $medicationId`
+> opcional (filtra os `schedules` por medicamento antes de somar
+> due/taken/missed); `DoseLogController::consultationSummary` lê
+> `?medication_id` da query string. `history.tsx`: `handlePrintReport`
+> passa o `medicationFilter` ativo pra `getConsultationSummary`, e um
+> `ConfirmDialog` novo (`requestPrintReport`) nomeia o recorte antes de
+> gerar ("Vai gerar o relatório de Paracetamol, últimos 30 dias." ou
+> "...de todos os medicamentos..." sem filtro). O próprio PDF também
+> mostra "Filtrado por: {{medicamento}}" quando aplicável
+> (`reportHtml.ts`, campo `medicationName` novo em `ReportData`).
+> Filtro de **status** decidido de propósito fora do recorte (doses
+> perdidas sempre aparecem, mesmo com a tela filtrando só "tomados") —
+> não existe seletor de período na tela (só status/medicamento), então
+> "período" ficou de fora da decisão original, sempre fixo em 30 dias.
+> 2 testes novos no backend (`ConsultationSummaryTest.php`), 2 em
+> `reportHtml.test.ts`, 5 em `history.test.tsx`.
+>
+> **Achado extra ao revisar antes do build**: `npx expo-doctor` apontou
+> duplicata de `react-native-screens` (4.25.2 direto vs. 4.27.0 aninhado
+> via `expo-router`) e 10 pacotes com patch/minor desalinhado do SDK
+> 56 — mesma categoria de manutenção já feita em 05/09. Corrigido com
+> `npx expo install --fix` + `npm dedupe` (sem `--force`, sem tocar em
+> major version). Hermes V1 (regressão de memória, exige SDK 57) segue
+> como decisão consciente de não mexer agora — mudança grande demais
+> pra fazer às pressas antes de um build.
+>
+> 284/284 testes mobile, 244/244 backend, typecheck limpo.
+
+- [x] **1) Nome do arquivo no celular é só números**: `lib/reportPdf.ts`
+      chama `Print.printToFileAsync({ html })` sem nenhum `fileName` — o
+      `expo-print` nativo gera um nome genérico/numérico pro arquivo
+      temporário, e é esse nome cru que aparece quando a pessoa
+      compartilha/salva o PDF. Web já está OK (o HTML tem `<title>
+      Relatório de Adesão — Assídua</title>`, o navegador usa isso como
+      sugestão de nome ao "Salvar como PDF") — o problema é só no
+      celular.
+  - **Fix real**: `expo-file-system` (já presente **transitivamente**
+    via `expo-print`, mas não é dependência direta ainda) pra copiar o
+    arquivo gerado pra um novo caminho com nome legível (ex.:
+    `relatorio-assidua-losartana-2026-09-07.pdf`) antes de chamar
+    `Sharing.shareAsync`.
+  - ⚠️ **Mesmo cuidado do incidente de 2026-09-06** (`expo-image-manipulator`
+    derrubou o app em produção por ser módulo nativo carregado sem
+    build novo): `npx expo install expo-file-system` primeiro (vira
+    dependência direta de verdade), `require` tardio dentro de
+    try/catch (mesmo padrão de `pickPhoto`), e o recurso só ativa de
+    verdade depois do **próximo build nativo** — até lá, degradar bem
+    (nome feio, mas gera o PDF normalmente) é melhor que arriscar
+    quebrar o botão inteiro.
+- [x] **2) PDF não avisa (e nem usa) os filtros visíveis na tela**:
+      achado ao ler `history.tsx` — `handlePrintReport` chama
+      `getConsultationSummary(activeProfile.id, 30)` **fixo em 30 dias**
+      e sempre com **todos os medicamentos** (`medications.map(...)`
+      sem filtrar), completamente **independente** dos chips de
+      status (tomado/pulado/perdido) e do filtro por medicamento que a
+      pessoa vê e mexe na tela. O relatório é hoje um "resumo pra
+      consulta médica" fixo, não um export do que está filtrado — mas
+      nada na tela avisa isso, então dá pra achar (como o Rilson achou)
+      que os filtros valem pro PDF também.
+- **Decisão confirmada com o Rilson (2026-09-07)** — os dois juntos, não
+  um ou outro:
+  1. O PDF passa a **respeitar de verdade** o filtro de medicamento e
+     (se existir) o período selecionado na tela de Histórico — deixa de
+     ser sempre "visão geral fixa de 30 dias, todos os remédios".
+     `handlePrintReport` precisa passar `medicationFilter`/período pra
+     `getConsultationSummary` (ou equivalente) em vez do `30` fixo e do
+     `medications.map(...)` sem filtro.
+  2. **Antes de gerar**, um `ConfirmDialog` avisa exatamente qual
+     recorte vai entrar no PDF (ex.: "Gerar relatório de Losartana,
+     últimos 14 dias?" ou "Gerar relatório de todos os medicamentos,
+     últimos 30 dias?" quando nada estiver filtrado) — não só aplica o
+     filtro em silêncio, confirma explicitamente antes de agir.
+- **Decidido (2026-09-07)**: filtro de **status** (tomado/pulado/
+  perdido) **não** entra no recorte do PDF — só medicamento e período.
+  Um resumo pra consulta médica deve sempre mostrar as doses perdidas,
+  mesmo que a tela no momento esteja filtrando só "tomados"; esconder
+  isso do médico seria contraproducente.
+- **Critério de aceite**: tocar em "Relatório" abre uma confirmação
+  nomeando o recorte atual (medicamento + período); confirmando, o PDF
+  gerado reflete exatamente esse recorte. Nome do arquivo (item 1 acima)
+  é independente dessa decisão.
 
 ---
 

@@ -55,6 +55,10 @@ export interface DoseSchedule {
   days_of_week: number[] | null;
   interval_hours: number | null;
   is_active: boolean;
+  // "Dose fora do horário" (item 8, 2026-09-08) — presentes só quando o
+  // horário teve a âncora de hoje deslocada (ver recalculateScheduleToday).
+  today_override_date?: string | null;
+  today_override_time?: string | null;
 }
 
 export interface StockItem {
@@ -102,6 +106,22 @@ export async function updateSchedule(id: number, payload: Partial<DoseSchedule>)
 
 export async function deleteSchedule(id: number): Promise<void> {
   await api.delete(`/schedules/${id}`);
+}
+
+// "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado real
+// do Rilson: tomar o remédio de intervalo bem fora do previsto deveria
+// poder deslocar as doses RESTANTES daquele dia (ex.: tomou o das 8h só
+// às 10h → próxima às 18h, não 16h), sem virar o horário permanente. Só
+// se aplica a horário do tipo "a cada X horas" (backend rejeita horário
+// fixo com 422 — recálculo não faz sentido pra fixo, que só registra
+// atrasado). `today_occurrences` já vem calculado, poupa um segundo
+// round-trip só pra saber o que reagendar como notificação local.
+export async function recalculateScheduleToday(scheduleId: number, anchorTime: string): Promise<{
+  schedule: DoseSchedule;
+  today_occurrences: string[];
+}> {
+  const { data } = await api.post(`/schedules/${scheduleId}/recalculate-today`, { anchor_time: anchorTime });
+  return data;
 }
 
 export async function updateStock(medicationId: number, payload: Partial<StockItem>) {
