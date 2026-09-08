@@ -944,16 +944,15 @@ localmente pra debugar, não só neste teste específico.
   afeta o usuário é a cor/comportamento consistente, não a arquitetura
   do código; um componente novo tocando 3 arquivos com testes
   existentes é risco desproporcional ao ganho real neste momento.
-- **6. Nome "Remédios" na aba, mas o app guarda itens de primeiros
-  socorros também** (gaze, álcool) — **investigado, decisão pendente do
-  Rilson.** Confirmado no código: `Medication` não tem nenhum campo de
+- [x] **6. Nome "Remédios" na aba, mas o app guarda itens de primeiros
+  socorros também** (gaze, álcool) — **investigado, decisão do Rilson:
+  manter "Remédios" como está, sem renomear (2026-09-08).** Confirmado
+  no código antes da decisão: `Medication` não tem nenhum campo de
   categoria/tipo — é puramente um rótulo de UI, não uma limitação de
-  schema. Um rename é tecnicamente viável, mas mecânico e arriscado:
-  a palavra "medicamento"/"remédio" aparece espalhada em dezenas de
-  chaves de i18n (pt/en/es) e vários testes fazem match por texto
-  exato — trocar sem saber o nome novo escolhido correria risco real de
-  esquecer alguma chave ou quebrar asserção. Não decidido nem executado
-  sozinho — é decisão de marca/produto, não bug.
+  schema; um rename seria tecnicamente viável, mas mecânico (a palavra
+  "medicamento"/"remédio" aparece espalhada em dezenas de chaves de
+  i18n em pt/en/es, várias testadas por texto exato). Fechado — não é
+  pendência, é decisão tomada.
 - [x] **7. Auditoria geral de copy de estado vazio/erro — ✅ resolvido
   2026-09-08.** Estados vazios já eram bons (ícone + título + texto com
   próximo passo, ex.: "Cadastre o primeiro remédio pra começar...") —
