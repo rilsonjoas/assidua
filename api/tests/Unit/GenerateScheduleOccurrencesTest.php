@@ -54,17 +54,45 @@ class GenerateScheduleOccurrencesTest extends TestCase
         $this->assertCount(2, $occurrences);
     }
 
+    // Achado real do Rilson (2026-09-09): esse teste validava o
+    // comportamento ANTIGO (com bug) — 10 em 10h a partir das 20h tem
+    // ciclo natural 00h/10h/20h (as 3 batem no mesmo dia calendário), e
+    // a versão anterior do código nunca gerava a de 00h porque sempre
+    // recomeçava a contagem na âncora (20h) sem olhar pra trás. A
+    // invariante que este teste deve garantir continua real — a PRÓXIMA
+    // ocorrência depois das 20h (06h do dia seguinte) não deve vazar
+    // pra cá —, só a expectativa de "1 ocorrência só" estava errada.
     public function test_intervalo_nao_vaza_ocorrencia_pro_dia_seguinte(): void
     {
-        // 10 em 10 horas a partir das 20h: 20h, 06h (dia seguinte, não
-        // deve entrar), então só 1 ocorrência neste dia.
         $schedule = new DoseSchedule(['time' => '20:00:00', 'days_of_week' => null, 'interval_hours' => 10]);
         $date = Carbon::parse('2026-08-14');
 
         $occurrences = (new GenerateScheduleOccurrences)->handle($schedule, $date);
+        $times = array_map(fn ($c) => $c->format('H:i:s'), $occurrences);
 
-        $this->assertCount(1, $occurrences);
-        $this->assertSame('20:00:00', $occurrences[0]->format('H:i:s'));
+        $this->assertSame(['00:00:00', '10:00:00', '20:00:00'], $times);
+        $this->assertNotContains('06:00:00', $times);
+    }
+
+    // Achado real do Rilson (2026-09-09) — o cenário exato que ele
+    // encontrou de verdade: Ibuprofeno de 8 em 8h a partir das 10h. A
+    // ocorrência das 02h (do "mesmo ciclo", calculada pra trás a partir
+    // da âncora) nunca era gerada em NENHUM dia antes desse conserto —
+    // nem hoje (o cálculo antigo cortava às 23:59 antes de chegar lá),
+    // nem no dia seguinte (recomeçava do zero na âncora, sem herdar o
+    // que sobrou de ontem). Uma dose de verdade sumia da agenda pra
+    // sempre, todo santo dia.
+    public function test_intervalo_de_8_horas_a_partir_das_10h_inclui_a_ocorrencia_das_2h(): void
+    {
+        $schedule = new DoseSchedule(['time' => '10:00:00', 'days_of_week' => null, 'interval_hours' => 8]);
+        $date = Carbon::parse('2026-09-09');
+
+        $occurrences = (new GenerateScheduleOccurrences)->handle($schedule, $date);
+
+        $this->assertSame(
+            ['02:00:00', '10:00:00', '18:00:00'],
+            array_map(fn ($c) => $c->format('H:i:s'), $occurrences),
+        );
     }
 
     public function test_intervalo_de_1_hora_gera_24_ocorrencias(): void
@@ -142,8 +170,15 @@ class GenerateScheduleOccurrencesTest extends TestCase
         $tomorrow = Carbon::parse('2026-08-15');
 
         $occurrences = (new GenerateScheduleOccurrences)->handle($schedule, $tomorrow);
+        $times = array_map(fn ($c) => $c->format('H:i:s'), $occurrences);
 
         // Volta sozinho pra âncora permanente (08h) — override "expirou".
-        $this->assertSame('08:00:00', $occurrences[0]->format('H:i:s'));
+        // Ciclo natural de 08h/8em8h inclui 00h também (achado do Rilson,
+        // 2026-09-09, mesma correção do teste acima) — o que garante essa
+        // asserção é que o override de ONTEM (10h) não vazou pra hoje e a
+        // âncora permanente (08h) voltou a valer, não a posição exata na
+        // lista.
+        $this->assertContains('08:00:00', $times);
+        $this->assertNotContains('10:00:00', $times);
     }
 }

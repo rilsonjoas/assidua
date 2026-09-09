@@ -24,10 +24,15 @@ use Carbon\Carbon;
 // — remédio "de X em X horas" é tipicamente de curso contínuo (dor,
 // antibiótico), não "só às terças". `time` continua sendo obrigatório
 // nos dois casos: horário fixo usa como o próprio horário; intervalo
-// usa como âncora do primeiro horário do dia, repetindo a partir dali
-// até (e não além) da meia-noite do mesmo dia — a próxima ocorrência
-// depois da meia-noite pertence ao cálculo do dia seguinte, não
-// "vaza" pro dia anterior.
+// usa como âncora, repetindo de `interval_hours` em `interval_hours`
+// como um relógio contínuo de 24h — inclui a ocorrência que "atravessa"
+// a meia-noite quando a âncora não divide 24h de forma exata (ex.:
+// 10:00 de 8 em 8h gera 02:00, 10:00, 18:00, não só 10:00/18:00; achado
+// real do Rilson 2026-09-09, ver `intervalOccurrences`). Cada dia
+// calcula essa ocorrência "de madrugada" a partir do PRÓPRIO `time` do
+// schedule, não do dia anterior de verdade — não existe estado
+// compartilhado entre dias, só a mesma conta de relógio de 24h repetida
+// pra cada `$date` pedido.
 class GenerateScheduleOccurrences
 {
     /**
@@ -59,9 +64,31 @@ class GenerateScheduleOccurrences
     {
         $usingOverride = (bool) $schedule->today_override_date?->isSameDay($date);
         $anchorTime = $usingOverride ? $schedule->today_override_time : $schedule->time;
+        $intervalHours = $schedule->interval_hours;
 
-        $occurrences = [];
         $cursor = $date->copy()->setTimeFromTimeString($anchorTime);
+        $startOfDay = $date->copy()->startOfDay();
+        $endOfDay = $date->copy()->endOfDay();
+
+        // Achado real do Rilson (2026-09-09): quando a âncora não divide
+        // 24h de forma exata (ex.: 10:00 de 8 em 8h — 10h, 18h, 02h do
+        // dia seguinte), o cálculo antigo sempre recomeçava na âncora a
+        // cada dia e nunca olhava pra trás. Resultado: a ocorrência que
+        // "atravessa" a meia-noite (aqui, 02h) nunca era gerada em NENHUM
+        // dia — nem hoje (corta às 23:59 antes de chegar lá), nem amanhã
+        // (recomeça do zero na âncora, sem herdar o que sobrou de ontem).
+        // Uma dose de verdade sumia da agenda pra sempre, todo santo dia.
+        // Corrigido andando pra trás a partir da âncora, uma volta de
+        // intervalo por vez, enquanto a ocorrência anterior ainda cair
+        // dentro do MESMO dia — só então anda pra frente normalmente.
+        // Não se aplica ao override (recálculo "só hoje"): esse já
+        // significa "a partir de agora pra frente", nunca pra trás (ver
+        // comentário abaixo, achado de revisão de código anterior).
+        if (! $usingOverride) {
+            while ($cursor->copy()->subHours($intervalHours)->gte($startOfDay)) {
+                $cursor->subHours($intervalHours);
+            }
+        }
 
         // Achado real (revisão de código, 2026-09-08): quando a âncora
         // vem de um recálculo, ela É o horário que a pessoa acabou de
@@ -76,14 +103,13 @@ class GenerateScheduleOccurrences
         // a própria âncora e só começa a listar a partir do intervalo
         // seguinte, só no caso de vir de um override.
         if ($usingOverride) {
-            $cursor->addHours($schedule->interval_hours);
+            $cursor->addHours($intervalHours);
         }
 
-        $endOfDay = $date->copy()->endOfDay();
-
+        $occurrences = [];
         while ($cursor->lte($endOfDay)) {
             $occurrences[] = $cursor->copy();
-            $cursor = $cursor->copy()->addHours($schedule->interval_hours);
+            $cursor = $cursor->copy()->addHours($intervalHours);
         }
 
         return $occurrences;
