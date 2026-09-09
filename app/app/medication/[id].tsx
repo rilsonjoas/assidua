@@ -1352,11 +1352,22 @@ export default function MedicationFormScreen() {
 
       {!isNew && (
         <>
-          {/* "A cada X horas" já cobre o dia inteiro sozinho — não faz
+          {/* Espaçamento revisado (2026-09-09, achado real do Rilson com
+              screenshot): antes, sem nenhum horário cadastrado, o botão
+              "+Adicionar" aparecia separado E flutuando acima da caixa
+              de aviso — que já convidava a adicionar um horário no
+              próprio texto. Duas coisas pedindo a mesma ação, com vão
+              ruim entre elas. Unificado: vazio mostra SÓ a caixa, com o
+              botão dentro dela; com horário(s) já cadastrado(s) em modo
+              fixo, "+Adicionar" volta a ser a fileira separada (fazendo
+              sentido ali — não tem caixa de aviso pra se juntar). "A
+              cada X horas" já cobre o dia inteiro sozinho — não faz
               sentido oferecer um segundo horário de intervalo enquanto
               já existe um. */}
-          {!addingSchedule && (scheduleKind === 'fixed' || schedules.length === 0) && (
-            <View style={styles.scheduleAddRow}>
+          {schedules.length === 0 && !addingSchedule ? (
+            <View style={styles.emptySchedules}>
+              <MaterialCommunityIcons name="clock-alert-outline" size={32} color={colors.textMuted} />
+              <Text style={styles.emptySchedulesText}>{t('medicationForm.noSchedules')}</Text>
               <TouchableOpacity
                 style={styles.addScheduleBtn}
                 onPress={startAddSchedule}
@@ -1367,13 +1378,20 @@ export default function MedicationFormScreen() {
                 <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
               </TouchableOpacity>
             </View>
-          )}
-
-          {schedules.length === 0 && !addingSchedule && (
-            <View style={styles.emptySchedules}>
-              <MaterialCommunityIcons name="clock-alert-outline" size={32} color={colors.textMuted} />
-              <Text style={styles.emptySchedulesText}>{t('medicationForm.noSchedules')}</Text>
-            </View>
+          ) : (
+            !addingSchedule && scheduleKind === 'fixed' && (
+              <View style={styles.scheduleAddRow}>
+                <TouchableOpacity
+                  style={styles.addScheduleBtn}
+                  onPress={startAddSchedule}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('medicationForm.addScheduleLabel')}
+                >
+                  <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                  <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
 
           {schedules.map((s) => (
@@ -1458,20 +1476,6 @@ export default function MedicationFormScreen() {
           visuais no mesmo formulário. */}
       {isNew && (
         <>
-          {!addingDraft && editingDraftIndex === null && (scheduleKind === 'fixed' || draftSchedules.length === 0) && (
-            <View style={styles.scheduleAddRow}>
-              <TouchableOpacity
-                style={styles.addScheduleBtn}
-                onPress={startAddSchedule}
-                accessibilityRole="button"
-                accessibilityLabel={t('medicationForm.addScheduleLabel')}
-              >
-                <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
-                <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* Resposta direta a "quantas vezes tomar?" — um toque monta
               a lista toda; depois ajusta horário individual à vontade.
               Só faz sentido em modo fixo — "a cada X horas" já responde
@@ -1515,12 +1519,39 @@ export default function MedicationFormScreen() {
               permitido: controlar que remédio tem em estoque é um uso
               válido por si só, sem precisar decidir horário agora. O
               aviso deixa claro que é uma escolha reconhecida, não um
-              remédio "esquecido" sem lembrete algum. */}
-          {draftSchedules.length === 0 && !addingDraft && editingDraftIndex === null && (
+              remédio "esquecido" sem lembrete algum.
+              Espaçamento revisado (2026-09-09, mesmo achado do bloco de
+              remédio já existente acima): "+Adicionar" agora mora DENTRO
+              da caixa de aviso, não flutuando separado acima dela — duas
+              coisas pedindo a mesma ação, uma bastava. */}
+          {draftSchedules.length === 0 && !addingDraft && editingDraftIndex === null ? (
             <View style={styles.emptySchedules}>
               <MaterialCommunityIcons name="package-variant-closed" size={32} color={colors.textMuted} />
               <Text style={styles.emptySchedulesText}>{t('medicationForm.noSchedules')}</Text>
+              <TouchableOpacity
+                style={styles.addScheduleBtn}
+                onPress={startAddSchedule}
+                accessibilityRole="button"
+                accessibilityLabel={t('medicationForm.addScheduleLabel')}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
+              </TouchableOpacity>
             </View>
+          ) : (
+            !addingDraft && editingDraftIndex === null && scheduleKind === 'fixed' && (
+              <View style={styles.scheduleAddRow}>
+                <TouchableOpacity
+                  style={styles.addScheduleBtn}
+                  onPress={startAddSchedule}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('medicationForm.addScheduleLabel')}
+                >
+                  <MaterialCommunityIcons name="plus" size={16} color={colors.brand} />
+                  <Text style={styles.addScheduleBtnText}>{t('medicationForm.add')}</Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
 
           {draftSchedules.map((draft, index) => {
@@ -1849,16 +1880,20 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.brandSubtle, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
     },
     addScheduleBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
+    // marginTop 16 (2026-09-09) — antes o espaço acima vinha "de graça"
+    // da fileira separada de "+Adicionar" que existia aqui (removida,
+    // ver comentário na JSX); sem ela, a caixa precisa do próprio respiro.
     emptySchedules: {
       alignItems: 'center',
       paddingVertical: 20,
       paddingHorizontal: 16,
-      gap: 8,
+      gap: 10,
       backgroundColor: c.surfaceSecondary,
       borderRadius: 14,
       borderWidth: 1,
       borderStyle: 'dashed',
       borderColor: c.border,
+      marginTop: 16,
       marginBottom: 12,
     },
     emptySchedulesText: { color: c.textSecondary, fontSize: 13, fontWeight: '600', textAlign: 'center' },

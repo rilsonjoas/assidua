@@ -51,6 +51,28 @@ describe('scheduleScheduleNotifications — modo intervalo', () => {
     expect(hours.every((h: number) => h < 24)).toBe(true);
   });
 
+  // Achado real do Rilson (2026-09-09) — Ibuprofeno de 8 em 8h a
+  // partir das 10h no aparelho dele: o lembrete das 02h (ocorrência que
+  // "atravessa" a meia-noite, calculada pra trás a partir da âncora)
+  // nunca era agendado — a pessoa nunca era avisada pra tomar essa
+  // dose, em dia nenhum. Mesmo conserto do backend
+  // (GenerateScheduleOccurrences), espelhado aqui.
+  it('de 8 em 8h a partir das 10:00 agenda 3 lembretes (02:00, 10:00, 18:00), incluindo o de madrugada', async () => {
+    await scheduleScheduleNotifications({
+      scheduleId: 6,
+      time: '10:00',
+      days_of_week: null,
+      interval_hours: 8,
+      medicationName: 'Ibuprofeno',
+      dosage: '1',
+      unit: 'comprimido',
+    });
+
+    expect(mockScheduleNotificationAsync).toHaveBeenCalledTimes(3);
+    const hours = mockScheduleNotificationAsync.mock.calls.map((c: any) => c[0].trigger.hour);
+    expect(hours).toEqual([2, 10, 18]);
+  });
+
   it('de 12 em 12h a partir das 06:00 agenda 2 lembretes (06:00, 18:00), não 3', async () => {
     await scheduleScheduleNotifications({
       scheduleId: 2,

@@ -1151,6 +1151,114 @@ localmente pra debugar, não só neste teste específico.
 
 ---
 
+## 🛑 Bug crítico: ocorrência de intervalo que atravessa a meia-noite nunca era gerada — ✅ resolvido 2026-09-09
+
+> Achado real do Rilson usando o app de verdade: Ibuprofeno "de 8 em 8
+> horas" a partir das 10:00 só mostrava doses às 10:00 e 18:00 — sem
+> nenhum horário de madrugada, mesmo a conta "10h + 8h + 8h = 02h"
+> claramente indicando que deveria existir uma terceira dose. Perguntou
+> "é bug?" com print em mãos.
+>
+> Investigação (banco de produção, só leitura, via SSH): confirmado que
+> nenhum recálculo (`today_override_*`) estava aplicado — a configuração
+> era mesmo `time=10:00`, `interval_hours=8`, sem nada especial. Relendo
+> `GenerateScheduleOccurrences::intervalOccurrences` com atenção: o
+> algoritmo sempre recomeçava a contagem na âncora a cada dia calendário
+> e nunca olhava pra trás. Resultado: a ocorrência das 02:00 — que
+> pertence ao MESMO ciclo de 24h daquele horário (10h, 18h, 02h, de
+> volta pras 10h 24h depois) — nunca era gerada **em dia nenhum**: hoje
+> corta o cálculo às 23:59 antes de chegar lá, e amanhã recomeça do
+> zero na âncora (10h) sem herdar o que "sobrou" de ontem. Uma dose de
+> verdade sumia da agenda pra sempre, silenciosamente, todo santo dia —
+> tanto na tela Hoje quanto nos lembretes locais (push), que espelham a
+> mesma lógica.
+>
+> **Fix**: `intervalOccurrences` agora anda pra trás a partir da âncora
+> (uma volta de intervalo por vez, enquanto a ocorrência anterior ainda
+> cair dentro do mesmo dia calendário) antes de andar pra frente — vira
+> um relógio contínuo de 24h de verdade, não mais um contador que
+> reseta toda meia-noite. **Só se aplica ao caminho normal** (sem
+> recálculo "só hoje" aplicado) — o override de recálculo continua
+> "sempre pra frente a partir de agora", sem olhar pra trás, por design
+> (não regride o achado de revisão de código anterior sobre não orfanar
+> a dose que disparou o recálculo). Mesmo conserto espelhado em
+> `services/notifications.ts` (`scheduleScheduleNotifications`) —
+> lembretes locais tinham exatamente o mesmo bug, então a pessoa também
+> nunca era avisada pra tomar a dose de madrugada.
+>
+> **Escopo real do impacto**: só afeta horários de intervalo cuja
+> âncora não é o menor horário do próprio ciclo (ex.: 10:00 de 8/8h,
+> que "esconde" um 02:00 anterior; 08:00 de 8/8h também, que esconde um
+> 00:00). Âncoras já "auto-alinhadas" (ex.: 07:00 de 8/8h → 07h/15h/23h,
+> nenhuma antes das 07h) continuam idênticas — por isso a suíte de
+> testes inteira (257 backend) passou sem alteração nenhuma além dos 2
+> testes que validavam o comportamento antigo (ver abaixo).
+>
+> **Efeito colateral esperado, avisado ao Rilson antes de publicar**:
+> adesão/sequência (streak) desse tipo de horário recalcula retroativo
+> — dias passados passam a contar a ocorrência de madrugada como devida
+> e não registrada. É a conta ficando CORRETA (a dose sempre existiu,
+> só nunca aparecia), não um bug novo. Não dispara notificação nem cria
+> `DoseLog` retroativo: `CheckMissedDoses` (cron) e `MarkDoseMissedAndNotifyCollaborators`
+> só processam o dia de HOJE, nunca reprocessam histórico — confirmado
+> lendo o código antes de publicar, pra descartar risco de nova onda de
+> notificação sobre dias antigos.
+>
+> 2 testes antigos corrigidos em `GenerateScheduleOccurrencesTest.php`
+> (validavam a contagem/posição do comportamento com bug — atualizados
+> pra refletir o ciclo de 24h completo, mantendo a invariante real que
+> importa: a ocorrência do dia SEGUINTE continua não vazando pra cá). 2
+> testes novos, um por stack, nomeando o cenário real exato (10:00, 8h):
+> `test_intervalo_de_8_horas_a_partir_das_10h_inclui_a_ocorrencia_das_2h`
+> (backend) e o equivalente em `notifications.test.ts` (mobile).
+>
+> 257/257 testes backend, 327/327 testes mobile, 2x estável cada.
+> Typecheck limpo.
+>
+> **Varredura por bugs parecidos** (pedido do Rilson, "isso é muito
+> importante"): grep sistemático de `addHours/subHours/endOfDay/
+> startOfDay/setTimeFromTimeString/dayOfWeek` em todo `Actions`/
+> `Controllers`/`Console` do backend e equivalente no mobile. Nenhum
+> outro bug independente encontrado — `CalculateAdherenceStreak`/
+> `CalculateWeeklyAdherence`/`CalculateDailyAdherence`/`GenerateConsultationSummary`
+> todos delegam pra `GenerateScheduleOccurrences` (já corrigida, herdam
+> o fix automaticamente, por isso foi centralizada desde o início);
+> `SendWeeklyAdherenceSummaries` já calcula "domingo às 20h" no fuso de
+> CADA perfil (achado/conserto anterior, 2026-08-10); `notifications.web.ts`
+> não tem esse risco (dispara 1 notificação imediata, não agenda).
+>
+> **Efeito visto na prática**: seguindo a conta pro Ibuprofeno real do
+> Rilson (10:00, 8/8h, únicos 2 dias com log — 07/09 e 08/09, 2 doses
+> cada, sem 02h), o streak dele (mostrado como 2 na tela) deve zerar na
+> próxima abertura, já que nenhum dos 2 últimos dias tinha as 3 doses
+> completas retroativamente. Confirmado com ele antes de publicar — é a
+> conta ficando certa, ele está em fase de testes do app justamente pra
+> pegar esse tipo de coisa.
+
+### Ajuste visual: seção "Horários" com botão duplicado e espaçamento ruim — ✅ resolvido 2026-09-09
+
+> Achado real do Rilson com screenshot, no mesmo dia: com nenhum horário
+> cadastrado ainda, a tela mostrava o botão "+Adicionar" **separado e
+> flutuando** acima da caixa de aviso "Sem horário..." — que já convida
+> a adicionar um horário no próprio texto. Duas coisas pedindo a mesma
+> ação, com vão ruim entre elas (o botão ficava alinhado à direita,
+> sozinho numa fileira cheia de espaço vazio à esquerda).
+>
+> **Fix**: unificado — vazio mostra só a caixa de aviso, com o botão
+> "+Adicionar" DENTRO dela (ícone, texto e botão centralizados, mesmo
+> espaçamento uniforme via `gap`); com pelo menos um horário já
+> cadastrado em modo fixo, "+Adicionar" volta a ser a fileira separada
+> de antes (faz sentido ali — não tem caixa de aviso pra se juntar).
+> Mesmo conserto espelhado no formulário de cadastro de remédio novo
+> (`isNew`), reordenando os atalhos "quantas vezes por dia" pra ficarem
+> antes da caixa vazia, não depois de um botão redundante.
+>
+> 327/327 testes mobile 2x estável, typecheck limpo (nenhum teste
+> quebrou — o botão continua com o mesmo `accessibilityLabel`, só mudou
+> de posição na árvore).
+
+---
+
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
 
 Trabalho direto no código a partir do levantamento abaixo.

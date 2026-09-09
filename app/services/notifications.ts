@@ -51,18 +51,26 @@ export async function scheduleScheduleNotifications(params: {
   // o lembrete local era agendado só no horário-âncora, 1x/dia, deixando
   // o remédio "sem aviso" nos horários seguintes mesmo com o backend
   // computando as ocorrências certinho. Espelha GenerateScheduleOccurrences
-  // (api/app/Actions/GenerateScheduleOccurrences.php): começa no
-  // horário-âncora e repete de X em X horas até (sem ultrapassar) a
-  // meia-noite do mesmo dia. O Expo não tem trigger nativo de "intervalo
-  // dentro do dia", então isso vira N lembretes DAILY fixos, um por
-  // ocorrência.
+  // (api/app/Actions/GenerateScheduleOccurrences.php).
+  //
+  // Achado real do Rilson (2026-09-09): quando a âncora não divide 24h
+  // de forma exata (ex.: 10:00 de 8 em 8h — 10h, 18h, 02h do dia
+  // seguinte), o cálculo andava só pra frente e nunca gerava o lembrete
+  // que "atravessa" a meia-noite (02h aqui) — a pessoa nunca era
+  // avisada pra tomar essa dose, em dia nenhum. Corrigido andando pra
+  // trás a partir da âncora primeiro (mesmo achado/conserto do
+  // backend), só então pra frente até (sem ultrapassar) a meia-noite.
   if (interval_hours != null) {
     const occurrences: { hour: number; minute: number }[] = [];
+    const intervalMinutes = interval_hours * 60;
     let totalMinutes = hour * 60 + minute;
+    while (totalMinutes - intervalMinutes >= 0) {
+      totalMinutes -= intervalMinutes;
+    }
     const endOfDayMinutes = 23 * 60 + 59; // mesmo corte de "endOfDay" do backend
     while (totalMinutes <= endOfDayMinutes) {
       occurrences.push({ hour: Math.floor(totalMinutes / 60), minute: totalMinutes % 60 });
-      totalMinutes += interval_hours * 60;
+      totalMinutes += intervalMinutes;
     }
 
     await Promise.all(
