@@ -199,4 +199,37 @@ describe('Toque mínimo de 48px — ícones lado a lado (hitSlop, não crescer a
     expect(hitSlopSideOf(skipBtn, 'top')).toBeGreaterThanOrEqual(8);
     expect(hitSlopSideOf(skipBtn, 'bottom')).toBeGreaterThanOrEqual(8);
   });
+
+  // Card do card virou 2 fileiras (2026-09-09, achado real do Rilson
+  // com screenshot: nome de remédio comprido quebrava palavra no meio
+  // porque dividia fileira com os botões). Regressão: nome nunca trunca
+  // (`numberOfLines` ausente — é a informação mais importante do card),
+  // e "Tomei" é o botão dominante da fileira de ações (`flex: 1`), não
+  // um entre três do mesmo tamanho.
+  it('nome do remédio nunca trunca, e "Tomei" domina a fileira de ações', async () => {
+    const longName = 'Maleato de dexclorfeniramina + betametasona';
+    mockedDoses.getTodayDoses.mockResolvedValue([{
+      id: 'pending_9', dose_schedule_id: 9, medication_id: 11, profile_id: 1,
+      scheduled_at: '2026-08-08T08:00:00.000Z', taken_at: null, status: 'pending' as const, notes: null,
+      medication: { ...medication, id: 11, name: longName },
+      dose_schedule: { id: 9, medication_id: 11, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
+    }] as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 } as any);
+    mockedApi.get.mockResolvedValue({ data: [profile] });
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <HomeScreen />
+      </QueryClientProvider>,
+    );
+
+    const nameText = await screen.findByText(longName);
+    expect(nameText.props.numberOfLines).toBeUndefined();
+
+    // Por accessibilityLabel, não `.parent` do texto — mais robusto,
+    // é literalmente como o leitor de tela acha o botão.
+    const takeBtn = await screen.findByLabelText(/^Marcar/);
+    expect(StyleSheet.flatten(takeBtn.props.style).flex).toBe(1);
+  });
 });

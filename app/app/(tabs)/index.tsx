@@ -512,119 +512,142 @@ export default function HomeScreen() {
             return (
               <View style={[styles.card, (taken || skipped) && styles.cardDone, isWide && { flex: 1 }]}>
                 <View style={[styles.colorBar, { backgroundColor: missed ? colors.warning : item.medication.color }]} />
-                <View style={styles.timeCol}>
-                  <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
-                  {missed && <Text style={styles.missedLabel}>{t('home.delayed')}</Text>}
-                </View>
-                <TouchableOpacity
-                  style={styles.cardBody}
-                  onPress={() => router.push(`/medication/${item.medication_id}`)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('medications.editLabel', { name: maskedName })}
-                >
-                  <Text style={styles.medName}>{maskedName}</Text>
-                  <Text style={styles.medDosage}>{formatDosageUnit(item.medication.dosage, item.medication.unit)}</Text>
-                  {item._pendingSync && (
-                    <View style={styles.pendingSyncRow}>
-                      <MaterialCommunityIcons name="cloud-off-outline" size={12} color={colors.textMuted} />
-                      <Text style={styles.pendingSyncText}>{t('home.pendingSync')}</Text>
+                {/* Duas fileiras, não uma só (2026-09-09, achado real do
+                    Rilson com screenshot): nome+horário numa linha e os
+                    botões de ação (Tomei/Outro horário/Pular) na OUTRA,
+                    embaixo, cada um com espaço de sobra. Antes, tudo
+                    dividia uma fileira só — nome comprido ("Maleato de
+                    dexclorfeniramina...") sobrava cada vez menos espaço
+                    conforme os botões ganhavam texto (achado de UX
+                    anterior), quebrando palavra no meio. Nome do remédio
+                    é a informação mais importante do card — não é pra
+                    truncar nem espremer. */}
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.timeCol}>
+                      <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
+                      {missed && <Text style={styles.missedLabel}>{t('home.delayed')}</Text>}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.cardBody}
+                      onPress={() => router.push(`/medication/${item.medication_id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('medications.editLabel', { name: maskedName })}
+                    >
+                      <Text style={styles.medName}>{maskedName}</Text>
+                      <Text style={styles.medDosage}>{formatDosageUnit(item.medication.dosage, item.medication.unit)}</Text>
+                      {item._pendingSync && (
+                        <View style={styles.pendingSyncRow}>
+                          <MaterialCommunityIcons name="cloud-off-outline" size={12} color={colors.textMuted} />
+                          <Text style={styles.pendingSyncText}>{t('home.pendingSync')}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {!taken && !skipped && (
+                    <View style={styles.actionsRow}>
+                      {/* flex:1 só no Tomei (2026-09-09) — com a fileira
+                          própria, sobra espaço; a ação principal usa
+                          esse espaço pra virar o botão mais fácil de
+                          acertar, em vez de um entre três do mesmo
+                          tamanho competindo por atenção. */}
+                      <TouchableOpacity
+                        style={styles.takeButton}
+                        onPress={() => markDose.mutate({ dose: item })}
+                        disabled={markDose.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home.markTakenLabel', { name: maskedName, time })}
+                      >
+                        <MaterialCommunityIcons name="check" size={18} color="#fff" />
+                        <Text style={styles.takeButtonText}>{t('home.take')}</Text>
+                      </TouchableOpacity>
+                      {/* "Dose fora do horário" (item 8, 2026-09-08) — ação
+                          secundária explícita, ao lado do botão principal
+                          (não escondida atrás de toque longo, mais fácil
+                          de descobrir pro público idoso do app). Rótulo
+                          visível adicionado depois (achado de UX,
+                          2026-09-08): só o ícone confundia — não dava pra
+                          adivinhar o que "relógio com lápis" faz. */}
+                      <TouchableOpacity
+                        style={styles.customTimeButton}
+                        onPress={() => openCustomTimeModal(item)}
+                        disabled={markDose.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home.customTimeLabel', { name: maskedName })}
+                      >
+                        <MaterialCommunityIcons name="clock-edit-outline" size={16} color={colors.textMuted} />
+                        <Text style={styles.customTimeButtonText}>{t('home.customTimeButton')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.skipButton}
+                        onPress={() => skipDose.mutate(item)}
+                        disabled={skipDose.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home.skipLabel', { name: maskedName, time })}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <MaterialCommunityIcons name="close" size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
                     </View>
                   )}
-                </TouchableOpacity>
-                {!taken && !skipped && (
-                  <View style={styles.actions}>
-                    <TouchableOpacity
-                      style={styles.takeButton}
-                      onPress={() => markDose.mutate({ dose: item })}
-                      disabled={markDose.isPending}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('home.markTakenLabel', { name: maskedName, time })}
-                    >
-                      <MaterialCommunityIcons name="check" size={18} color="#fff" />
-                      <Text style={styles.takeButtonText}>{t('home.take')}</Text>
-                    </TouchableOpacity>
-                    {/* "Dose fora do horário" (item 8, 2026-09-08) — ação
-                        secundária explícita, ao lado do botão principal
-                        (não escondida atrás de toque longo, mais fácil
-                        de descobrir pro público idoso do app). Rótulo
-                        visível adicionado depois (achado de UX,
-                        2026-09-08): só o ícone confundia — não dava pra
-                        adivinhar o que "relógio com lápis" faz. */}
-                    <TouchableOpacity
-                      style={styles.customTimeButton}
-                      onPress={() => openCustomTimeModal(item)}
-                      disabled={markDose.isPending}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('home.customTimeLabel', { name: maskedName })}
-                    >
-                      <MaterialCommunityIcons name="clock-edit-outline" size={16} color={colors.textMuted} />
-                      <Text style={styles.customTimeButtonText}>{t('home.customTimeButton')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.skipButton}
-                      onPress={() => skipDose.mutate(item)}
-                      disabled={skipDose.isPending}
-                      accessibilityRole="button"
-                      accessibilityLabel={t('home.skipLabel', { name: maskedName, time })}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <MaterialCommunityIcons name="close" size={16} color={colors.textMuted} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                {taken && (
-                  <TouchableOpacity
-                    style={styles.statusBadge}
-                    onPress={() => undoMutation.mutate(item)}
-                    disabled={undoMutation.isPending}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('home.takenLabel', { name: maskedName, time })}
-                    accessibilityHint={t('home.undoHint')}
-                  >
-                    <MaterialCommunityIcons name="check-circle" size={18} color={colors.success} />
-                    <Text style={styles.takenText}>{t('home.taken')}</Text>
-                    <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
-                  </TouchableOpacity>
-                )}
-                {taken && isCaregiverView && (
-                  <TouchableOpacity
-                    style={styles.reactButton}
-                    onPress={() => reactMutation.mutate(item)}
-                    disabled={!!item.reacted_at || reactMutation.isPending}
-                    accessibilityRole="button"
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    accessibilityLabel={
-                      item.reacted_at
-                        ? t('home.alreadyReacted')
-                        : t('home.reactLabel', { name: maskedName })
-                    }
-                  >
-                    <MaterialCommunityIcons
-                      name={item.reacted_at ? 'heart' : 'heart-outline'}
-                      size={18}
-                      color={item.reacted_at ? colors.brand : colors.textMuted}
-                    />
-                  </TouchableOpacity>
-                )}
-                {taken && !isCaregiverView && !!item.reacted_at && (
-                  <View style={styles.reactedIndicator} accessible accessibilityLabel={t('home.reactedByLabel', { name: item.reacted_by_name })}>
-                    <MaterialCommunityIcons name="heart" size={14} color={colors.brand} />
-                  </View>
-                )}
-                {skipped && (
-                  <TouchableOpacity
-                    style={styles.statusBadge}
-                    onPress={() => undoMutation.mutate(item)}
-                    disabled={undoMutation.isPending}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('home.skippedLabel', { name: item.medication.name, time })}
-                    accessibilityHint={t('home.undoHint')}
-                  >
-                    <MaterialCommunityIcons name="minus-circle" size={18} color={colors.textMuted} />
-                    <Text style={styles.skippedText}>{t('home.skipped')}</Text>
-                    <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
-                  </TouchableOpacity>
-                )}
+                  {taken && (
+                    <View style={styles.statusRow}>
+                      <TouchableOpacity
+                        style={styles.statusBadge}
+                        onPress={() => undoMutation.mutate(item)}
+                        disabled={undoMutation.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home.takenLabel', { name: maskedName, time })}
+                        accessibilityHint={t('home.undoHint')}
+                      >
+                        <MaterialCommunityIcons name="check-circle" size={18} color={colors.success} />
+                        <Text style={styles.takenText}>{t('home.taken')}</Text>
+                        <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
+                      </TouchableOpacity>
+                      {isCaregiverView && (
+                        <TouchableOpacity
+                          style={styles.reactButton}
+                          onPress={() => reactMutation.mutate(item)}
+                          disabled={!!item.reacted_at || reactMutation.isPending}
+                          accessibilityRole="button"
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          accessibilityLabel={
+                            item.reacted_at
+                              ? t('home.alreadyReacted')
+                              : t('home.reactLabel', { name: maskedName })
+                          }
+                        >
+                          <MaterialCommunityIcons
+                            name={item.reacted_at ? 'heart' : 'heart-outline'}
+                            size={18}
+                            color={item.reacted_at ? colors.brand : colors.textMuted}
+                          />
+                        </TouchableOpacity>
+                      )}
+                      {!isCaregiverView && !!item.reacted_at && (
+                        <View style={styles.reactedIndicator} accessible accessibilityLabel={t('home.reactedByLabel', { name: item.reacted_by_name })}>
+                          <MaterialCommunityIcons name="heart" size={14} color={colors.brand} />
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  {skipped && (
+                    <View style={styles.statusRow}>
+                      <TouchableOpacity
+                        style={styles.statusBadge}
+                        onPress={() => undoMutation.mutate(item)}
+                        disabled={undoMutation.isPending}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('home.skippedLabel', { name: item.medication.name, time })}
+                        accessibilityHint={t('home.undoHint')}
+                      >
+                        <MaterialCommunityIcons name="minus-circle" size={18} color={colors.textMuted} />
+                        <Text style={styles.skippedText}>{t('home.skipped')}</Text>
+                        <MaterialCommunityIcons name="undo" size={15} color={colors.textMuted} style={styles.undoIcon} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
             );
           }}
@@ -761,43 +784,59 @@ function makeStyles(c: ThemeColors) {
     emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
     card: {
       backgroundColor: c.surface, borderRadius: 16, flexDirection: 'row',
-      alignItems: 'center', overflow: 'hidden',
+      overflow: 'hidden',
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardDone: { opacity: 0.6 },
     colorBar: { width: 5, alignSelf: 'stretch' },
+    // Card virou 2 fileiras (2026-09-09) — `cardContent` é a coluna que
+    // segura as duas (nome+horário em cima, ações/status embaixo);
+    // `alignSelf: 'stretch'` do colorBar continua acompanhando a altura
+    // total, agora maior quando a fileira de ações existe.
+    cardContent: { flex: 1, paddingVertical: 14 },
+    cardTopRow: { flexDirection: 'row', alignItems: 'center' },
     timeCol: { paddingHorizontal: 12, alignItems: 'center' },
     time: { fontSize: 15, fontWeight: '700', color: c.brand },
     missedLabel: { fontSize: 10, fontWeight: '600', color: c.warning, marginTop: 2 },
-    cardBody: { flex: 1, paddingVertical: 16 },
+    // paddingRight (não mais paddingVertical, que subiu pro cardContent)
+    // — evita o texto colar na borda direita do card.
+    cardBody: { flex: 1, paddingRight: 12 },
     medName: { fontSize: 15, fontWeight: '600', color: c.text },
     medDosage: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
     pendingSyncRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
     pendingSyncText: { fontSize: 10, color: c.textMuted },
-    actions: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 12 },
-    // minHeight 48 nos 3 botões da fileira de ações (WCAG AAA, auditoria
-    // de toque mínimo 2026-09-08) — Tomei/Outro horário/Pular ficam lado
-    // a lado, então dividem a mesma altura mínima pra ficar alinhados.
+    // Fileira própria pras ações (2026-09-09, achado real do Rilson com
+    // screenshot) — antes dividia espaço com o nome do remédio na MESMA
+    // fileira; num nome comprido ("Maleato de dexclorfeniramina +
+    // betametasona"), cada vez sobrava menos espaço pro texto conforme
+    // os botões ganhavam rótulo visível (achado de UX anterior),
+    // quebrando palavra no meio. Agora nome e ações têm fileira própria,
+    // cada uma com a largura toda do card.
+    actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingHorizontal: 12 },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, marginTop: 10 },
+    // minHeight 48 nos 3 (WCAG AAA, 2026-09-08). flex:1 só no Tomei
+    // (2026-09-09) — com fileira própria agora, sobra espaço; a ação
+    // principal usa esse espaço pra virar o botão mais fácil de
+    // acertar, em vez de disputar tamanho igual com os outros dois.
     takeButton: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: c.brand,
-      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, minHeight: 48,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.brand,
+      paddingVertical: 12, borderRadius: 12, minHeight: 48,
     },
-    takeButtonText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
+    takeButtonText: { color: c.onBrand, fontWeight: '700', fontSize: 14 },
     // "Foi em outro horário" (item 8, 2026-09-08; rótulo visível
     // adicionado em 2026-09-08 num achado de UX à parte — ícone sozinho
-    // não dava pra entender o que fazia). Ganhou texto, então não usa
-    // mais o mesmo padding quadrado do skipButton ao lado.
+    // não dava pra entender o que fazia).
     customTimeButton: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minHeight: 48,
+      paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minHeight: 48,
       backgroundColor: c.surfaceSecondary,
     },
-    customTimeButtonText: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
+    customTimeButtonText: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
     // Sem minWidth/minHeight aqui de propósito — ícone "X" sozinho, lado
     // a lado com dois botões que já têm texto; crescer o quadrado pra
     // 48x48 inflava a fileira inteira. hitSlop no JSX (ver abaixo)
     // resolve o toque mínimo sem mexer no visual.
-    skipButton: { padding: 6, borderRadius: 8, backgroundColor: c.surfaceSecondary },
+    skipButton: { padding: 10, borderRadius: 10, backgroundColor: c.surfaceSecondary },
     // Modal "Foi em outro horário?" — mesmo padrão visual de
     // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
     // arredondados), só que local a esta tela por precisar de um

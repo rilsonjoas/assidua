@@ -1257,6 +1257,40 @@ localmente pra debugar, não só neste teste específico.
 > quebrou — o botão continua com o mesmo `accessibilityLabel`, só mudou
 > de posição na árvore).
 
+### Ajuste visual: card de dose da Home apertado com nome de remédio comprido — ✅ resolvido 2026-09-09
+
+> Achado real do Rilson com screenshot, assim que o fix do bug de
+> madrugada foi pro ar: com a terceira dose do dia aparecendo agora,
+> notou o card inteiro apertado — nome de remédio comprido ("Maleato de
+> dexclorfeniramina + betametasona") quebrando palavra no meio. Pedido
+> explícito: sugerir antes de implementar.
+>
+> **Causa raiz**: o card inteiro (barra de cor, horário, nome/dosagem,
+> botões Tomei/Outro horário/Pular) dividia UMA fileira só. O achado de
+> UX de ontem (dar texto visível pros botões, não só ícone) deixou essa
+> fileira mais larga, sobrando cada vez menos espaço pro nome — que é
+> flex:1 e cede espaço primeiro.
+>
+> **3 opções levantadas e apresentadas ao Rilson antes de mexer**: (A)
+> duas fileiras — nome em cima, botões embaixo — recomendada; (B)
+> truncar o nome (rejeitada — esconderia a informação mais importante
+> do card, ruim num app de remédio); (C) voltar "Outro horário" a ser
+> só ícone (rejeitada — desfaria a correção de ontem). Confirmado (A).
+>
+> **Fix**: card virou 2 fileiras — nome/horário numa (`cardTopRow`,
+> largura toda, sem cortar palavra), botões de ação na outra
+> (`actionsRow`, embaixo, também com a largura toda). Aproveitado o
+> espaço novo pra dar hierarquia visual real: "Tomei" ganhou `flex: 1`
+> (vira o botão dominante e mais fácil de acertar, em vez de disputar
+> tamanho igual com "Outro horário"/"Pular"). Mesma estrutura aplicada
+> aos estados "Tomado"/"Pulado" (consistência visual, mesmo cabendo bem
+> numa fileira só) — código mais simples de manter, um padrão só.
+>
+> 1 teste novo (`touch-targets.test.tsx`) nomeando as duas garantias que
+> importam: nome de remédio comprido nunca ganha `numberOfLines` (nunca
+> trunca), e "Tomei" tem `flex: 1` de verdade. 328/328 testes mobile 2x
+> estável, typecheck limpo.
+
 ---
 
 ## Sessão de 2026-08-21 — Frequência configurável, marca na UI e plano web
