@@ -83,6 +83,33 @@ class MedicationTest extends TestCase
         Carbon::setTestNow();
     }
 
+    // Bug real achado 2026-09-09 (mesma auditoria de fuso do DoseLog):
+    // cadastrar um remédio entre meia-noite e 3h da manhã no horário de
+    // Brasília já é "amanhã" em UTC — somar os dias de duração e pegar só
+    // a data direto em UTC, sem converter pro fuso do perfil antes,
+    // errava o fim do tratamento em 1 dia inteiro nesse intervalo.
+    public function test_treatment_ends_at_usa_o_dia_local_do_perfil_nao_o_dia_utc(): void
+    {
+        // 23:30 em America/Sao_Paulo (UTC-3) em 10/08 = 02:30 UTC já em
+        // 11/08 — virou o dia em UTC, mas pra quem cadastrou ainda é 10/08.
+        Carbon::setTestNow(Carbon::parse('2026-08-11 02:30:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
+
+        $medication = Medication::factory()->create([
+            'profile_id' => $profile->id,
+            'treatment_duration_days' => 10,
+        ]);
+
+        // Localmente ainda é 10/08 (não 11/08) — dura 10 dias, termina em
+        // 20/08. Se usasse a data UTC (11/08) sem converter, daria 21/08
+        // — 1 dia errado.
+        $this->assertSame('2026-08-20', $medication->treatment_ends_at);
+
+        Carbon::setTestNow();
+    }
+
     public function test_medicamento_sem_duracao_nao_tem_treatment_ends_at(): void
     {
         $user = User::factory()->create();

@@ -105,11 +105,25 @@ class Medication extends Model
     // início" separado, de propósito: usa `created_at` (quando o
     // remédio foi cadastrado) como o começo do tratamento. Aproximação
     // simples que resolve o problema real sem inflar o formulário.
+    //
+    // Bug de fuso horário achado 2026-09-09 (mesma auditoria do
+    // scheduled_at/taken_at, ver DoseLog): `created_at` é um instante
+    // real em UTC (correto, é timestamp de auditoria padrão do
+    // Eloquent, não sofre o problema do DoseLog). Mas somar dias e pegar
+    // só a data (`toDateString()`) direto em UTC, sem converter pro fuso
+    // do perfil antes, erra a data em até 1 dia pra quem cadastra o
+    // remédio entre meia-noite e 3h da manhã no horário de Brasília
+    // (já é "amanhã" em UTC nesse intervalo). Corrigido convertendo pro
+    // fuso do perfil antes de somar os dias — a duração do tratamento é
+    // sempre em dias DO PACIENTE, não em dias UTC.
     protected function treatmentEndsAt(): Attribute
     {
         return Attribute::make(
             get: fn () => $this->treatment_duration_days
-                ? $this->created_at->copy()->addDays($this->treatment_duration_days)->toDateString()
+                ? $this->created_at->copy()
+                    ->setTimezone($this->profile->timezone)
+                    ->addDays($this->treatment_duration_days)
+                    ->toDateString()
                 : null,
         );
     }
