@@ -1039,12 +1039,12 @@ localmente pra debugar, não só neste teste específico.
 > (`.github/workflows/*.yml`) e rede Docker já 100% em `assidua-*`, sem
 > nenhuma outra referência viva a `remedios-api`/`remedios-web`. Achado
 > um resquício à parte: container `remedios-web` (projeto antigo,
-> `~/hetzner-infra/meus-remedios/`) parado há 2 semanas, ainda carrega
-> label do Traefik pra `meusremedios.narniano.com` — domínio hoje sem
-> destino (container parado). Não quebra o app atual; risco é só pra
-> quem tiver esse domínio antigo salvo em algum lugar. **Decisão
-> pendente do Rilson**: remover o container morto + decidir se cria
-> redirect do domínio antigo pro `assidua.narniano.com`.
+> `~/hetzner-infra/meus-remedios/`) parado há 2 semanas, ainda carregava
+> label do Traefik pra `meusremedios.narniano.com`. **Resolvido**: o
+> Rilson removeu o container (`docker rm remedios-web`); conferido que
+> `meusremedios.narniano.com` **não tem nem registro DNS** (`dig` vazio)
+> — ninguém chega lá de nenhum jeito, então não há redirect a criar,
+> risco encerrado.
 >
 > **Pendência de monitoramento identificada, não implementada**: não
 > existe hoje nenhum alerta (Uptime Kuma ou outro) que avisaria se este
@@ -1053,7 +1053,7 @@ localmente pra debugar, não só neste teste específico.
 > infraestrutura futuro (ex.: heartbeat/push do Uptime Kuma no próprio
 > `schedule:run`, mesmo padrão já usado pros crons do `hetzner-infra`).
 
-## 🟡 Design/padding na tela de cadastro/edição — Horários (levantamento 2026-09-09, aguardando aprovação)
+## 🟡 Design/padding na tela de cadastro/edição — Horários — ✅ resolvido 2026-09-09
 
 > A pedido do Rilson, com screenshot real da tela de edição de
 > medicamento. Achados concretos, nada implementado ainda:
@@ -1072,10 +1072,37 @@ localmente pra debugar, não só neste teste específico.
 >    edições de dias diferentes, sem uma escala de espaçamento
 >    consistente.
 >
-> **Proposta, não implementada**: subir o `marginBottom` do
-> `scheduleKindRow` pra ~18–20 (alinhar com o resto da tela); normalizar
-> os 3 gaps finais pra uma escala única; cortar os segundos de `s.time`
-> na exibição da lista. Aguardando aprovação do Rilson antes de mexer.
+> **Implementado, com aprovação do Rilson**: `scheduleKindRow.marginBottom`
+> 4→20; `pauseBtn.marginTop` 10→16 e `deleteMedicationBtn.marginTop`
+> 20→24 (os 3 gaps finais da tela agora são todos 24px); `s.time`
+> cortado pra `HH:MM` na lista de horários já cadastrados. Testado
+> (75/75 nos testes de edição/ordenação de medicamento, 328/328 na
+> suíte mobile completa), commit `a5c1ec1`.
+
+---
+
+## 📦 Publicação de tudo desta sessão (2026-09-09)
+
+Sequência completa de commits desta sessão de auditoria de fuso horário
+(mais notificações e design), todos testados e no ar:
+
+1. `03aab72` — fix principal (dose sumindo do Hoje, Histórico com hora
+   errada, bug de fuso em todo lugar que serializa `DoseLog`)
+2. `94c931a` — trava contra dupla execução do `fix-taken-at-timezone`
+3. `26a619a` — restauração do incidente de dupla execução (ver acima)
+4. `b03fb99` — documentação do incidente
+5. `2b3c862` — `treatment_ends_at` usando data UTC em vez da local
+6. `a5c1ec1` — padding/design de Horários + corte de segundos
+
+**Deploy**: cada commit passou por CI + Deploy VPS verdes (checados um a
+um via `gh run watch`) antes do próximo passo — nenhum deploy feito às
+cegas. **EAS Update**: publicado no canal `preview` depois do último
+commit — update group `e573fd87-b304-4960-ae73-14b5af4c128c`, Android +
+iOS, runtime `1.0.0` (compatível com o build nativo `a0556aea`, nenhuma
+mudança de código nativo nesta sessão). **Produção**: backup do banco
+antes de qualquer escrita, correção do `taken_at` histórico aplicada (18
+registros, com o incidente de dupla execução corrigido em seguida), cron
+do scheduler corrigido no host.
 
 ## Revisão de UI/UX pós-build real (2026-09-08)
 
