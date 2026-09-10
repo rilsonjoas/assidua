@@ -6,6 +6,7 @@ use App\Models\DoseLog;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Backfill one-time do bug de fuso horário achado 2026-09-09 (ver
@@ -20,23 +21,44 @@ use Illuminate\Support\Facades\DB;
  * UTC que ele sempre foi de verdade, e regrava na convenção certa (hora
  * local do perfil, sem fuso) — a mesma que `scheduled_at` já usa.
  *
- * SEM --execute roda em modo DRY-RUN: mostra o plano, não escreve nada.
- * Rodar com backup do banco feito ANTES (P6) — é escrita direta,
- * irreversível sem esse backup.
+ * NÃO É IDEMPOTENTE de propósito nenhum — achado real ao verificar depois
+ * de rodar em produção (2026-09-09): rodar `--execute` duas vezes desloca
+ * o valor DUAS vezes (o comando não tem como saber, só olhando o dado,
+ * se um `taken_at` já foi corrigido ou nunca teve o bug). Por isso grava
+ * um marcador em disco (`storage/app/fix-taken-at-timezone.done`) na
+ * primeira execução real e RECUSA rodar de novo sem `--force` — proteção
+ * contra rodar duas vezes por engano, não uma feature.
+ *
+ * SEM --execute roda em modo DRY-RUN: mostra o plano, não escreve nada
+ * (sempre permitido, mesmo depois do marcador existir). Rodar com backup
+ * do banco feito ANTES (P6) — é escrita direta, irreversível sem esse
+ * backup.
  */
 class FixTakenAtTimezone extends Command
 {
-    protected $signature = 'assidua:fix-taken-at-timezone
-        {--execute : Aplica a correção de verdade (padrão: dry-run)}';
+    private const MARKER_PATH = 'fix-taken-at-timezone.done';
 
-    protected $description = 'Corrige taken_at gravado com o fuso errado antes da correção de 2026-09-09 (perfis fora de UTC)';
+    protected $signature = 'assidua:fix-taken-at-timezone
+        {--execute : Aplica a correção de verdade (padrão: dry-run)}
+        {--force : Permite rodar --execute de novo mesmo com o marcador de "já rodado" presente}';
+
+    protected $description = 'Corrige taken_at gravado com o fuso errado antes da correção de 2026-09-09 (perfis fora de UTC) — one-time, ver marcador';
 
     public function handle(): int
     {
         $execute = (bool) $this->option('execute');
+        $force = (bool) $this->option('force');
 
         if (! $execute) {
             $this->warn('DRY-RUN — nada será escrito. Use --execute para aplicar.');
+        } elseif (Storage::exists(self::MARKER_PATH) && ! $force) {
+            $this->error(
+                'Este comando já foi executado de verdade antes (' . Storage::get(self::MARKER_PATH) . '). '
+                . 'Rodar --execute de novo desloca os dados DUAS vezes — provavelmente não é o que você quer. '
+                . 'Use --force só se tiver certeza absoluta.'
+            );
+
+            return self::FAILURE;
         }
 
         $logs = DoseLog::whereNotNull('taken_at')
@@ -91,6 +113,10 @@ class FixTakenAtTimezone extends Command
         }
 
         $this->info(($execute ? '' : '[dry-run] ') . "{$fixed} registro(s) de taken_at corrigido(s).");
+
+        if ($execute) {
+            Storage::put(self::MARKER_PATH, now()->toIso8601String() . " ({$fixed} registros)");
+        }
 
         return self::SUCCESS;
     }
