@@ -1398,7 +1398,11 @@ export default function MedicationFormScreen() {
             <View key={s.id} style={styles.scheduleCard}>
               <MaterialCommunityIcons name="clock-outline" size={20} color={colors.brand} />
               <View style={styles.scheduleInfo}>
-                <Text style={styles.scheduleTime}>{s.time}</Text>
+                {/* Achado de design real (2026-09-09): backend manda
+                    "HH:MM:SS" — sem cortar, a lista mostrava "10:00:00"
+                    em vez de "10:00" (ruído puro, mesmo padrão de corte
+                    já usado em startEditSchedule). */}
+                <Text style={styles.scheduleTime}>{s.time.slice(0, 5)}</Text>
                 <Text style={styles.scheduleDays}>{formatDays(s.days_of_week, t, s.interval_hours)}</Text>
               </View>
               <TouchableOpacity
@@ -1812,7 +1816,10 @@ function makeStyles(c: ThemeColors) {
     // "Como você toma esse remédio?" (2026-09-07) — cards grandes de
     // propósito, não chips pequenos: é a decisão mais importante da
     // seção Horários, tem que ser impossível de perder de vista.
-    scheduleKindRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
+    // marginBottom 20 (2026-09-09, achado de design real do Rilson) —
+    // era 4, bem menor que qualquer outro espaçamento da tela (14-24),
+    // deixava os cards colados na lista de horários logo abaixo.
+    scheduleKindRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
     scheduleKindCard: {
       flex: 1, alignItems: 'center', gap: 6, padding: 16, borderRadius: 16,
       backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
@@ -1853,9 +1860,13 @@ function makeStyles(c: ThemeColors) {
     },
     saveBtnText: { color: c.onBrand, fontSize: 16, fontWeight: '700' },
     // minHeight 48 (WCAG AAA, 2026-09-08).
+    // marginTop 16 (2026-09-09, achado de design) — era 10; junto com o
+    // marginBottom 8 do scheduleCard acima, fechava um gap de 18px,
+    // diferente dos 24px entre Pausar→Salvar e Salvar→Excluir. Agora os
+    // 3 gaps finais da tela são todos 24px, mesma escala.
     pauseBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderRadius: 12, padding: 13, marginTop: 10, minHeight: 48,
+      borderRadius: 12, padding: 13, marginTop: 16, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     pauseBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
@@ -1868,9 +1879,11 @@ function makeStyles(c: ThemeColors) {
     // chamativo que o botão Salvar acima (ação permanente, não deveria
     // ser fácil de tocar por engano), mas com toque mínimo de 48px
     // (WCAG AAA) igual ao resto do app.
+    // marginTop 24 (2026-09-09, achado de design) — era 20, agora bate
+    // com os outros 2 gaps finais da tela (mesma escala de 24px).
     deleteMedicationBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      marginTop: 20, paddingVertical: 12, minHeight: 48,
+      marginTop: 24, paddingVertical: 12, minHeight: 48,
     },
     deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: 14 },
     // minHeight 48 (WCAG AAA, 2026-09-08) — sozinho na própria linha,

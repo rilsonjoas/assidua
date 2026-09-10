@@ -1003,6 +1003,80 @@ localmente pra debugar, não só neste teste específico.
 > comando em si (via `Storage::put`/`Storage::exists`) sempre esteve
 > certo; o erro foi numa ação manual de verificação por fora dele.
 
+## 🔴 Scheduler do Laravel morto em produção há 2+ semanas — ✅ resolvido 2026-09-09
+
+> A pedido do Rilson ("não sei se as notificações do Assídua estão
+> chegando na hora certa"), conferi a config real do cron em produção.
+>
+> **Achado**: o crontab do host VPS tem `* * * * * docker exec
+> remedios-api php artisan schedule:run >> /dev/null 2>&1` — mas o
+> container se chama `assidua-api` desde a renomeação do projeto
+> (2026-08-22/23, ver seção "Renomeação pra Assídua" no topo deste
+> arquivo). Rodando o comando exato do cron manualmente: `Error response
+> from daemon: No such container: remedios-api`. Roda a cada minuto,
+> falha, e `>> /dev/null 2>&1` engole o erro — silêncio total, sem
+> alerta nenhum disparando (nem Uptime Kuma, que não monitora isto).
+>
+> **Impacto real, desde a renomeação (mais de 2 semanas)**: as 3 tarefas
+> agendadas do backend **nunca rodaram**:
+> - `CheckMissedDoses` — aviso ao cuidador quando uma dose é perdida
+> - `SendWeeklyAdherenceSummaries` — resumo semanal de adesão
+> - `NotifyTreatmentEndingCommand` — aviso de fim de tratamento
+>
+> **Não afetado**: lembretes locais no próprio celular (agendados
+> direto no aparelho via `expo-notifications`, não dependem deste cron)
+> continuaram funcionando normalmente o tempo todo.
+>
+> **Corrigido** (aprovado pelo Rilson antes de mexer em produção):
+> `crontab -l | sed 's/remedios-api/assidua-api/' | crontab -` no VPS,
+> backup do crontab anterior salvo em `/tmp/crontab_backup_*.txt`.
+> Confirmado rodando: `docker exec assidua-api php artisan schedule:run
+> -v` → `No scheduled commands are ready to run` (antes: erro de
+> container inexistente).
+>
+> **Auditoria de resquícios da renomeação (a pedido do Rilson,
+> "será que há problemas de mudança de nome semelhantes?")**: CI/CD
+> (`.github/workflows/*.yml`) e rede Docker já 100% em `assidua-*`, sem
+> nenhuma outra referência viva a `remedios-api`/`remedios-web`. Achado
+> um resquício à parte: container `remedios-web` (projeto antigo,
+> `~/hetzner-infra/meus-remedios/`) parado há 2 semanas, ainda carrega
+> label do Traefik pra `meusremedios.narniano.com` — domínio hoje sem
+> destino (container parado). Não quebra o app atual; risco é só pra
+> quem tiver esse domínio antigo salvo em algum lugar. **Decisão
+> pendente do Rilson**: remover o container morto + decidir se cria
+> redirect do domínio antigo pro `assidua.narniano.com`.
+>
+> **Pendência de monitoramento identificada, não implementada**: não
+> existe hoje nenhum alerta (Uptime Kuma ou outro) que avisaria se este
+> cron voltar a falhar silenciosamente — foi só descoberto porque o
+> Rilson perguntou. Vale considerar registrar isso como item de
+> infraestrutura futuro (ex.: heartbeat/push do Uptime Kuma no próprio
+> `schedule:run`, mesmo padrão já usado pros crons do `hetzner-infra`).
+
+## 🟡 Design/padding na tela de cadastro/edição — Horários (levantamento 2026-09-09, aguardando aprovação)
+
+> A pedido do Rilson, com screenshot real da tela de edição de
+> medicamento. Achados concretos, nada implementado ainda:
+>
+> 1. **Horário mostrado como "10:00:00" em vez de "10:00"** — `s.time`
+>    (lista de horários já cadastrados) exibe o valor cru do backend
+>    (`HH:MM:SS`) sem cortar os segundos. A própria tela já faz
+>    `s.time.slice(0, 5)` em `startEditSchedule` — só a exibição na
+>    lista não usa o mesmo corte.
+> 2. **`scheduleKindRow` (cards "Horário fixo"/"A cada X horas") tem
+>    `marginBottom: 4`** — muito menor que qualquer outro espaçamento da
+>    tela (o resto varia entre 14 e 24). É o aperto visual visível no
+>    print, entre os cards e a lista de horários logo abaixo.
+> 3. **Os 3 gaps finais da tela (lista de horários → Pausar → Salvar →
+>    Excluir) são 18px, 24px e 20px** — valores diferentes acumulados em
+>    edições de dias diferentes, sem uma escala de espaçamento
+>    consistente.
+>
+> **Proposta, não implementada**: subir o `marginBottom` do
+> `scheduleKindRow` pra ~18–20 (alinhar com o resto da tela); normalizar
+> os 3 gaps finais pra uma escala única; cortar os segundos de `s.time`
+> na exibição da lista. Aguardando aprovação do Rilson antes de mexer.
+
 ## Revisão de UI/UX pós-build real (2026-09-08)
 
 > Depois de instalar o APK de verdade (build `a0556aea`) num aparelho,
