@@ -242,4 +242,44 @@ class DoseLogStoreTest extends TestCase
         $this->actingAs($user)->postJson('/api/dose-logs', array_merge($payload, ['status' => 'taken']))->assertCreated();
         $this->assertEquals(9, $stock->fresh()->current_quantity);
     }
+
+    // Bug real achado 2026-09-09 (auditoria de fuso pedida pelo Rilson):
+    // `scheduled_at` já convertia pro fuso do perfil antes de gravar
+    // (2026-09-08) — `taken_at` nunca convertia, gravava a leitura em UTC
+    // do instante como se já fosse hora local do perfil. Pra perfil fora
+    // de UTC, todo `taken_at` gravado ficava sistematicamente deslocado
+    // pelo offset. Este teste garante que os dois campos terminam
+    // gravados na MESMA convenção (hora local do perfil, sem fuso).
+    public function test_taken_at_grava_na_mesma_convencao_de_scheduled_at_pra_perfil_fora_de_utc(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Recife']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        // O app manda instantes absolutos (toISOString()) — 08:00 e 08:05
+        // em America/Recife (UTC-3) equivalem a 11:00 e 11:05 UTC.
+        $response = $this->actingAs($user)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => '2026-07-15T11:00:00.000Z',
+            'taken_at' => '2026-07-15T11:05:00.000Z',
+            'status' => 'taken',
+        ]);
+        $response->assertCreated();
+
+        // Gravado no banco como hora LOCAL do perfil, sem fuso — mesma
+        // convenção nos dois campos.
+        $this->assertDatabaseHas('dose_logs', [
+            'dose_schedule_id' => $schedule->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'taken_at' => '2026-07-15 08:05:00',
+        ]);
+
+        // E a resposta HTTP devolve o instante absoluto certo de volta,
+        // não a leitura crua do banco rotulada com o fuso errado.
+        $this->assertSame('2026-07-15T11:00:00.000000Z', $response->json('scheduled_at'));
+        $this->assertSame('2026-07-15T11:05:00.000000Z', $response->json('taken_at'));
+    }
 }

@@ -191,7 +191,7 @@ class DataExportController extends Controller
                     'color' => $profile->color,
                     'avatar_emoji' => $profile->avatar_emoji,
                     'timezone' => $profile->timezone,
-                    'medications' => $profile->medications->map(function ($medication) {
+                    'medications' => $profile->medications->map(function ($medication) use ($profile) {
                         return [
                             'name' => $medication->name,
                             'dosage' => $medication->dosage,
@@ -210,9 +210,17 @@ class DataExportController extends Controller
                                 'days_of_week' => $schedule->days_of_week,
                                 'interval_hours' => $schedule->interval_hours,
                             ]),
+                            // Bug de fuso horário (2026-09-09, ver
+                            // DoseLog::scheduledAtInTimezone/takenAtInTimezone)
+                            // — `$log->scheduled_at`/`taken_at` crus saem
+                            // rotulados com o fuso errado (UTC do app, não
+                            // o do perfil). No export oficial de dados
+                            // (LGPD, portabilidade) isso é ainda mais
+                            // grave: é o documento que a pessoa confia pra
+                            // ver o próprio histórico real.
                             'dose_logs' => $medication->doseLogs->map(fn ($log) => [
-                                'scheduled_at' => $log->scheduled_at,
-                                'taken_at' => $log->taken_at,
+                                'scheduled_at' => $log->scheduledAtInTimezone($profile->timezone)->toISOString(),
+                                'taken_at' => $log->takenAtInTimezone($profile->timezone)?->toISOString(),
                                 'status' => $log->status,
                             ]),
                         ];

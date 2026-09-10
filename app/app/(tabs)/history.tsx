@@ -387,7 +387,17 @@ export default function HistoryScreen() {
         )}
         renderItem={({ item }) => {
           const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
-          const time = format(parseISO(item.scheduled_at), 'HH:mm');
+          // Bug real reportado pelo Rilson (2026-09-09): dose registrada
+          // via "Outro horário" (horário diferente do agendado) mostrava
+          // aqui o horário AGENDADO original, nunca o horário real digitado
+          // — parecia "horário errado" porque, tecnicamente, era o horário
+          // errado pra quem queria ver quando tomou de verdade. `taken_at`
+          // existe pra toda dose tomada (inclusive as no horário certo,
+          // onde os dois batem quase sempre) — mostrar ele quando existir
+          // é sempre mais correto que o agendado.
+          const time = item.status === 'taken' && item.taken_at
+            ? format(parseISO(item.taken_at), 'HH:mm')
+            : format(parseISO(item.scheduled_at), 'HH:mm');
           const maskedName = maskMedicationName(item.medication.name, isPrivate);
           return (
             <View

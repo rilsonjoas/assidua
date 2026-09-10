@@ -135,4 +135,35 @@ class DoseLogHistoryTest extends TestCase
             ->getJson("/api/profiles/{$profile->id}/doses/history")
             ->assertForbidden();
     }
+
+    // Bug real achado 2026-09-09 (auditoria pedida pelo Rilson depois do
+    // bug do "sumiu do Hoje"): `scheduled_at`/`taken_at` são gravados no
+    // banco como hora LOCAL do perfil, sem fuso — mas o cast `'datetime'`
+    // do Eloquent lê esse valor cru e rotula com `config('app.timezone')`
+    // (UTC), errado. Antes da correção, `history()` devolvia esta dose
+    // (perfil em America/Recife, gravada às 08:00 local) como
+    // "2026-07-15T08:00:00Z" — 3h adiantado do instante absoluto real
+    // ("2026-07-15T11:00:00Z"), que é exatamente o que `today()` devolve
+    // pra essa mesma dose. Corrigido lendo via
+    // DoseLog::scheduledAtInTimezone/takenAtInTimezone (ver Model) em vez
+    // do atributo cru do Eloquent, em todo lugar que serializa um DoseLog.
+    public function test_scheduled_at_e_taken_at_batem_com_o_instante_absoluto_real_pra_perfil_fora_de_utc(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Recife']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $this->createLog($profile, $medication, [
+            'scheduled_at' => '2026-07-15 08:00:00', // hora local do perfil
+            'taken_at' => '2026-07-15 08:05:00',
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/history");
+        $response->assertOk();
+
+        // America/Recife é UTC-3 (sem horário de verão desde 2019) — 08:00
+        // local = 11:00 UTC. É o mesmo instante que `today()` calcularia
+        // pra um schedule às 08:00 nesse perfil (ver GenerateScheduleOccurrences).
+        $this->assertSame('2026-07-15T11:00:00.000000Z', $response->json('data.0.scheduled_at'));
+        $this->assertSame('2026-07-15T11:05:00.000000Z', $response->json('data.0.taken_at'));
+    }
 }

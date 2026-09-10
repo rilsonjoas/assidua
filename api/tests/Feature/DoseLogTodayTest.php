@@ -323,11 +323,19 @@ class DoseLogTodayTest extends TestCase
         // Nenhuma ocorrência às 10h (a âncora do recálculo) — só a
         // próxima de verdade, 18h, ainda pendente.
         $this->assertFalse($statuses->keys()->contains(fn ($k) => str_contains($k, '10:00')));
-        $this->assertSame(['pending'], $statuses->values()->all());
+        // Corrigido 2026-09-09: bug real reportado pelo Rilson — a dose
+        // das 08h (que ele ACABOU de marcar como tomada, gatilho do
+        // próprio recálculo) sumia inteira da tela "Hoje", não só
+        // parava de gerar uma "perdida" fantasma às 10h. A asserção
+        // original aqui (`['pending']`) tratava esse sumiço como
+        // correto — não era; a dose tomada continua tendo que aparecer,
+        // só a próxima pendente (18h) é realmente nova.
+        $this->assertSame(['taken', 'pending'], $statuses->values()->all());
 
         // A dose das 08h continua tomada no banco — o recálculo não
-        // desfez nem duplicou o log real, só parou de listá-la entre as
-        // ocorrências "de hoje" (ela já é passado, resolvida).
+        // desfez nem duplicou o log real, só parou de gerar uma NOVA
+        // ocorrência em cima dela (ela já é passado, resolvida — quem
+        // ainda a devolve na resposta é o log órfão, não a ocorrência).
         $this->assertDatabaseHas('dose_logs', [
             'dose_schedule_id' => $schedule->id,
             'scheduled_at' => '2026-07-15 08:00:00',
@@ -336,5 +344,48 @@ class DoseLogTodayTest extends TestCase
         // A garantia principal: só existe 1 log pra este schedule hoje —
         // nenhuma dose "perdida" fantasma foi criada pelo recálculo.
         $this->assertSame(1, DoseLog::where('dose_schedule_id', $schedule->id)->count());
+    }
+
+    // Mesmo cenário do teste acima, mas com perfil fora de UTC — cobre a
+    // combinação dos dois bugs achados na mesma auditoria (2026-09-09):
+    // o log órfão reincluído em "Hoje" precisa vir com o instante
+    // absoluto CERTO, não só reaparecer com hora errada.
+    public function test_log_orfao_do_recalculo_aparece_com_horario_certo_pra_perfil_fora_de_utc(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 14:00:00', 'UTC')); // 11:00 em Recife
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Recife']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create([
+            'time' => '08:00:00',
+            'days_of_week' => null,
+            'interval_hours' => 8,
+        ]);
+
+        // Tomou o das 08h (local) só às 10h (local) = 13h UTC.
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'taken_at' => '2026-07-15 10:00:00',
+            'status' => 'taken',
+        ]);
+
+        $this->actingAs($user)->postJson("/api/schedules/{$schedule->id}/recalculate-today", [
+            'anchor_time' => '2026-07-15T13:00:00Z', // 10:00 em Recife
+        ])->assertOk();
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+        $response->assertOk();
+
+        $taken = collect($response->json())->firstWhere('status', 'taken');
+        $this->assertNotNull($taken, 'dose tomada deveria reaparecer em "Hoje"');
+        // 08:00 em Recife (UTC-3) = 11:00 UTC — não 08:00 UTC, que seria o
+        // bug de fuso da mesma auditoria se a leitura do log órfão não
+        // convertesse certo.
+        $this->assertSame('2026-07-15T11:00:00.000000Z', $taken['scheduled_at']);
+        $this->assertSame('2026-07-15T13:00:00.000000Z', $taken['taken_at']);
     }
 }

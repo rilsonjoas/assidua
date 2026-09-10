@@ -96,6 +96,46 @@ class DataExportTest extends TestCase
         $this->assertStringNotContainsString('Remedio Alheio', json_encode($payload));
     }
 
+    // Bug real achado 2026-09-09 (auditoria de fuso pedida pelo Rilson):
+    // export JSON (LGPD, portabilidade) devolvia `scheduled_at`/`taken_at`
+    // rotulados com o fuso errado (UTC do app, não o do perfil) — pra
+    // perfil fora de UTC, o próprio documento oficial de "meus dados"
+    // mostrava hora errada. Ver DoseLog::scheduledAtInTimezone.
+    public function test_export_json_devolve_scheduled_at_e_taken_at_no_instante_absoluto_certo(): void
+    {
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Rilson',
+            'color' => '#6366f1',
+            'avatar_emoji' => 'account',
+            'timezone' => 'America/Recife',
+        ]);
+        $medication = $profile->medications()->create([
+            'name' => 'Losartana',
+            'dosage' => '50',
+            'unit' => 'mg',
+            'color' => '#ef4444',
+            'is_active' => true,
+        ]);
+        $schedule = $medication->schedules()->create(['time' => '08:00', 'is_active' => true]);
+        $medication->doseLogs()->create([
+            'profile_id' => $profile->id,
+            'dose_schedule_id' => $schedule->id,
+            'scheduled_at' => '2026-08-23 08:00:00', // hora local do perfil
+            'taken_at' => '2026-08-23 08:05:00',
+            'status' => 'taken',
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/me/export-link');
+        $download = $this->getJson($response->json('url'));
+        $download->assertOk();
+
+        $log = $download->json('owned_profiles.0.medications.0.dose_logs.0');
+        // America/Recife é UTC-3 — 08:00/08:05 local = 11:00/11:05 UTC.
+        $this->assertSame('2026-08-23T11:00:00.000000Z', $log['scheduled_at']);
+        $this->assertSame('2026-08-23T11:05:00.000000Z', $log['taken_at']);
+    }
+
     public function test_export_csv_link_e_download(): void
     {
         $user = User::factory()->create();

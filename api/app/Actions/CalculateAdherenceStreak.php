@@ -49,7 +49,11 @@ class CalculateAdherenceStreak
             ->whereIn('dose_schedule_id', $schedules->pluck('id'))
             ->where('scheduled_at', '>=', $earliestDate)
             ->get(['dose_schedule_id', 'status', 'scheduled_at'])
-            ->groupBy(fn ($log) => $log->scheduled_at->format('Y-m-d'));
+            // `scheduled_at` não é mais cast pra Carbon (2026-09-09, ver
+            // DoseLog::scheduledAtInTimezone) — é string "Y-m-d H:i:s" já
+            // em hora local do perfil; os primeiros 10 caracteres são a
+            // data, sem precisar de nenhum Carbon nem fuso aqui.
+            ->groupBy(fn ($log) => substr($log->scheduled_at, 0, 10));
 
         $current = 0;
         $best = 0;

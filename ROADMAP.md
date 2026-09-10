@@ -733,7 +733,7 @@ localmente pra debugar, não só neste teste específico.
 > tem padrão pronto no app (`ConfirmDialog` com `destructive`, mesmo
 > usado pra remover horário).
 
-- [ ] **Problema observado**: não há como excluir um medicamento
+- [x] **Problema observado**: não há como excluir um medicamento
       cadastrado por engano ou que não faz mais sentido manter (trocou
       de remédio, parou o tratamento de vez) — só dá pra "Pausar", que
       mantém o remédio na lista. Fica mais grave ainda com o limite do
@@ -867,6 +867,114 @@ localmente pra debugar, não só neste teste específico.
   é independente dessa decisão.
 
 ---
+
+### 17. Reajuste de horário do Ibuprofeno some o item da tela "Hoje" + horários errados no Histórico — 🔴 reportado 2026-09-09 21:46, não investigado ainda
+
+> Reportado ao vivo pelo Rilson: pediu reajuste do horário de um
+> agendamento de Ibuprofeno e, depois da mudança, o item **simplesmente
+> sumiu da tela "Hoje"** (não aparece mais como dose pendente/agendada
+> nenhuma). Junto com isso, os **horários registrados no Histórico**
+> também aparecem errados.
+
+- **Não investigado ainda** — não sei se são um bug só (reajuste de
+  horário quebrando o cálculo de "próxima dose" usado tanto no "Hoje"
+  quanto no Histórico) ou dois bugs distintos.
+- **Suspeita a checar primeiro**: mesma família do bug crítico já
+  resolvido em 2026-09-09 (ocorrência que atravessa a meia-noite nunca
+  gerada, ver seção acima) — qualquer lógica de recálculo de horário
+  agendado é ponto sensível recorrente neste app.
+- Rilson avisou que vai reportar mais pendências reais de uso além
+  desta — registrar cada uma como item novo aqui conforme chegarem.
+
+> **Resolvido 2026-09-09.** Achado real: o gatilho foi "Outro horário" no
+> Ibuprofeno + confirmar "recalcular o resto do dia". A investigação
+> partiu de 2 sintomas e terminou achando 4 bugs interligados — pedido
+> do Rilson foi "todas as situações previstas", então documentando o
+> levantamento completo, não só o fix pontual.
+>
+> **Bug 1 — dose sumia do "Hoje"**: `GenerateScheduleOccurrences` pula de
+> propósito a própria âncora do recálculo (evita criar "perdida" fantasma
+> em cima da dose recém-tomada — decisão correta, do item 8). Mas
+> `DoseLogController::today()` montava a lista SÓ a partir das ocorrências
+> calculadas — nada reincluía o log que ficou de fora. A dose continuava
+> certinha no banco (por isso o Histórico nunca sumiu com ela), só a tela
+> "Hoje" parava de listar. Corrigido: `today()` agora busca também
+> qualquer log de hoje daquele schedule que não bateu em nenhuma
+> ocorrência computada, e devolve ele também (sempre já resolvido, nunca
+> reabre ação). Achei até um teste antigo que **validava o bug como
+> comportamento correto** — corrigido junto.
+>
+> **Bug 2 — Histórico mostrava o horário agendado, não o horário real
+> tomado**: `history.tsx` sempre exibia `scheduled_at`, nunca `taken_at`.
+> Quem registra "tomei às 10h" pra uma dose das 8h via "Outro horário"
+> via a tela continuar dizendo "08:00" — sempre foi assim, pra QUALQUER
+> dose, não só as via recálculo. Corrigido: mostra `taken_at` quando
+> existe (dose tomada), senão `scheduled_at` (pendente/pulada/perdida).
+>
+> **Bug 3 — o problema de verdade, achado ao investigar "tá bem
+> armazenado no banco?" a pedido do Rilson: fuso horário rotulado errado
+> em TODA leitura de `DoseLog`.** `scheduled_at`/`taken_at` são gravados
+> como hora LOCAL do perfil, sem informação de fuso — mas o cast
+> `'datetime'` do Eloquent lê esse valor cru e rotula com
+> `config('app.timezone')` (UTC), errado. Confirmado com teste
+> diagnóstico: `history()` devolvia uma dose das 08:00 (perfil em
+> `America/Recife`, UTC-3) como `"...T08:00:00Z"` — 3h adiantado do
+> instante absoluto real (`"...T11:00:00Z"`), que é o que `today()`
+> devolve pra essa MESMA dose. Ou seja: os dois endpoints discordavam
+> entre si sobre a hora da mesma dose, sempre, pra qualquer perfil fora
+> de UTC — a maioria dos usuários reais (Brasil inteiro). Afetava
+> `today()` (log órfão do Bug 1), `history()`, a resposta de `store()`
+> (POST /dose-logs) e o **export oficial de dados (LGPD, portabilidade)**
+> em JSON. Corrigido: dois métodos novos no model
+> (`DoseLog::scheduledAtInTimezone()`/`takenAtInTimezone()`) que leem o
+> valor cru (`getRawOriginal`) e anexam o fuso REAL do perfil antes de
+> virar instante absoluto — usados em todo lugar que serializa um
+> `DoseLog`, no lugar do atributo cru do Eloquent.
+>
+> **Bug 4 — causa raiz do Bug 3 pra `taken_at` especificamente, gravação
+> errada desde a origem**: `scheduled_at` já convertia pro fuso do perfil
+> antes de gravar (desde 2026-09-08). `taken_at` nunca convertia —
+> `DoseLogController::store()` recebia o instante absoluto do app
+> (`toISOString()`) e deixava o cast automático do Eloquent gravar a
+> LEITURA EM UTC como se já fosse hora local do perfil. Pra qualquer
+> perfil fora de UTC, **todo `taken_at` já registrado desde sempre está
+> gravado errado no banco** — não é só bug de exibição, é dado gravado
+> deslocado pelo offset do perfil. Corrigido o `store()` pra converter
+> `taken_at` com a mesma lógica que `scheduled_at` já usa.
+>
+> **Bônus achado na mesma auditoria**: o corte de "últimos N dias" do
+> Histórico comparava `scheduled_at` (hora local do perfil) contra
+> `now()` puro (UTC do servidor) — deslocava a borda da janela pelo
+> offset do perfil. Corrigido pra `Carbon::now($profile->timezone)`.
+>
+> **Verificado como SEM bug** (auditoria completa, não só os pontos que
+> quebraram): `GenerateConsultationSummary` (dados do PDF de consulta —
+> monta Carbon com fuso certo do zero, nunca lê o atributo cru),
+> `CalculateAdherenceStreak`/`CalculateDailyAdherence`/`CalculateWeeklyAdherence`
+> (comparam limites de data com Carbons já ancorados no fuso do perfil
+> dos dois lados), export CSV (`DataExportController::downloadCsv` — usa
+> `strtotime`/`date()` puro do PHP, que por coincidência interpreta e
+> formata no mesmo fuso do servidor nos dois lados, resultado correto
+> ainda que frágil), `reacted_at` (mesmo problema de rótulo existe, mas
+> nunca é exibido como texto formatado em lugar nenhum, só usado como
+> booleano de "já reagiu" — sem bug observável, registrado aqui só pra
+> não ser esquecido se um dia alguém quiser mostrar a hora da reação).
+>
+> **Pendência real que sobra — dado já gravado em produção**: a correção
+> do Bug 4 impede dano NOVO, mas todo `taken_at` gravado ANTES dela (pro
+> perfil real do Rilson, que não é UTC) já está errado no banco de
+> produção. Criado `php artisan assidua:fix-taken-at-timezone` (dry-run
+> por padrão, `--execute` aplica de verdade) — reinterpreta cada
+> `taken_at` existente como a leitura em UTC que ele sempre foi, e
+> regrava na convenção certa. **Não rodado em produção ainda — decisão
+> do Rilson, com backup do banco antes.**
+>
+> **Testado**: 9 testes novos (`DoseLogTodayTest` ×2, `DoseLogHistoryTest`
+> ×1, `DoseLogStoreTest` ×1, `DataExportTest` ×1, `FixTakenAtTimezoneTest`
+> ×4), todos com perfil `America/Recife` pra expor o bug de verdade (perfil
+> UTC mascarava tudo isso, já que os dois fusos coincidem). 265/265 testes
+> do backend, 328/328 do mobile (não afetado pelas mudanças de backend
+> desta rodada).
 
 ## Revisão de UI/UX pós-build real (2026-09-08)
 
