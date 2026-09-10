@@ -1078,6 +1078,22 @@ localmente pra debugar, não só neste teste específico.
 > cortado pra `HH:MM` na lista de horários já cadastrados. Testado
 > (75/75 nos testes de edição/ordenação de medicamento, 328/328 na
 > suíte mobile completa), commit `a5c1ec1`.
+>
+> **2ª rodada (2026-09-10, novo print do Rilson)**: o fix acima mexeu no
+> espaço *depois* dos cards de modo — o Rilson apontou corretamente que
+> faltava espaço *antes* do próprio título "Horários". Achado real:
+> `sectionTitle` nunca teve `marginTop` próprio, diferente de todo
+> `label` do formulário (`marginTop: 14`) — ficava colado no textarea de
+> Observações acima. Corrigido: `marginTop: 28` (o dobro do gap normal
+> entre campos, marca "início de seção nova" na hierarquia visual), mais
+> `marginBottom: 8`. Efeito colateral visto no mesmo print: botão
+> "+Adicionar" tinha 40px de espaço acima (soma do `scheduleKindRow` +
+> `scheduleAddRow`) contra só 12px abaixo — parecia pertencer aos cards
+> de modo, não à lista de horários que ele adiciona.
+> `scheduleAddRow.marginTop` 20→4, proximidade agora reflete a relação
+> real (mais perto do que ele adiciona). Testado (75/75 + 328/328),
+> commit `68c9dd7`. Publicado via `eas update` canal `preview` — update
+> group `1d68db11-ecc6-471f-9834-75f1652b8535`.
 
 ---
 
