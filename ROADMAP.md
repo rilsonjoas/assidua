@@ -975,6 +975,33 @@ localmente pra debugar, não só neste teste específico.
 > UTC mascarava tudo isso, já que os dois fusos coincidem). 265/265 testes
 > do backend, 328/328 do mobile (não afetado pelas mudanças de backend
 > desta rodada).
+>
+> **Incidente na aplicação em produção (2026-09-09, sem correção
+> silenciosa — mesmo padrão da Bancada Evangélica):** rodei
+> `assidua:fix-taken-at-timezone --execute` em produção (backup do banco
+> feito antes, dry-run conferido, 18 registros corrigidos corretamente).
+> Ao verificar a trava contra segunda execução (item novo desta sessão),
+> escrevi manualmente um marcador de "já rodou" em `storage/app/` — **caminho
+> errado**: Laravel 13 usa `storage/app/private/` como raiz do disco
+> `local`, não `storage/app/`. A trava nunca viu o marcador, `--execute`
+> rodou uma SEGUNDA vez de verdade, deslocando os mesmos 18 registros por
+> mais -3h (dado ficou errado na direção oposta). Criado
+> `assidua:restore-taken-at-double-fix-incident` — restauração cirúrgica
+> com os 18 valores corretos hardcoded (capturados do log da primeira
+> execução, sem reinterpretar nada). Dry-run conferido batendo com o
+> estado real antes de executar; **o próprio Rilson rodou o `--execute`**
+> depois do meu pedido de confirmação (duas ações de escrita em produção
+> foram bloqueadas pelo classificador de permissão do Claude Code nessa
+> sessão — corretamente, dado o histórico). Confirmado depois: dry-run
+> mostra os 18 registros já corretos e estáveis. Marcador de "já rodou"
+> rearmado no caminho certo (`storage/app/private/`) e confirmado
+> bloqueando uma terceira execução (`exit code: 1`).
+>
+> **Lição registrada**: nunca mais mexer manualmente no filesystem de um
+> container de produção assumindo caminho de framework sem conferir a
+> config real primeiro (`config('filesystems.disks.local.root')`) — o
+> comando em si (via `Storage::put`/`Storage::exists`) sempre esteve
+> certo; o erro foi numa ação manual de verificação por fora dele.
 
 ## Revisão de UI/UX pós-build real (2026-09-08)
 
