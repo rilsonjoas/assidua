@@ -1832,7 +1832,14 @@ function makeStyles(c: ThemeColors) {
     // Antes esta linha também carregava o título "Horários" (agora fica
     // fixo acima dos cards de modo, valendo pros dois — fixo/intervalo
     // — não só um deles).
-    scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20, marginBottom: 12 },
+    // marginTop 4 (2026-09-10, achado real do Rilson com screenshot) —
+    // era 20, que somado ao marginBottom 20 do scheduleKindRow acima
+    // dava 40px antes do botão "+Adicionar" contra só 12px depois dele
+    // (marginBottom) — o botão parecia flutuar junto dos cards de modo,
+    // quando na verdade pertence à lista de horários abaixo dele.
+    // Proximidade agora reflete a relação real: mais perto do que ele
+    // adiciona, não do que vem antes.
+    scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, marginBottom: 12 },
     photoCircle: {
       width: 96, height: 96, borderRadius: 48, alignSelf: 'center', marginBottom: 20,
       backgroundColor: c.surfaceSecondary, alignItems: 'center', justifyContent: 'center',
@@ -1842,7 +1849,14 @@ function makeStyles(c: ThemeColors) {
     photoPlaceholder: { alignItems: 'center', gap: 4 },
     photoPlaceholderText: { fontSize: 10, color: c.textMuted, fontWeight: '600', textAlign: 'center', paddingHorizontal: 6 },
     photoPendingHint: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: -12, marginBottom: 20 },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text },
+    // marginTop 28 (2026-09-10, achado real do Rilson com screenshot):
+    // era 0 — diferente de TODO `label` do formulário (marginTop 14),
+    // o título de seção ficava colado no campo anterior. 28 (o dobro do
+    // gap normal entre campos) marca hierarquia: início de seção nova,
+    // não só mais um campo. marginBottom 8 separa do primeiro campo da
+    // seção, ligeiramente mais que o padrão pra não competir com o novo
+    // marginTop de cima.
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginTop: 28, marginBottom: 8 },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 14 },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
