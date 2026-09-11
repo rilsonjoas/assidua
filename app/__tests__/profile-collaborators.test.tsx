@@ -1,7 +1,7 @@
 import React from 'react';
 import { Share } from 'react-native';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import ProfileScreen from '../app/(tabs)/profile';
@@ -242,7 +242,13 @@ describe('ProfileScreen — Alto Contraste (v1.3, aprovado 2026-09-02)', () => {
     const toggle = await screen.findByLabelText('Alto Contraste');
     expect(toggle.props.accessibilityRole).toBe('switch');
     expect(toggle.props.accessibilityState.checked).toBe(false);
-    expect(screen.getByText('Desativado')).toBeTruthy();
+    // Escopado no próprio toggle (2026-09-11, achado real rodando a
+    // suíte inteira): "Desativado" (`common.off`) deixou de ser único
+    // na tela — a nova linha "Modo Privacidade" (sempre visível agora,
+    // ver `app/(tabs)/profile.tsx`) também mostra o mesmo texto quando
+    // desligada. `within` evita o teste depender de quantas OUTRAS
+    // linhas "Desativado" existem na tela, hoje ou no futuro.
+    expect(within(toggle).getByText('Desativado')).toBeTruthy();
   });
 
   // Achado real de uso (2026-09-06): "funcionou, mas seria bom um modal

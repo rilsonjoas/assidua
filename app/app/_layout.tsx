@@ -9,7 +9,7 @@ import '../i18n';
 import { useAuthStore } from '../store/authStore';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { getMe } from '../services/auth';
-import { registerPushToken } from '../services/notifications';
+import { registerPushToken, reconcileScheduledNotifications } from '../services/notifications';
 import { startAutoSync } from '../services/sync';
 import { initPurchases } from '../services/purchases';
 import { useTheme } from '../hooks/useTheme';
@@ -17,6 +17,8 @@ import { useLanguage } from '../hooks/useLanguage';
 import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { queryClient } from '../services/queryClient';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { NotificationPermissionBanner } from '../components/NotificationPermissionBanner';
+import { BiometricLockScreen } from '../components/BiometricLockScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { PrivacyBlur } from '../components/PrivacyBlur';
 import { Toast } from '../components/Toast';
@@ -135,6 +137,12 @@ export function AuthGuard() {
       // marcadas sem internet + fica ouvindo reconexão pro resto da
       // sessão. Idempotente (startAutoSync já ignora chamada repetida).
       startAutoSync();
+      // Varre notificações órfãs (2026-09-11, achado real do Rilson —
+      // ver comentário em services/notifications.ts). Best-effort: uma
+      // falha aqui (rede instável no boot) não deveria travar login
+      // nem repetir a cada re-render, só perder essa varredura desta
+      // sessão — a próxima abertura tenta de novo.
+      reconcileScheduledNotifications().catch(() => {});
     }
   }, [user, isLoading, hasCompletedOnboarding, hasOnboardingHydrated, segments]);
 
@@ -177,7 +185,9 @@ function ThemedLayout() {
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <OfflineBanner />
+      <NotificationPermissionBanner />
       <PrivacyBlur />
+      <BiometricLockScreen />
       <Toast />
       {/* Frame responsivo: SÓ auth/onboarding ficam na coluna estreita
           centralizada no desktop (formulário esticado fica feio, e são

@@ -6,7 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   Modal,
-  TextInput,
+  Platform,
   Image,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
@@ -20,12 +20,12 @@ import { useProfileStore } from '../../store/profileStore';
 import { useAuthStore } from '../../store/authStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
-import { maskMedicationName } from '../../lib/privacy';
+import { maskMedicationName, togglePrivacyWithHint } from '../../lib/privacy';
 import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
-import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit, recalculateScheduleToday } from '../../services/medications';
+import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit, recalculateScheduleToday, updateSchedule } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
-import { rescheduleTodayOccurrences } from '../../services/notifications';
+import { rescheduleTodayOccurrences, scheduleScheduleNotifications } from '../../services/notifications';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { AdherenceRing } from '../../components/AdherenceRing';
@@ -37,6 +37,63 @@ import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
+
+// Picker nativo de horário (2026-09-11) — módulo nativo, pode não
+// existir ainda num build EAS anterior à instalação desse pacote (mesmo
+// achado real documentado em medication/[id].tsx pra expo-image-picker:
+// import estático no topo travaria a ROTA INTEIRA num build sem o
+// código nativo compilado, antes até de renderizar). `require` tardio +
+// cache no resultado (não tenta de novo a cada toque, mas também não
+// roda no boot do app).
+let cachedDateTimePicker: typeof import('@react-native-community/datetimepicker').default | null | undefined;
+function getDateTimePicker() {
+  if (cachedDateTimePicker === undefined) {
+    try {
+      cachedDateTimePicker = require('@react-native-community/datetimepicker').default;
+    } catch {
+      cachedDateTimePicker = null;
+    }
+  }
+  return cachedDateTimePicker;
+}
+
+// Atalhos do modal "Foi em outro horário?" (2026-09-11) — cobrem o caso
+// comum ("tomei há pouco, num horário diferente do previsto") sem
+// exigir leitura/digitação de hora nenhuma. "Agora" fica incluído por
+// simetria (chegar aqui sem querer, ou mudar de ideia, não deveria
+// forçar cancelar e voltar pro botão "Tomei" principal).
+const QUICK_TIME_OFFSETS: Array<{ minutes: number; labelKey: string }> = [
+  { minutes: 0, labelKey: 'home.quickTimeNow' },
+  { minutes: 15, labelKey: 'home.quickTime15' },
+  { minutes: 30, labelKey: 'home.quickTime30' },
+  { minutes: 60, labelKey: 'home.quickTime60' },
+];
+
+// "Atrasado"/"Perdido" — dois patamares (2026-09-11, entrevista de
+// decisões de horário — ver ROADMAP.md, item 14/23). Antes disso o
+// backend flipava `status` pra `missed` na hora (zero tolerância);
+// agora só flipa depois de 24h (`DoseLog::MISSED_TOLERANCE_HOURS`,
+// backend). O patamar de 30min é 100% deste lado — nunca grava nada,
+// só decide o que MOSTRAR pra uma dose que o backend ainda considera
+// `pending`. As duas constantes precisam bater com o que o backend
+// realmente aplica (documentado ali) — não são configuráveis por
+// remédio/perfil por enquanto (decisão explícita, YAGNI).
+const DELAYED_THRESHOLD_MINUTES = 30;
+
+function isDelayed(scheduledAtIso: string, now: number): boolean {
+  return now - parseISO(scheduledAtIso).getTime() >= DELAYED_THRESHOLD_MINUTES * 60000;
+}
+
+// "Tomei antes da hora" (2026-09-11, achado real do Rilson com o app em
+// mãos: tocar "Tomei" numa dose ainda longe no futuro simplesmente
+// gravava o horário AGENDADO como taken_at, sem perguntar nada — a
+// pessoa que sempre toma mais cedo nunca via a oferta de "quer adiantar
+// o horário?" que o lado atrasado já tinha). Espelha `isDelayed`, mesmo
+// limiar (a "diferença grande o bastante pra valer a pena perguntar" já
+// decidida vale nos dois sentidos, não só atraso).
+function isEarly(scheduledAtIso: string, now: number): boolean {
+  return parseISO(scheduledAtIso).getTime() - now >= DELAYED_THRESHOLD_MINUTES * 60000;
+}
 
 // Mesmo mapa de locale do date-fns usado no Histórico.
 const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
@@ -53,7 +110,7 @@ export default function HomeScreen() {
   const showToast = useToastStore((s) => s.showToast);
 
   const { activeProfile, profiles, setProfiles, setActiveProfile } = useProfileStore();
-  const { isPrivate, togglePrivacy } = usePrivacyStore();
+  const { isPrivate } = usePrivacyStore();
   const currentUser = useAuthStore((s) => s.user);
   // "Reação do cuidador" (2026-08-22) — só o cuidador (não o dono) reage;
   // is_owner ausente em respostas antigas trata como dono (ver comentário
@@ -70,50 +127,158 @@ export default function HomeScreen() {
   // abre por uma ação secundária explícita ("Foi em outro horário"),
   // decisão de produto confirmada com o Rilson pra não virar uma
   // pergunta obrigatória toda vez que alguém marca uma dose.
+  //
+  // Campo de texto HH:MM trocado por atalhos relativos + picker nativo
+  // (2026-09-11, achado do Rilson revendo o app com olhar de usuário
+  // menos técnico: digitar hora de cabeça é fácil de errar/confundir).
+  // Reverte parte da decisão de 08/09 registrada abaixo — o motivo novo
+  // (usabilidade pra público menos técnico) não tinha pesado na decisão
+  // original. Ver docs/ROADMAP.md.
   const [customTimeDose, setCustomTimeDose] = useState<DoseLog | null>(null);
-  const [customTime, setCustomTime] = useState('');
+  const [customTime, setCustomTime] = useState<Date>(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   function openCustomTimeModal(dose: DoseLog) {
-    const now = new Date();
-    setCustomTime(format(now, 'HH:mm'));
+    setCustomTime(new Date());
+    setShowTimePicker(false);
     setCustomTimeDose(dose);
   }
 
   function closeCustomTimeModal() {
     setCustomTimeDose(null);
-    setCustomTime('');
+    setShowTimePicker(false);
   }
 
-  function confirmCustomTime() {
+  // Atalhos ("Agora", "Há 15 min"...) — instante real, calculado direto
+  // de "agora menos N minutos". Diferente do picker específico abaixo,
+  // não precisa ancorar no dia do horário previsto: já é um Date
+  // completo (dia+hora), não só um HH:MM sem data.
+  function takeAtOffset(minutesAgo: number) {
     if (!customTimeDose) return;
-    if (!/^\d{2}:\d{2}$/.test(customTime)) {
-      showAlert(t('home.errorInvalidTimeFormat'));
-      return;
-    }
-    const [hour, minute] = customTime.split(':').map(Number);
-    if (hour > 23 || minute > 59) {
-      showAlert(t('home.errorInvalidTimeFormat'));
-      return;
-    }
-    // Base no DIA do horário previsto, não "hoje" (achado de revisão de
-    // código, 2026-09-08): sem isso, registrar depois da meia-noite uma
-    // dose de antes dela (ex.: prevista 23:50, só registrada às 00:10)
-    // jogava o horário digitado pro dia seguinte — 13h+ no futuro em vez
-    // de minutos atrás — distorcendo o cálculo de diferença/recálculo.
-    const takenAt = parseISO(customTimeDose.scheduled_at);
-    takenAt.setHours(hour, minute, 0, 0);
+    const takenAt = new Date(Date.now() - minutesAgo * 60000);
     const dose = customTimeDose;
     closeCustomTimeModal();
     markDose.mutate({ dose, takenAt });
   }
 
+  function openSpecificTimePicker() {
+    if (!getDateTimePicker()) {
+      showAlert(t('home.timePickerUnavailableTitle'), t('home.timePickerUnavailableText'));
+      return;
+    }
+    setShowTimePicker(true);
+  }
+
+  // `pickedTime` opcional (2026-09-11): o botão "Registrar" (iOS/web,
+  // spinner sempre visível) usa o valor já salvo em `customTime` por
+  // onChange. O Android confirma no próprio evento 'set' do diálogo
+  // nativo — nesse caso passa o valor direto, sem esperar o setState
+  // (assíncrono) refletir antes de ler `customTime`.
+  function confirmCustomTime(pickedTime: Date = customTime) {
+    if (!customTimeDose) return;
+    // Base no DIA do horário previsto, não "hoje" (achado de revisão de
+    // código, 2026-09-08): sem isso, registrar depois da meia-noite uma
+    // dose de antes dela (ex.: prevista 23:50, só registrada às 00:10)
+    // jogava o horário escolhido pro dia seguinte — 13h+ no futuro em
+    // vez de minutos atrás — distorcendo o cálculo de diferença/recálculo.
+    // O picker nativo (mode="time") devolve hora/minuto só de HOJE, tem
+    // o mesmo problema que o texto livre tinha — a ancoragem continua
+    // necessária mesmo trocando o componente de entrada.
+    const takenAt = parseISO(customTimeDose.scheduled_at);
+    takenAt.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
+    const dose = customTimeDose;
+    closeCustomTimeModal();
+    markDose.mutate({ dose, takenAt });
+  }
+
+  // "Tomei numa dose Atrasada" (2026-09-11, item 25/27, revisado no
+  // mesmo dia a pedido do Rilson — UI melhor que a original) — o
+  // diálogo de confirmação separado ("Sim, no horário previsto" / "Não,
+  // foi outro horário") virou redundante com o próprio modal "Outro
+  // horário": abre ELE direto (mesmo atalhos/picker de sempre), que
+  // agora também tem "No horário previsto" fixado como a primeira
+  // opção (ver JSX do modal) — mesmas escolhas de antes, sem
+  // transparência nenhuma perdida, só sem a etapa extra de "confirmar
+  // que quer escolher" antes de escolher de verdade. O toque simples
+  // continua 1 toque = agora pro caso comum, sem fricção nova.
+  function handleTakePress(dose: DoseLog) {
+    // Early ou Atrasado — mesmo modal pros dois (2026-09-11): a única
+    // diferença real é o SINAL da diferença de horário, não o fluxo. Ver
+    // `isEarly` acima pro porquê disso ter faltado antes.
+    if (dose.status === 'pending' && (isDelayed(dose.scheduled_at, nowTick) || isEarly(dose.scheduled_at, nowTick))) {
+      openCustomTimeModal(dose);
+      return;
+    }
+    markDose.mutate({ dose });
+  }
+
+  // "No horário previsto" — pinado no topo do modal "Outro horário"
+  // quando a dose está Atrasada (ver JSX). Mesmo efeito de sempre do
+  // toque simples em "Tomei" (grava o horário AGENDADO, decisão de
+  // 2026-09-11 já existente, ver markDose) — só chega até aqui porque
+  // veio de uma dose Atrasada, não de um "Tomei" comum.
+  function confirmCustomTimeOnSchedule() {
+    if (!customTimeDose) return;
+    const dose = customTimeDose;
+    closeCustomTimeModal();
+    markDose.mutate({ dose });
+  }
+
+  // "Outro horário" numa dose já "Perdida" de verdade (item 2/9) — só
+  // pergunta quando o status ATUAL já é `missed` (Perdido, backend,
+  // >24h) — dentro da tolerância (ainda `pending`, só "Atrasado" na
+  // tela) "Outro horário" continua abrindo direto, sem pergunta extra
+  // (confirmado explicitamente, item 24).
+  function handleCustomTimePress(dose: DoseLog) {
+    if (dose.status === 'missed') {
+      setConfirmDialog({ kind: 'stillMissed', dose });
+      return;
+    }
+    openCustomTimeModal(dose);
+  }
+
+  // "Continua perdida" — fecha sem fazer nada; NÃO é automático virar
+  // "Tomado" só por ter tocado em "Outro horário" (princípio do Rilson).
+  function confirmStillMissedKeep() {
+    closeConfirmDialog();
+  }
+
+  // "Marcar como tomada" — só AGORA abre o fluxo real de escolher
+  // horário (mesmo picker/atalhos de sempre).
+  function confirmStillMissedMarkTaken() {
+    if (confirmDialog?.kind !== 'stillMissed') return;
+    const dose = confirmDialog.dose;
+    closeConfirmDialog();
+    openCustomTimeModal(dose);
+  }
+
   useEffect(() => {
     api.get('/profiles').then(({ data }) => {
       setProfiles(data);
-      // Best-effort, silencioso — autocorrige quem já tinha perfil antes
-      // do fuso existir (ver services/device.ts).
-      syncOwnedProfileTimezones(data);
+      // Autocorrige quem já tinha perfil antes do fuso existir (ver
+      // services/device.ts). Deixou de ser 100% silencioso (2026-09-11,
+      // entrevista de decisões de horário, item 1/6) — princípio do
+      // Rilson: "transparência total". O marcador PERMANENTE já fica
+      // gravado sozinho no backend (ProfileController::update); aqui só
+      // falta o aviso NA HORA (toast) — o resto (ver no Histórico) é
+      // responsabilidade da tela de Histórico.
+      syncOwnedProfileTimezones(data).then((changes) => {
+        for (const change of changes) {
+          showToast(t('home.timezoneChangedToast', { timezone: change.newTimezone }));
+        }
+      });
     });
+  }, []);
+
+  // "Ao vivo" (2026-09-11, item 23/26) — Pendente→Atrasado (30min) é
+  // 100% calculado aqui, sem rede nenhuma; um timer de 1min já deixa
+  // isso instantâneo pro olho humano, sem custo de bateria/dados real.
+  // Atrasado→Perdido (24h) é um status de verdade do backend — só o
+  // `refetchInterval` da query abaixo consegue pegar esse flip.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
   }, []);
 
   const { data: doses = [], isLoading, refetch, isRefetching } = useQuery({
@@ -126,7 +291,34 @@ export default function HomeScreen() {
       return applyPendingOverlay(fresh);
     },
     enabled: !!activeProfile,
+    // "Ao vivo" pro flip de Perdido (2026-09-11, item 23/26) — o cron do
+    // backend (`doses:check-missed`) roda a cada 15min; 5min aqui
+    // detecta o flip com atraso pequeno sem consultar mais rápido do
+    // que o próprio backend decide algo novo.
+    refetchInterval: 5 * 60 * 1000,
   });
+
+  // Estado unificado pros 2 diálogos de confirmação novos (2026-09-11,
+  // entrevista de decisões de horário) — "Outro horário numa dose já
+  // Perdida" (item 2/9) e o "só hoje / pra sempre" do recálculo (item
+  // 12/13). ("Tomei numa dose Atrasada" tinha um 3º aqui, removido no
+  // mesmo dia — virou parte do modal "Outro horário" em vez de um
+  // diálogo à parte, UI melhor sugerida a pedido do Rilson.) Nenhum dos
+  // 2 cabe no AlertDialog genérico (okLabel fixo "OK", só 1 botão
+  // custom) sem ficar confuso — cada um precisa de 2 ações reais e claras.
+  type ConfirmDialogState =
+    | { kind: 'stillMissed'; dose: DoseLog }
+    | {
+        kind: 'recalculate';
+        scheduleId: number;
+        anchor: Date;
+        medication: { name: string; dosage: string | null; unit: string };
+        isFixedSchedule: boolean;
+      };
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  function closeConfirmDialog() {
+    setConfirmDialog(null);
+  }
 
   // Streak de adesão (Fase 2, 2026-08-11).
   const { data: streak } = useQuery({
@@ -201,64 +393,105 @@ export default function HomeScreen() {
         return; // um alerta de cada vez — marco de streak tem prioridade
       }
 
-      // "Dose fora do horário": oferece recalcular o resto do dia só
-      // quando (a) a pessoa realmente escolheu um horário diferente,
-      // (b) o remédio é modo intervalo — horário fixo não tem "próxima
-      // dose" pra deslocar, só registra atrasado (decisão de produto
-      // confirmada, ver roadmap item 8) — e (c) a diferença é grande o
-      // bastante pra valer a pena perguntar (limiar de 30min também
-      // decidido: atraso pequeno não interrompe com pergunta nenhuma).
-      if (takenAt && dose.dose_schedule.interval_hours != null) {
+      // "Dose fora do horário": oferece ajustar quando (a) a pessoa
+      // realmente escolheu um horário diferente e (b) a diferença é
+      // grande o bastante pra valer a pena perguntar (limiar de 30min
+      // decidido — atraso pequeno não interrompe com pergunta nenhuma).
+      // Antes só valia pra modo intervalo (horário fixo não tinha
+      // "próxima dose" pra deslocar) — a partir de 2026-09-11 (entrevista
+      // de decisões de horário, item 3/19) horário fixo também oferece,
+      // só que o "ajuste" possível pra ele é diferente (ver offerRecalculateToday).
+      if (takenAt) {
         const diffMinutes = Math.abs(takenAt.getTime() - parseISO(dose.scheduled_at).getTime()) / 60000;
-        if (diffMinutes >= 30) {
-          offerRecalculateToday(dose.dose_schedule_id, takenAt, dose.medication);
+        if (diffMinutes >= DELAYED_THRESHOLD_MINUTES) {
+          offerRecalculateToday(dose, takenAt);
         }
       }
     },
   });
 
-  function offerRecalculateToday(
-    scheduleId: number,
-    anchor: Date,
-    medication: { name: string; dosage: string | null; unit: string },
-  ) {
-    // `anchorLabel` (HH:mm no fuso do APARELHO) é só pra mostrar na
-    // mensagem — a pessoa lendo está olhando o próprio aparelho, então
-    // mostrar a hora local dela aqui é o certo. O que vai pro backend é
-    // `anchor.toISOString()`, o instante absoluto (2026-09-08, achado
-    // de auditoria de fuso horário) — o backend converte pro fuso do
-    // PERFIL antes de gravar, não confia mais num "H:i" nu que
-    // presumia aparelho e perfil no mesmo fuso.
-    const anchorLabel = format(anchor, 'HH:mm');
-    showAlert(
-      t('home.recalculateTitle'),
-      t('home.recalculateMessage', { time: anchorLabel }),
-      {
-        label: t('home.recalculateAction'),
-        onPress: async () => {
-          try {
-            const result = await recalculateScheduleToday(scheduleId, anchor.toISOString());
-            queryClient.invalidateQueries({ queryKey: ['today-doses'] });
-            showToast(t('home.recalculatedToast'));
-            // Resincroniza os lembretes locais (2026-09-08, revisitando
-            // a limitação aceita) — best-effort, de propósito: a tela
-            // Hoje já está correta pelo invalidateQueries acima
-            // (fonte de verdade real); se o agendamento de notificação
-            // falhar (permissão negada, etc.), não desfaz o recálculo
-            // nem assusta a pessoa com um erro sobre algo secundário.
-            rescheduleTodayOccurrences({
-              scheduleId,
-              todayOccurrences: result.today_occurrences,
-              medicationName: medication.name,
-              dosage: medication.dosage,
-              unit: medication.unit,
-            }).catch((err) => console.warn('[assidua] Falha ao resincronizar lembretes locais:', err));
-          } catch (err: any) {
-            showAlert(t('common.error'), err.response?.data?.message ?? t('home.errorRecalculate'));
-          }
-        },
-      },
-    );
+  // Reescrito (2026-09-11, entrevista de decisões de horário, item
+  // 12/13/16) — antes era 1 confirmação só ("Ajustar"), sempre "só
+  // hoje", só pra intervalo. Agora sempre pergunta "só hoje ou pra
+  // sempre" (nunca decide sozinho — princípio do Rilson: "transparência
+  // total, agência total"), e vale pra horário fixo também.
+  function offerRecalculateToday(dose: DoseLog, anchor: Date) {
+    setConfirmDialog({
+      kind: 'recalculate',
+      scheduleId: dose.dose_schedule_id,
+      anchor,
+      medication: dose.medication,
+      isFixedSchedule: dose.dose_schedule.interval_hours == null,
+    });
+  }
+
+  // "Só hoje" — modo intervalo: desloca as ocorrências RESTANTES de
+  // hoje (mecanismo `today_override_*` que já existia). Modo fixo: não
+  // existe "próxima ocorrência hoje" pra deslocar (um schedule fixo só
+  // gera 1 dose/dia) — a dose já foi registrada com o horário certo,
+  // não sobra nada a fazer além de confirmar isso pra pessoa.
+  async function confirmRecalculateOnlyToday() {
+    if (confirmDialog?.kind !== 'recalculate') return;
+    const { scheduleId, anchor, medication, isFixedSchedule } = confirmDialog;
+    closeConfirmDialog();
+
+    if (isFixedSchedule) {
+      showToast(t('home.recalculatedTodayOnlyFixedToast'));
+      return;
+    }
+
+    try {
+      const result = await recalculateScheduleToday(scheduleId, anchor.toISOString());
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('home.recalculatedToast'));
+      // Resincroniza os lembretes locais (2026-09-08, revisitando a
+      // limitação aceita) — best-effort, de propósito: a tela Hoje já
+      // está correta pelo invalidateQueries acima (fonte de verdade
+      // real); se o agendamento de notificação falhar (permissão
+      // negada, etc.), não desfaz o recálculo nem assusta a pessoa com
+      // um erro sobre algo secundário.
+      rescheduleTodayOccurrences({
+        scheduleId,
+        todayOccurrences: result.today_occurrences,
+        medicationName: medication.name,
+        dosage: medication.dosage,
+        unit: medication.unit,
+      }).catch((err) => console.warn('[assidua] Falha ao resincronizar lembretes locais:', err));
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('home.errorRecalculate'));
+    }
+  }
+
+  // "Pra sempre" — equivalente a "Editar horário" (mesmo endpoint,
+  // `PUT /schedules/{id}`), disparado por este fluxo também. Vale pros
+  // dois modos: desloca o `time` permanente do schedule a partir de
+  // agora. Notificação: `scheduleScheduleNotifications` já cancela+
+  // recria o lembrete por conta própria (mesmo caminho que "Editar
+  // horário" usa) — zero duplicata, sem precisar de nenhum código novo
+  // de notificação aqui (item 5/21 fechado de graça por reuso).
+  async function confirmRecalculateForever() {
+    if (confirmDialog?.kind !== 'recalculate') return;
+    const { scheduleId, anchor, medication } = confirmDialog;
+    closeConfirmDialog();
+    const newTime = format(anchor, 'HH:mm');
+
+    try {
+      const updated = await updateSchedule(scheduleId, { time: newTime });
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      showToast(t('home.recalculatedForeverToast', { time: newTime }));
+      scheduleScheduleNotifications({
+        scheduleId,
+        time: newTime,
+        days_of_week: updated.days_of_week,
+        interval_hours: updated.interval_hours,
+        medicationName: medication.name,
+        dosage: medication.dosage,
+        unit: medication.unit,
+      }).catch((err) => console.warn('[assidua] Falha ao resincronizar lembretes locais:', err));
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('home.errorRecalculate'));
+    }
   }
 
   const skipDose = useMutation({
@@ -410,9 +643,11 @@ export default function HomeScreen() {
             </ErrorBoundary>
           )}
           <TouchableOpacity
-            onPress={togglePrivacy}
-            accessibilityRole="button"
+            onPress={togglePrivacyWithHint}
+            accessibilityRole="switch"
             accessibilityLabel={t('profile.privacyToggle')}
+            accessibilityHint={t('profile.privacyModeHint')}
+            accessibilityState={{ checked: isPrivate }}
             style={{ padding: 8 }}
           >
             <MaterialCommunityIcons
@@ -512,12 +747,31 @@ export default function HomeScreen() {
           renderItem={({ item }) => {
             const taken = item.status === 'taken';
             const skipped = item.status === 'skipped';
+            // "Perdido" (2026-09-11, item 14/15) — renomeado do antigo
+            // "Atrasado": mesmo status `missed` do backend, mas agora só
+            // acontece depois de 24h (ver DoseLog::MISSED_TOLERANCE_HOURS).
             const missed = item.status === 'missed';
-            const time = format(parseISO(item.scheduled_at), 'HH:mm');
+            // "Atrasado" NOVO (2026-09-11, item 14/23) — 100% calculado
+            // aqui, nunca gravado: dose ainda `pending` no backend, mas
+            // já passou da tolerância de 30min. `nowTick` (timer de 1min)
+            // é o que faz isso reavaliar sozinho sem precisar recarregar
+            // a tela.
+            const delayed = !taken && !skipped && !missed && isDelayed(item.scheduled_at, nowTick);
+            // Mesmo bug/fix do Histórico (2026-09-09, "Bug 2" do item 17)
+            // — ficou de fora daquela rodada por só ter mexido em
+            // history.tsx. Achado real do Rilson (2026-09-11): registrar
+            // "Ibuprofeno tomado às 9h" via Outro horário + recalcular
+            // atualizava certinho a PRÓXIMA dose (17h), mas o card da
+            // PRÓPRIA dose continuava com "10:00" — sempre lia
+            // `scheduled_at`, nunca `taken_at`, pra dose já tomada.
+            const time = taken && item.taken_at
+              ? format(parseISO(item.taken_at), 'HH:mm')
+              : format(parseISO(item.scheduled_at), 'HH:mm');
             const maskedName = maskMedicationName(item.medication.name, isPrivate);
+            const statusColor = missed ? colors.warning : delayed ? colors.delayed : item.medication.color;
             return (
               <View style={[styles.card, (taken || skipped) && styles.cardDone, isWide && { flex: 1 }]}>
-                <View style={[styles.colorBar, { backgroundColor: missed ? colors.warning : item.medication.color }]} />
+                <View style={[styles.colorBar, { backgroundColor: statusColor }]} />
                 {/* Duas fileiras, não uma só (2026-09-09, achado real do
                     Rilson com screenshot): nome+horário numa linha e os
                     botões de ação (Tomei/Outro horário/Pular) na OUTRA,
@@ -531,8 +785,18 @@ export default function HomeScreen() {
                 <View style={styles.cardContent}>
                   <View style={styles.cardTopRow}>
                     <View style={styles.timeCol}>
-                      <Text style={[styles.time, missed && { color: colors.warning }]}>{time}</Text>
-                      {missed && <Text style={styles.missedLabel}>{t('home.delayed')}</Text>}
+                      <Text style={[styles.time, (missed || delayed) && { color: statusColor }]}>{time}</Text>
+                      {/* "Não tomado" (2026-09-11, achado do Rilson: mais
+                          claro pra audiência em português que "Perdido")
+                          — reaproveita a MESMA chave que o Histórico já
+                          usa (`history.filterMissed`) de propósito, não
+                          uma cópia com o mesmo texto — evita as duas
+                          telas divergirem de novo no futuro sem
+                          ninguém perceber (foi exatamente isso que
+                          aconteceu até hoje: "Atrasado" aqui, "Não
+                          tomado" lá, pro mesmo status). */}
+                      {missed && <Text style={[styles.missedLabel, { color: colors.warning }]}>{t('history.filterMissed')}</Text>}
+                      {delayed && <Text style={[styles.missedLabel, { color: colors.delayed }]}>{t('home.delayed')}</Text>}
                     </View>
                     <TouchableOpacity
                       style={styles.cardBody}
@@ -559,7 +823,7 @@ export default function HomeScreen() {
                           tamanho competindo por atenção. */}
                       <TouchableOpacity
                         style={styles.takeButton}
-                        onPress={() => markDose.mutate({ dose: item })}
+                        onPress={() => handleTakePress(item)}
                         disabled={markDose.isPending}
                         accessibilityRole="button"
                         accessibilityLabel={t('home.markTakenLabel', { name: maskedName, time })}
@@ -576,7 +840,7 @@ export default function HomeScreen() {
                           adivinhar o que "relógio com lápis" faz. */}
                       <TouchableOpacity
                         style={styles.customTimeButton}
-                        onPress={() => openCustomTimeModal(item)}
+                        onPress={() => handleCustomTimePress(item)}
                         disabled={markDose.isPending}
                         accessibilityRole="button"
                         accessibilityLabel={t('home.customTimeLabel', { name: maskedName })}
@@ -644,7 +908,7 @@ export default function HomeScreen() {
                         onPress={() => undoMutation.mutate(item)}
                         disabled={undoMutation.isPending}
                         accessibilityRole="button"
-                        accessibilityLabel={t('home.skippedLabel', { name: item.medication.name, time })}
+                        accessibilityLabel={t('home.skippedLabel', { name: maskedName, time })}
                         accessibilityHint={t('home.undoHint')}
                       >
                         <MaterialCommunityIcons name="minus-circle" size={18} color={colors.textMuted} />
@@ -672,10 +936,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </Link>
       )}
-      {/* "Foi em outro horário?" (item 8, 2026-09-08) — mesmo padrão de
-          entrada HH:MM já usado no formulário de horário do remédio
-          (texto simples, não um seletor nativo novo — menos risco,
-          mais consistente com o resto do app). */}
+      {/* "Foi em outro horário?" (item 8, 2026-09-08). Campo de texto
+          HH:MM trocado (2026-09-11) por atalhos relativos + picker
+          nativo — digitar hora de cabeça confundia usuários menos
+          técnicos (achado do Rilson). Atalhos cobrem o caso comum sem
+          depender de nenhum módulo nativo (funcionam mesmo num build
+          antigo); só "Horário específico" precisa do picker nativo
+          (getDateTimePicker, guarda de indisponibilidade acima). */}
       <Modal
         visible={!!customTimeDose}
         transparent
@@ -689,16 +956,85 @@ export default function HomeScreen() {
                 name: customTimeDose ? maskMedicationName(customTimeDose.medication.name, isPrivate) : '',
               })}
             </Text>
-            <TextInput
-              style={styles.customTimeInput}
-              value={customTime}
-              onChangeText={setCustomTime}
-              placeholder="14:30"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numbers-and-punctuation"
-              autoFocus
-              accessibilityLabel={t('home.customTimeInputLabel')}
-            />
+            {!showTimePicker && (
+              <>
+                {/* "No horário previsto" (2026-09-11, item 5 da rodada
+                    de transparência; estendido no mesmo dia pro caso
+                    "cedo demais" — ver `isEarly`) — fixado acima do
+                    grid normal quando a dose está Atrasada OU muito
+                    adiantada: é exatamente o par de escolhas que o
+                    diálogo separado de "Tomei numa dose Atrasada"
+                    oferecia (sim/não foi no horário certo), fundido
+                    neste modal em vez de uma etapa extra antes dele —
+                    mesmas opções, 1 tela a menos. */}
+                {customTimeDose?.status === 'pending' &&
+                  (isDelayed(customTimeDose.scheduled_at, nowTick) || isEarly(customTimeDose.scheduled_at, nowTick)) && (
+                  <TouchableOpacity
+                    style={styles.onScheduleChip}
+                    onPress={confirmCustomTimeOnSchedule}
+                    disabled={markDose.isPending}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.onScheduleTime', {
+                      time: format(parseISO(customTimeDose.scheduled_at), 'HH:mm'),
+                    })}
+                  >
+                    <Text style={styles.onScheduleChipText}>
+                      {t('home.onScheduleTime', { time: format(parseISO(customTimeDose.scheduled_at), 'HH:mm') })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <View style={styles.quickTimeRow}>
+                  {QUICK_TIME_OFFSETS.map(({ minutes, labelKey }) => (
+                    <TouchableOpacity
+                      key={minutes}
+                      style={styles.quickTimeChip}
+                      onPress={() => takeAtOffset(minutes)}
+                      disabled={markDose.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(labelKey)}
+                    >
+                      <Text style={styles.quickTimeChipText}>{t(labelKey)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={styles.specificTimeLink}
+                  onPress={openSpecificTimePicker}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('home.customTimeSpecificButton')}
+                >
+                  <Text style={styles.specificTimeLinkText}>{t('home.customTimeSpecificButton')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {showTimePicker && (() => {
+              const DateTimePicker = getDateTimePicker();
+              if (!DateTimePicker) return null;
+              return (
+                <DateTimePicker
+                  testID="taken-at-native-picker"
+                  value={customTime}
+                  mode="time"
+                  is24Hour
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selected) => {
+                    // Android: o diálogo nativo já tem seu próprio
+                    // OK/Cancelar — 'set' já É a confirmação, chama
+                    // direto (passando o valor, não esperando o
+                    // setState assíncrono refletir em `customTime`
+                    // antes de ler). 'dismissed' só volta pros atalhos.
+                    if (Platform.OS === 'android') {
+                      if (event.type === 'set' && selected) confirmCustomTime(selected);
+                      else setShowTimePicker(false);
+                      return;
+                    }
+                    // iOS/web: spinner/input fica visível, só atualiza
+                    // o valor — confirma é o botão "Registrar" abaixo.
+                    if (selected) setCustomTime(selected);
+                  }}
+                />
+              );
+            })()}
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
@@ -708,15 +1044,99 @@ export default function HomeScreen() {
               >
                 <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalConfirmBtn}
-                onPress={confirmCustomTime}
-                accessibilityRole="button"
-                accessibilityLabel={t('home.customTimeConfirm')}
-              >
-                <Text style={styles.modalConfirmText}>{t('home.customTimeConfirm')}</Text>
-              </TouchableOpacity>
+              {showTimePicker && (
+                <TouchableOpacity
+                  style={styles.modalConfirmBtn}
+                  onPress={() => confirmCustomTime()}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('home.customTimeConfirm')}
+                >
+                  <Text style={styles.modalConfirmText}>{t('home.customTimeConfirm')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
+          </View>
+        </View>
+      </Modal>
+      {/* 3 diálogos de confirmação novos (2026-09-11, entrevista de
+          decisões de horário) — unificados num Modal só (mesmo padrão
+          visual dos outros já existentes), o conteúdo muda conforme
+          `confirmDialog.kind`. Nenhum cabe no AlertDialog genérico
+          (okLabel fixo "OK", só 1 botão custom) sem ficar confuso —
+          cada um precisa de 2 ações reais e claramente rotuladas. */}
+      <Modal
+        visible={!!confirmDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={closeConfirmDialog}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {confirmDialog?.kind === 'stillMissed' && (
+              <>
+                <Text style={styles.modalTitle}>
+                  {t('home.stillMissedTitle', {
+                    name: maskMedicationName(confirmDialog.dose.medication.name, isPrivate),
+                  })}
+                </Text>
+                <Text style={styles.modalMessage}>{t('home.stillMissedMessage')}</Text>
+                <View style={styles.modalActionsColumn}>
+                  <TouchableOpacity
+                    style={styles.modalConfirmBtnFull}
+                    onPress={confirmStillMissedMarkTaken}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.stillMissedMarkTaken')}
+                  >
+                    <Text style={styles.modalConfirmText}>{t('home.stillMissedMarkTaken')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtnFull}
+                    onPress={confirmStillMissedKeep}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.stillMissedKeep')}
+                  >
+                    <Text style={styles.modalCancelText}>{t('home.stillMissedKeep')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+            {confirmDialog?.kind === 'recalculate' && (
+              <>
+                <Text style={styles.modalTitle}>{t('home.recalculateTitle')}</Text>
+                <Text style={styles.modalMessage}>
+                  {t('home.recalculateMessage', {
+                    name: maskMedicationName(confirmDialog.medication.name, isPrivate),
+                    time: format(confirmDialog.anchor, 'HH:mm'),
+                  })}
+                </Text>
+                <View style={styles.modalActionsColumn}>
+                  <TouchableOpacity
+                    style={styles.modalConfirmBtnFull}
+                    onPress={confirmRecalculateForever}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.recalculateForever')}
+                  >
+                    <Text style={styles.modalConfirmText}>{t('home.recalculateForever')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.modalCancelBtnFull}
+                    onPress={confirmRecalculateOnlyToday}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('home.recalculateOnlyToday')}
+                  >
+                    <Text style={styles.modalCancelText}>{t('home.recalculateOnlyToday')}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.specificTimeLink}
+                  onPress={closeConfirmDialog}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.cancel')}
+                >
+                  <Text style={styles.specificTimeLinkText}>{t('common.cancel')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -803,7 +1223,10 @@ function makeStyles(c: ThemeColors) {
     cardTopRow: { flexDirection: 'row', alignItems: 'center' },
     timeCol: { paddingHorizontal: 12, alignItems: 'center' },
     time: { fontSize: 15, fontWeight: '700', color: c.brand },
-    missedLabel: { fontSize: 10, fontWeight: '600', color: c.warning, marginTop: 2 },
+    // Sem `color` fixo (2026-09-11) — agora serve tanto "Perdido"
+    // (c.warning) quanto "Atrasado" (c.delayed), cor sempre passada
+    // inline no JSX conforme o status.
+    missedLabel: { fontSize: 10, fontWeight: '600', marginTop: 2 },
     // paddingRight (não mais paddingVertical, que subiu pro cardContent)
     // — evita o texto colar na borda direita do card.
     cardBody: { flex: 1, paddingRight: 12 },
@@ -845,8 +1268,8 @@ function makeStyles(c: ThemeColors) {
     skipButton: { padding: 10, borderRadius: 10, backgroundColor: c.surfaceSecondary },
     // Modal "Foi em outro horário?" — mesmo padrão visual de
     // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
-    // arredondados), só que local a esta tela por precisar de um
-    // TextInput no meio (os dois componentes genéricos não suportam).
+    // arredondados), só que local a esta tela por precisar de
+    // conteúdo que os dois componentes genéricos não suportam.
     modalOverlay: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
       alignItems: 'center', justifyContent: 'center', padding: 24,
@@ -856,10 +1279,27 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 18, padding: 20,
     },
     modalTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 14 },
-    customTimeInput: {
-      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14, fontSize: 18, color: c.text, textAlign: 'center',
+    // "No horário previsto" (2026-09-11) — cor de destaque (mesma do
+    // botão principal dos outros diálogos), largura cheia, ACIMA do
+    // grid neutro dos atalhos — é a resposta mais comum na prática
+    // (pequeno atraso trivial), merece ser a mais fácil de achar/tocar.
+    onScheduleChip: {
+      minHeight: 48, borderRadius: 12, backgroundColor: c.brand,
+      alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+      marginBottom: 10,
     },
+    onScheduleChipText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
+    // Atalhos relativos (2026-09-11) — grid 2x2, cada chip com o mesmo
+    // minHeight 48 dos outros botões do modal (WCAG AAA).
+    quickTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    quickTimeChip: {
+      flexBasis: '47%', flexGrow: 1, minHeight: 48, borderRadius: 12,
+      backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+    },
+    quickTimeChipText: { color: c.text, fontWeight: '600', fontSize: 15 },
+    specificTimeLink: { alignItems: 'center', marginTop: 14, minHeight: 44, justifyContent: 'center' },
+    specificTimeLinkText: { color: c.brand, fontWeight: '600', fontSize: 14 },
     modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
     // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08) — column
     // layout, botão de largura cheia dentro do modal, crescer aqui é
@@ -868,6 +1308,24 @@ function makeStyles(c: ThemeColors) {
     modalCancelText: { color: c.textSecondary, fontWeight: '600' },
     modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     modalConfirmText: { color: c.onBrand, fontWeight: '600' },
+    // Corpo de texto pros 3 diálogos de confirmação novos (2026-09-11)
+    // — mesmo estilo do `message` do AlertDialog genérico, mas local
+    // aqui (esses diálogos têm 2 ações reais, não cabem nele).
+    modalMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginTop: -4, marginBottom: 4 },
+    // Empilhado, não lado a lado (2026-09-11) — os 3 diálogos novos têm
+    // textos de botão mais longos ("Sempre, a partir de agora",
+    // "Marcar como tomada") que ficariam espremidos numa fileira de 2
+    // (padrão já usado em `modalActions`, reservado pros diálogos de
+    // texto curto como Cancelar/Registrar).
+    modalActionsColumn: { gap: 10, marginTop: 20 },
+    modalConfirmBtnFull: {
+      backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
+    modalCancelBtnFull: {
+      backgroundColor: c.surfaceSecondary, padding: 13, borderRadius: 10,
+      alignItems: 'center', justifyContent: 'center', minHeight: 48,
+    },
     // minHeight 48 (2026-09-08) — badge com texto ("Tomado" + ícone de
     // desfazer), não um ícone sozinho; cabe na altura que o card já tem
     // (2 linhas de texto ao lado já passam de 48px), sem esticar nada.

@@ -332,3 +332,41 @@ describe('HistoryScreen — PDF exclusivo Pro (2026-09-08)', () => {
     });
   });
 });
+
+// Marcador de troca de fuso (2026-09-11, entrevista de decisões de
+// horário — ver ROADMAP.md, item 6/20) — "misturado no feed do
+// Histórico", não numa seção à parte.
+describe('HistoryScreen — marcador de troca de fuso (2026-09-11)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedications.mockResolvedValue([losartana] as any);
+    mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
+  });
+
+  it('mostra o marcador de troca de fuso junto das doses do mesmo dia', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [logLosartana],
+      timezone_changes: [
+        { old_timezone: 'America/Sao_Paulo', new_timezone: 'Europe/Lisbon', changed_at: '2026-08-12T09:00:00.000Z' },
+      ],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByText('Losartana')).toBeTruthy();
+    expect(
+      await screen.findByText('Fuso horário mudou de America/Sao_Paulo para Europe/Lisbon'),
+    ).toBeTruthy();
+  });
+
+  it('sem troca de fuso no período, não mostra marcador nenhum', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana], timezone_changes: [] } as any);
+
+    renderHistory();
+
+    expect(await screen.findByText('Losartana')).toBeTruthy();
+    expect(screen.queryByText(/Fuso horário mudou/)).toBeNull();
+  });
+});

@@ -25,6 +25,12 @@ export interface ThemeColors {
   tabBarBorder: string;
   success: string;
   warning: string;
+  // "Atrasado" (2026-09-11, entrevista de decisões de horário — ver
+  // ROADMAP.md, item 14/22) — estado intermediário novo (30min–24h de
+  // atraso), distinto de `warning` (reservado pro "Perdido" real,
+  // >24h). Precisam ser diferenciáveis à distância, não só no texto do
+  // badge — cor própria, mais amarela/dourada, não laranja/vermelha.
+  delayed: string;
   error: string;
 }
 
@@ -65,6 +71,7 @@ export const lightColors: ThemeColors = {
   tabBarBorder: '#f1f5f9',
   success: '#15803d',
   warning: '#b45309',
+  delayed: '#a16207',
   error: '#ef4444',
 };
 
@@ -93,6 +100,7 @@ export const highContrastLightColors: ThemeColors = {
   tabBarBorder: '#000000',
   success: '#166534',
   warning: '#92400e',
+  delayed: '#713f12',
   error: '#991b1b',
 };
 
@@ -115,6 +123,7 @@ export const highContrastDarkColors: ThemeColors = {
   tabBarBorder: '#ffffff',
   success: '#4ade80',
   warning: '#fbbf24',
+  delayed: '#fde047',
   error: '#f87171',
 };
 
@@ -142,5 +151,6 @@ export const darkColors: ThemeColors = {
   tabBarBorder: '#334155',
   success: '#22c55e',
   warning: '#f59e0b',
+  delayed: '#eab308',
   error: '#ef4444',
 };

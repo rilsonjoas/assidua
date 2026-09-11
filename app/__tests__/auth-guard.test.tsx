@@ -12,6 +12,7 @@ jest.mock('../services/auth', () => ({
 }));
 jest.mock('../services/notifications', () => ({
   registerPushToken: jest.fn(),
+  reconcileScheduledNotifications: jest.fn(async () => {}),
 }));
 
 const mockedAuth = jest.mocked(authService);

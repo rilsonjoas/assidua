@@ -2,7 +2,28 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { api } from './api';
-import { formatDosageUnit } from './medications';
+import { formatDosageUnit, getMedications } from './medications';
+import { usePrivacyStore } from '../store/privacyStore';
+
+// "Modo Privacidade" também nas notificações (2026-09-11, achado real
+// do Rilson: a tela de bloqueio é a superfície mais exposta de todas —
+// nem precisa desbloquear o aparelho — e era a única coisa no app que
+// ignorava o Modo Privacidade). Lê o estado global direto (mesmo
+// padrão não-hook já usado em `lib/privacy.ts`/`services/sync.ts`), no
+// momento em que a notificação é AGENDADA — decisão confirmada com o
+// Rilson: aceitável o texto só atualizar na próxima vez que o lembrete
+// for recriado (editar remédio/horário, etc.), não precisa reagendar
+// tudo na hora que a pessoa liga/desliga o modo.
+function doseTitle(medicationName: string): string {
+  return usePrivacyStore.getState().isPrivate
+    ? 'Hora de tomar seu remédio'
+    : `Hora de tomar ${medicationName}`;
+}
+
+function refillBody(medicationName: string, daysRemaining: number): string {
+  const subject = usePrivacyStore.getState().isPrivate ? 'Um remédio' : medicationName;
+  return `${subject} vai acabar em ${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}. Hora de repor.`;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,6 +34,20 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+// "Permissão negada é invisível pra sempre" (2026-09-11, achado real do
+// Rilson revendo o app) — antes disto, a permissão só era pedida 1 vez
+// no onboarding; se a pessoa negasse (ou revogasse depois, nas configs
+// do aparelho), os lembretes paravam de chegar sem NENHUM aviso em
+// lugar nenhum. Usado por `components/NotificationPermissionBanner.tsx`,
+// que reconsulta sempre que o app volta a ficar ativo (AppState) — pega
+// tanto quem nunca autorizou quanto quem revogou depois, fora do app.
+export async function getNotificationPermissionStatus(): Promise<
+  'granted' | 'denied' | 'undetermined'
+> {
+  const { status } = await Notifications.getPermissionsAsync();
+  return status;
+}
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
@@ -78,7 +113,7 @@ export async function scheduleScheduleNotifications(params: {
         Notifications.scheduleNotificationAsync({
           identifier: `schedule_${scheduleId}_interval_${index}`,
           content: {
-            title: `Hora de tomar ${medicationName}`,
+            title: doseTitle(medicationName),
             body,
             sound: true,
             data: { scheduleId },
@@ -100,7 +135,7 @@ export async function scheduleScheduleNotifications(params: {
     await Notifications.scheduleNotificationAsync({
       identifier: `schedule_${scheduleId}_daily`,
       content: {
-        title: `Hora de tomar ${medicationName}`,
+        title: doseTitle(medicationName),
         body,
         sound: true,
         data: { scheduleId },
@@ -118,7 +153,7 @@ export async function scheduleScheduleNotifications(params: {
       await Notifications.scheduleNotificationAsync({
         identifier: `schedule_${scheduleId}_day_${day}`,
         content: {
-          title: `Hora de tomar ${medicationName}`,
+          title: doseTitle(medicationName),
           body,
           sound: true,
           data: { scheduleId },
@@ -160,7 +195,7 @@ export async function scheduleRefillAlert(params: {
     identifier,
     content: {
       title: 'Estoque acabando',
-      body: `${medicationName} vai acabar em ${daysRemaining} dia${daysRemaining === 1 ? '' : 's'}. Hora de repor.`,
+      body: refillBody(medicationName, daysRemaining),
       sound: true,
       data: { medicationId },
     },
@@ -238,7 +273,7 @@ export async function rescheduleTodayOccurrences(params: {
         Notifications.scheduleNotificationAsync({
           identifier: `${prefix}${index}`,
           content: {
-            title: `Hora de tomar ${medicationName}`,
+            title: doseTitle(medicationName),
             body,
             sound: true,
             data: { scheduleId },
@@ -260,4 +295,42 @@ export async function cancelScheduleNotifications(scheduleId: number): Promise<v
       .filter((n) => n.identifier.startsWith(prefix))
       .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)),
   );
+}
+
+// Achado real do Rilson (2026-09-11): notificação chegando de remédio
+// que não está mais na lista de hoje (ex.: "Vick Vaporub", "Dorflex",
+// "Pantoprazol" — nada disso existe mais no perfil ativo). Causa raiz:
+// todo cancelamento acima é OPORTUNISTA — só roda no caminho de UI que
+// pausa/edita/exclui um horário (medication/[id].tsx). O gatilho DAILY
+// do SO fica agendado pra sempre até alguém cancelar explicitamente;
+// "excluir medicamento" só passou a cancelar a partir de 08/09 (3 dias
+// atrás) — qualquer remédio apagado ANTES disso ficou com a
+// notificação órfã, tocando todo dia, sem nenhum jeito de se
+// autocorrigir. Esta função varre TUDO que está agendado no SO e
+// cancela o que não corresponde a nenhum schedule ativo de nenhum
+// perfil da conta (não só o perfil ativo no momento — um cuidador quer
+// continuar sendo avisado do remédio do paciente mesmo com outra aba
+// aberta). Roda 1x por abertura do app (ver app/_layout.tsx), no mesmo
+// lugar que já resincroniza push token — barata (só GETs), e cobre
+// tanto o histórico órfão quanto qualquer futuro caminho de mutação
+// que a gente esqueça de cancelar.
+export async function reconcileScheduledNotifications(): Promise<void> {
+  const { data: profiles } = await api.get('/profiles');
+  const medicationsByProfile = await Promise.all(
+    (profiles as Array<{ id: number }>).map((p) => getMedications(p.id).catch(() => [])),
+  );
+  const liveScheduleIds = new Set(
+    medicationsByProfile
+      .flat()
+      .filter((m) => m.is_active && !m.is_paused)
+      .flatMap((m) => m.schedules.filter((s) => s.is_active).map((s) => s.id)),
+  );
+
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const orphaned = all.filter((n) => {
+    const match = n.identifier.match(/^schedule_(\d+)_/);
+    if (!match) return false; // não mexe em refill_/outros tipos de aviso
+    return !liveScheduleIds.has(Number(match[1]));
+  });
+  await Promise.all(orphaned.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
 }

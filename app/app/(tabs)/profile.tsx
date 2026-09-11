@@ -23,6 +23,9 @@ import { useToastStore } from '../../store/toastStore';
 import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useFontScaleStore, FontScaleMode } from '../../store/fontScaleStore';
 import { useHighContrastStore } from '../../store/highContrastStore';
+import { usePrivacyStore } from '../../store/privacyStore';
+import { togglePrivacyWithHint } from '../../lib/privacy';
+import { isBiometricsSupported } from '../../services/biometrics';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { useLanguage } from '../../hooks/useLanguage';
@@ -61,6 +64,19 @@ export default function ProfileScreen() {
   const { mode: languageMode, setLanguage } = useLanguage();
   const { mode: fontScaleMode, setMode: setFontScaleMode } = useFontScaleStore();
   const { isHighContrast, toggleHighContrast } = useHighContrastStore();
+  // Bloqueio biométrico (2026-09-11, item 4 da rodada de transparência —
+  // "bora retomar, com todo cuidado e teste possível") — o toggle
+  // (`isBiometricsEnabled`) e o serviço (`services/biometrics.ts`) já
+  // existiam há dias, sem NENHUMA tela usando nenhum dos dois. Escondido
+  // por completo quando o aparelho não tem biometria configurada — um
+  // toggle que "liga" mas não protege nada de verdade seria sua própria
+  // quebra de transparência.
+  const { isPrivate, isBiometricsEnabled, toggleBiometrics } = usePrivacyStore();
+  const [biometricsSupported, setBiometricsSupported] = useState(false);
+  const [confirmingBiometrics, setConfirmingBiometrics] = useState(false);
+  useEffect(() => {
+    isBiometricsSupported().then(setBiometricsSupported);
+  }, []);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const isWide = useIsWideScreen();
@@ -623,6 +639,68 @@ export default function ProfileScreen() {
         </View>
       </TouchableOpacity>
 
+      {/* "Privacidade e Segurança" — título sempre visível agora
+          (2026-09-11): antes só aparecia se `biometricsSupported`,
+          porque era a ÚNICA coisa da seção; "Modo Privacidade" abaixo
+          não depende de hardware nenhum, então a seção sempre tem pelo
+          menos 1 item. */}
+      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>{t('profile.securitySection')}</Text>
+      {/* "Modo Privacidade" (2026-09-11, achado real do Rilson: o olho
+          só existia na Home, sem explicação nenhuma do que fazia) —
+          mesma função (`togglePrivacyWithHint`) que o olho no cabeçalho
+          de toda aba usa agora; esta linha é o lugar "de verdade", com
+          texto explicando, pra quem for procurar a configuração em vez
+          de topar com o ícone. Sem diálogo de confirmação (diferente de
+          Alto Contraste/Bloqueio biométrico abaixo) — mascarar nome é
+          reversível num toque só, não precisa de fricção extra. */}
+      <TouchableOpacity
+        style={styles.helpBtn}
+        onPress={togglePrivacyWithHint}
+        accessibilityRole="switch"
+        accessibilityLabel={t('profile.privacyMode')}
+        accessibilityHint={t('profile.privacyModeHint')}
+        accessibilityState={{ checked: isPrivate }}
+      >
+        <MaterialCommunityIcons name={isPrivate ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textSecondary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.helpBtnText}>{t('profile.privacyMode')}</Text>
+          <Text style={styles.exportHint}>{t('profile.privacyModeHint')}</Text>
+        </View>
+        <View style={[styles.toggleState, isPrivate && styles.toggleStateActive]}>
+          <Text style={[styles.toggleStateText, isPrivate && styles.toggleStateTextActive]}>
+            {isPrivate ? t('common.on') : t('common.off')}
+          </Text>
+        </View>
+      </TouchableOpacity>
+      {/* Bloqueio biométrico (2026-09-11) — mesma filosofia do "Modo
+          Privacidade" acima (esconder informação de saúde de quem pega
+          o celular), só que travando o app inteiro em vez de mascarar
+          nomes. Escondido por completo quando `biometricsSupported` é
+          falso (aparelho sem digital/rosto configurado) — mostrar um
+          toggle que não protege nada de verdade seria sua própria
+          quebra de transparência. */}
+      {biometricsSupported && (
+        <TouchableOpacity
+          style={[styles.helpBtn, { marginTop: 4 }]}
+          onPress={() => setConfirmingBiometrics(true)}
+          accessibilityRole="switch"
+          accessibilityLabel={t('profile.biometricLock')}
+          accessibilityHint={t('profile.biometricLockHint')}
+          accessibilityState={{ checked: isBiometricsEnabled }}
+        >
+          <MaterialCommunityIcons name="fingerprint" size={20} color={colors.textSecondary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.helpBtnText}>{t('profile.biometricLock')}</Text>
+            <Text style={styles.exportHint}>{t('profile.biometricLockHint')}</Text>
+          </View>
+          <View style={[styles.toggleState, isBiometricsEnabled && styles.toggleStateActive]}>
+            <Text style={[styles.toggleStateText, isBiometricsEnabled && styles.toggleStateTextActive]}>
+              {isBiometricsEnabled ? t('common.on') : t('common.off')}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Seções "Suporte"/"Dados"/"Conta" separadas (2026-09-08, achado
           real revisando a tela): antes Ajuda, Exportar dados, Sair e
           Excluir conta ficavam todos pendurados sob o título
@@ -781,6 +859,18 @@ export default function ProfileScreen() {
       onConfirm={() => {
         toggleHighContrast();
         setConfirmingHighContrast(false);
+      }}
+    />
+    <ConfirmDialog
+      visible={confirmingBiometrics}
+      title={t('profile.biometricLockConfirmTitle')}
+      message={isBiometricsEnabled ? t('profile.biometricLockConfirmMessageOff') : t('profile.biometricLockConfirmMessageOn')}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('common.confirm')}
+      onCancel={() => setConfirmingBiometrics(false)}
+      onConfirm={() => {
+        toggleBiometrics();
+        setConfirmingBiometrics(false);
       }}
     />
     <ConfirmDialog

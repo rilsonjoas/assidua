@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import WebTopNav from '../../components/WebTopNav';
+import { PrivacyToggleButton } from '../../components/PrivacyToggleButton';
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -41,6 +42,12 @@ export default function TabsLayout() {
           headerStyle: { backgroundColor: colors.surface },
           headerTitleStyle: { color: colors.text, fontWeight: '700' },
           headerShadowVisible: false,
+          // Olhinho de privacidade em todas as abas (2026-09-11, achado
+          // real do Rilson) — um `headerRight` só, aqui no nível do
+          // `Tabs`, em vez de repetir em cada `Tabs.Screen`. A Home
+          // (`headerShown: false` abaixo) não é afetada — ela já tem o
+          // dela, próprio, no cabeçalho custom colorido.
+          headerRight: () => <PrivacyToggleButton />,
         }}
       >
       <Tabs.Screen

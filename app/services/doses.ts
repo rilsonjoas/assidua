@@ -99,7 +99,25 @@ export interface HistoryFilters {
   page?: number;
 }
 
-export async function getDoseHistory(profileId: number, filters: HistoryFilters = {}) {
+// Marcador de troca de fuso (2026-09-11, entrevista de decisões de
+// horário — ver ROADMAP.md, item 6/20) — devolvido junto do histórico
+// (chave nova no mesmo response, não uma tabela de dose_logs).
+export interface TimezoneChangeEntry {
+  old_timezone: string;
+  new_timezone: string;
+  changed_at: string;
+}
+
+export interface HistoryResponse {
+  data: DoseLog[];
+  timezone_changes: TimezoneChangeEntry[];
+  // Resto dos campos do paginador do Laravel (current_page, last_page,
+  // total...) — não tipados individualmente aqui, ninguém no app lê
+  // além de `data`/`timezone_changes` hoje.
+  [key: string]: unknown;
+}
+
+export async function getDoseHistory(profileId: number, filters: HistoryFilters = {}): Promise<HistoryResponse> {
   const { data } = await api.get(`/profiles/${profileId}/doses/history`, {
     params: { page: 1, ...filters },
   });

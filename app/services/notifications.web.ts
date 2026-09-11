@@ -4,6 +4,17 @@
 // Suporta a API nativa Notification do navegador para solicitar permissões
 // e exibir alertas de doses e estoque em desktops e navegadores.
 
+import { usePrivacyStore } from '../store/privacyStore';
+
+// Mesmo achado/mesma correção da versão nativa (2026-09-11) — ver
+// `services/notifications.ts` pro comentário completo. Duplicado aqui
+// (não extraído pra um arquivo `.ts` neutro) só porque as duas
+// implementações já divergem bastante no resto da função; o helper em
+// si é pequeno o bastante pra não valer a indireção.
+function maskedName(name: string): string {
+  return usePrivacyStore.getState().isPrivate ? 'seu remédio' : name;
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
@@ -14,6 +25,19 @@ export async function requestNotificationPermission(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// Banner de permissão (2026-09-11) — mesma assinatura da nativa.
+// `Notification.permission` do navegador já usa exatamente esses 3
+// valores ('granted'/'denied'/'default'), só 'default' precisa virar
+// 'undetermined' pra bater com o tipo compartilhado.
+export async function getNotificationPermissionStatus(): Promise<
+  'granted' | 'denied' | 'undetermined'
+> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'undetermined';
+  }
+  return Notification.permission === 'default' ? 'undetermined' : Notification.permission;
 }
 
 export function showWebNotification(title: string, options?: NotificationOptions): void {
@@ -40,8 +64,9 @@ export async function scheduleScheduleNotifications(params: {
   unit: string;
 }): Promise<void> {
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    showWebNotification(`Lembrete: ${params.medicationName}`, {
-      body: `Horário de tomar ${params.medicationName}${params.dosage ? ` (${params.dosage} ${params.unit})` : ''} - ${params.time}`,
+    const name = maskedName(params.medicationName);
+    showWebNotification(`Lembrete: ${name}`, {
+      body: `Horário de tomar ${name}${params.dosage ? ` (${params.dosage} ${params.unit})` : ''} - ${params.time}`,
       tag: `schedule_${params.scheduleId}`,
     });
   }
@@ -60,8 +85,11 @@ export async function scheduleRefillAlert(params: {
     'Notification' in window &&
     Notification.permission === 'granted'
   ) {
-    showWebNotification(`Aviso de Estoque Baixo: ${params.medicationName}`, {
-      body: `O remédio ${params.medicationName} está acabando (restam ${params.daysRemaining} dias).`,
+    const isPrivate = usePrivacyStore.getState().isPrivate;
+    const title = isPrivate ? 'Aviso de Estoque Baixo' : `Aviso de Estoque Baixo: ${params.medicationName}`;
+    const subject = isPrivate ? 'Um remédio' : params.medicationName;
+    showWebNotification(title, {
+      body: `${subject} está acabando (restam ${params.daysRemaining} dias).`,
       tag: `refill_${params.medicationId}`,
     });
   }
@@ -74,3 +102,10 @@ export async function registerPushToken(): Promise<void> {
 export async function cancelScheduleNotifications(scheduleId: number): Promise<void> {
   void scheduleId;
 }
+
+// No-op no web (2026-09-11) — sem contraparte da nativa: nada aqui fica
+// "agendado" no SO pra virar órfão, a notificação web é disparada na
+// hora (ver showWebNotification) e não persiste entre sessões. Existe
+// só pra manter a mesma assinatura importável de app/_layout.tsx nas
+// duas plataformas.
+export async function reconcileScheduledNotifications(): Promise<void> {}

@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 // Expo) pra travar o cálculo de ocorrências — os testes de tela mockam
 // o módulo inteiro e não pegariam uma regressão aqui.
 const mockScheduleNotificationAsync = jest.fn();
-const mockCancelScheduledNotificationAsync = jest.fn();
+const mockCancelScheduledNotificationAsync = jest.fn<(...args: unknown[]) => Promise<void>>();
 const mockGetAllScheduledNotificationsAsync = jest.fn<(...args: unknown[]) => Promise<{ identifier: string }[]>>();
 
 jest.mock('expo-notifications', () => ({
@@ -23,7 +23,19 @@ jest.mock('expo-notifications', () => ({
 }));
 jest.mock('expo-constants', () => ({ expoConfig: { extra: {} } }));
 
-import { scheduleScheduleNotifications, rescheduleTodayOccurrences } from '../services/notifications';
+// reconcileScheduledNotifications (2026-09-11) — busca perfis/remédios
+// via api.get/getMedications, não via módulo nativo; mock próprio,
+// controlado por teste, em vez de bater na rede de verdade.
+const mockApiGet = jest.fn<(url: string) => Promise<{ data: unknown }>>();
+jest.mock('../services/api', () => ({ api: { get: (url: string) => mockApiGet(url) } }));
+
+import {
+  scheduleScheduleNotifications,
+  rescheduleTodayOccurrences,
+  reconcileScheduledNotifications,
+  scheduleRefillAlert,
+} from '../services/notifications';
+import { usePrivacyStore } from '../store/privacyStore';
 
 describe('scheduleScheduleNotifications — modo intervalo', () => {
   beforeEach(() => {
@@ -194,5 +206,191 @@ describe('rescheduleTodayOccurrences', () => {
     expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_7_todayOverride_0');
     expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_7_todayOverride_1');
     expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalledWith('schedule_7_interval_0');
+  });
+});
+
+// Achado real do Rilson (2026-09-11): notificação chegando de remédio
+// que não existe mais na lista de hoje ("Vick Vaporub", "Dorflex",
+// "Pantoprazol" — nenhum dos 3 estava mais cadastrado). Causa raiz: o
+// gatilho DAILY do SO fica agendado pra sempre até alguém cancelar
+// explicitamente, e "excluir medicamento" só passou a cancelar a
+// partir de 08/09 — qualquer remédio apagado antes disso ficou com
+// notificação órfã. reconcileScheduledNotifications varre tudo
+// agendado no SO contra o estado real (todos os perfis da conta, não
+// só o ativo) e cancela o que sobrou.
+describe('reconcileScheduledNotifications', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('cancela notificação de schedule que não existe mais em nenhum perfil', async () => {
+    mockApiGet.mockImplementation(async (url: string) => {
+      if (url === '/profiles') return { data: [{ id: 1 }] };
+      // /profiles/1/medications — nenhum remédio tem mais o schedule 99
+      // (o "Vick Vaporub" do achado real: apagado, notificação ficou).
+      return { data: [] };
+    });
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'schedule_99_daily' },
+    ]);
+
+    await reconcileScheduledNotifications();
+
+    expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_99_daily');
+  });
+
+  it('não cancela notificação de schedule ativo de verdade', async () => {
+    mockApiGet.mockImplementation(async (url: string) => {
+      if (url === '/profiles') return { data: [{ id: 1 }] };
+      return {
+        data: [
+          {
+            id: 10,
+            is_active: true,
+            is_paused: false,
+            schedules: [{ id: 7, is_active: true }],
+          },
+        ],
+      };
+    });
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'schedule_7_daily' },
+    ]);
+
+    await reconcileScheduledNotifications();
+
+    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('cancela notificação de remédio pausado (is_paused true continua "existindo", mas não deveria mais avisar)', async () => {
+    mockApiGet.mockImplementation(async (url: string) => {
+      if (url === '/profiles') return { data: [{ id: 1 }] };
+      return {
+        data: [
+          { id: 10, is_active: true, is_paused: true, schedules: [{ id: 7, is_active: true }] },
+        ],
+      };
+    });
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'schedule_7_daily' },
+    ]);
+
+    await reconcileScheduledNotifications();
+
+    expect(mockCancelScheduledNotificationAsync).toHaveBeenCalledWith('schedule_7_daily');
+  });
+
+  it('considera schedules de TODOS os perfis da conta, não só um', async () => {
+    mockApiGet.mockImplementation(async (url: string) => {
+      if (url === '/profiles') return { data: [{ id: 1 }, { id: 2 }] };
+      if (url === '/profiles/1/medications') {
+        return { data: [{ id: 10, is_active: true, is_paused: false, schedules: [{ id: 7, is_active: true }] }] };
+      }
+      // Schedule do perfil 2 (ex.: paciente sob cuidado) — deve continuar
+      // avisando mesmo sem ser o perfil ativo na tela no momento.
+      return { data: [{ id: 20, is_active: true, is_paused: false, schedules: [{ id: 8, is_active: true }] }] };
+    });
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'schedule_7_daily' },
+      { identifier: 'schedule_8_daily' },
+    ]);
+
+    await reconcileScheduledNotifications();
+
+    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('não mexe em notificações que não são de schedule (ex.: refill_)', async () => {
+    mockApiGet.mockImplementation(async (url: string) => {
+      if (url === '/profiles') return { data: [{ id: 1 }] };
+      return { data: [] };
+    });
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([
+      { identifier: 'refill_10' },
+    ]);
+
+    await reconcileScheduledNotifications();
+
+    expect(mockCancelScheduledNotificationAsync).not.toHaveBeenCalled();
+  });
+});
+
+// "Modo Privacidade" também nas notificações (2026-09-11, achado real
+// do Rilson: a tela de bloqueio é a superfície mais exposta de todas,
+// e era a única coisa no app que ignorava o Modo Privacidade). Lê
+// `usePrivacyStore` no momento em que a notificação é AGENDADA — ver
+// comentário completo em `services/notifications.ts`.
+describe('Modo Privacidade — notificações não revelam o nome do remédio quando ligado', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetAllScheduledNotificationsAsync.mockResolvedValue([]);
+    mockCancelScheduledNotificationAsync.mockResolvedValue(undefined);
+    usePrivacyStore.setState({ isPrivate: false });
+  });
+
+  afterEach(() => {
+    usePrivacyStore.setState({ isPrivate: false });
+  });
+
+  it('scheduleScheduleNotifications: com o modo desligado, título mostra o nome real', async () => {
+    await scheduleScheduleNotifications({
+      scheduleId: 8, time: '08:00', days_of_week: null,
+      medicationName: 'Losartana', dosage: '50', unit: 'mg',
+    });
+
+    expect((mockScheduleNotificationAsync.mock.calls[0] as any)[0].content.title).toBe('Hora de tomar Losartana');
+  });
+
+  it('scheduleScheduleNotifications: com o modo ligado, título vira genérico (sem o nome)', async () => {
+    usePrivacyStore.setState({ isPrivate: true });
+
+    await scheduleScheduleNotifications({
+      scheduleId: 8, time: '08:00', days_of_week: null,
+      medicationName: 'Losartana', dosage: '50', unit: 'mg',
+    });
+
+    const title = (mockScheduleNotificationAsync.mock.calls[0] as any)[0].content.title;
+    expect(title).toBe('Hora de tomar seu remédio');
+    expect(title).not.toContain('Losartana');
+  });
+
+  it('rescheduleTodayOccurrences: com o modo ligado, título também vira genérico', async () => {
+    usePrivacyStore.setState({ isPrivate: true });
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T14:00:00.000Z'));
+
+    await rescheduleTodayOccurrences({
+      scheduleId: 7,
+      todayOccurrences: ['2026-08-08T18:00:00+00:00'],
+      medicationName: 'Losartana',
+      dosage: '50',
+      unit: 'mg',
+    });
+
+    const title = (mockScheduleNotificationAsync.mock.calls[0] as any)[0].content.title;
+    expect(title).not.toContain('Losartana');
+    jest.useRealTimers();
+  });
+
+  it('scheduleRefillAlert: com o modo desligado, título e corpo mostram o nome real', async () => {
+    await scheduleRefillAlert({
+      medicationId: 10, medicationName: 'Losartana', daysRemaining: 3, thresholdDays: 7,
+    });
+
+    const call = (mockScheduleNotificationAsync.mock.calls[0] as any)[0];
+    expect(call.content.title).toBe('Estoque acabando');
+    expect(call.content.body).toContain('Losartana');
+  });
+
+  it('scheduleRefillAlert: com o modo ligado, corpo vira genérico (sem o nome)', async () => {
+    usePrivacyStore.setState({ isPrivate: true });
+
+    await scheduleRefillAlert({
+      medicationId: 10, medicationName: 'Losartana', daysRemaining: 3, thresholdDays: 7,
+    });
+
+    const call = (mockScheduleNotificationAsync.mock.calls[0] as any)[0];
+    expect(call.content.body).not.toContain('Losartana');
+    expect(call.content.body).toContain('Um remédio vai acabar em 3 dias');
   });
 });

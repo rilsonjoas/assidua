@@ -39,6 +39,10 @@ describe('Contraste de cor — WCAG AA (auditoria 2026-08-14)', () => {
       ['onBrand', 'brand', AA_NORMAL],
       ['success', 'surface', AA_NORMAL],
       ['warning', 'surface', AA_NORMAL],
+      // "Atrasado" (2026-09-11, ver ROADMAP.md) — mesmo padrão do
+      // warning/success acima: usado como cor de texto/badge, precisa
+      // do mesmo mínimo.
+      ['delayed', 'surface', AA_NORMAL],
     ]);
   });
 
@@ -54,6 +58,7 @@ describe('Contraste de cor — WCAG AA (auditoria 2026-08-14)', () => {
       ['onBrand', 'brand', AA_NORMAL],
       ['success', 'surface', AA_NORMAL],
       ['warning', 'surface', AA_NORMAL],
+      ['delayed', 'surface', AA_NORMAL],
     ]);
   });
 
@@ -91,6 +96,7 @@ const AAA_PAIRS: [keyof ThemeColors, keyof ThemeColors, number][] = [
   ['onBrand', 'brand', AAA_NORMAL],
   ['success', 'surface', AAA_NORMAL],
   ['warning', 'surface', AAA_NORMAL],
+  ['delayed', 'surface', AAA_NORMAL],
   ['error', 'surface', AAA_NORMAL],
 ];
 

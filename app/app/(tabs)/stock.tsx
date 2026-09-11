@@ -23,6 +23,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
+import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
@@ -118,6 +119,7 @@ export default function StockScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <ProfileContextBar />
       {isLoading ? (
         <SkeletonList lines={2} />
       ) : (

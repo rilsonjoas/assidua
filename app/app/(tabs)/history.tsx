@@ -23,11 +23,12 @@ import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { generateConsultationReportHtml } from '../../lib/reportHtml';
 import { exportConsultationReportPdf } from '../../lib/reportPdf';
-import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, DoseLog, HistoryFilters } from '../../services/doses';
+import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, DoseLog, HistoryFilters, TimezoneChangeEntry } from '../../services/doses';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
+import { ProfileContextBar } from '../../components/ProfileContextBar';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
@@ -53,12 +54,29 @@ function sectionTitle(dateStr: string, lang: string, t: (key: string) => string)
   return format(date, DATE_FORMAT[lang] ?? DATE_FORMAT.pt, { locale });
 }
 
-function groupByDate(logs: DoseLog[], lang: string, t: (key: string) => string): { title: string; data: DoseLog[] }[] {
-  const map = new Map<string, DoseLog[]>();
+// Linha do Histórico — dose ou evento de sistema (2026-09-11, entrevista
+// de decisões de horário — ver ROADMAP.md, item 6/20). "Misturado no
+// feed do Histórico" — intercalado por data, não numa seção à parte.
+export type HistoryRow =
+  | { kind: 'dose'; id: string | number; log: DoseLog }
+  | { kind: 'timezoneChange'; id: string; entry: TimezoneChangeEntry };
+
+function groupByDate(
+  logs: DoseLog[],
+  timezoneChanges: TimezoneChangeEntry[],
+  lang: string,
+  t: (key: string) => string,
+): { title: string; data: HistoryRow[] }[] {
+  const map = new Map<string, HistoryRow[]>();
   for (const log of logs) {
     const key = log.scheduled_at.slice(0, 10);
     if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(log);
+    map.get(key)!.push({ kind: 'dose', id: log.id, log });
+  }
+  for (const entry of timezoneChanges) {
+    const key = entry.changed_at.slice(0, 10);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push({ kind: 'timezoneChange', id: `tz-${entry.changed_at}`, entry });
   }
   return Array.from(map.entries()).map(([date, data]) => ({
     title: sectionTitle(date + 'T00:00:00', lang, t),
@@ -148,7 +166,11 @@ export default function HistoryScreen() {
   });
 
   const logs: DoseLog[] = data?.data ?? [];
-  const sections = useMemo(() => groupByDate(logs, i18n.language, t), [logs, i18n.language]);
+  const timezoneChanges: TimezoneChangeEntry[] = data?.timezone_changes ?? [];
+  const sections = useMemo(
+    () => groupByDate(logs, timezoneChanges, i18n.language, t),
+    [logs, timezoneChanges, i18n.language],
+  );
 
   const takenCount = logs.filter((l) => l.status === 'taken').length;
   const totalCount = logs.length;
@@ -246,6 +268,7 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
+      <ProfileContextBar />
       <SectionList
         sections={sections}
         keyExtractor={(item) => String(item.id)}
@@ -386,7 +409,30 @@ export default function HistoryScreen() {
           </View>
         )}
         renderItem={({ item }) => {
-          const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.missed;
+          // Marcador de troca de fuso (2026-09-11, item 6/20) — evento de
+          // sistema, não uma dose; linha visualmente diferente (sem
+          // horário/status de dose, ícone próprio), mas no MESMO feed.
+          if (item.kind === 'timezoneChange') {
+            const { entry } = item;
+            return (
+              <View
+                style={styles.timezoneChangeRow}
+                accessible
+                accessibilityLabel={t('history.timezoneChangeLabel', {
+                  old: entry.old_timezone,
+                  new: entry.new_timezone,
+                })}
+              >
+                <MaterialCommunityIcons name="earth" size={16} color={colors.textMuted} />
+                <Text style={styles.timezoneChangeText}>
+                  {t('history.timezoneChangeText', { old: entry.old_timezone, new: entry.new_timezone })}
+                </Text>
+              </View>
+            );
+          }
+
+          const log = item.log;
+          const cfg = STATUS_CONFIG[log.status] ?? STATUS_CONFIG.missed;
           // Bug real reportado pelo Rilson (2026-09-09): dose registrada
           // via "Outro horário" (horário diferente do agendado) mostrava
           // aqui o horário AGENDADO original, nunca o horário real digitado
@@ -395,17 +441,17 @@ export default function HistoryScreen() {
           // existe pra toda dose tomada (inclusive as no horário certo,
           // onde os dois batem quase sempre) — mostrar ele quando existir
           // é sempre mais correto que o agendado.
-          const time = item.status === 'taken' && item.taken_at
-            ? format(parseISO(item.taken_at), 'HH:mm')
-            : format(parseISO(item.scheduled_at), 'HH:mm');
-          const maskedName = maskMedicationName(item.medication.name, isPrivate);
+          const time = log.status === 'taken' && log.taken_at
+            ? format(parseISO(log.taken_at), 'HH:mm')
+            : format(parseISO(log.scheduled_at), 'HH:mm');
+          const maskedName = maskMedicationName(log.medication.name, isPrivate);
           return (
             <View
               style={styles.row}
               accessible
               accessibilityLabel={t('history.rowLabel', {
                 name: maskedName,
-                dosageUnit: formatDosageUnit(item.medication.dosage, item.medication.unit),
+                dosageUnit: formatDosageUnit(log.medication.dosage, log.medication.unit),
                 time,
                 status: cfg.label,
               })}
@@ -413,11 +459,11 @@ export default function HistoryScreen() {
               <View style={styles.timeBox}>
                 <Text style={styles.time}>{time}</Text>
               </View>
-              <View style={[styles.colorBar, { backgroundColor: item.medication.color }]} />
+              <View style={[styles.colorBar, { backgroundColor: log.medication.color }]} />
               <View style={styles.rowBody}>
                 <Text style={styles.medName}>{maskedName}</Text>
                 <Text style={styles.dosage}>
-                  {formatDosageUnit(item.medication.dosage, item.medication.unit)}
+                  {formatDosageUnit(log.medication.dosage, log.medication.unit)}
                 </Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: cfg.color + '1f' }]}>
@@ -665,6 +711,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.background,
     },
     pickerCancelText: { fontSize: 15, fontWeight: '700', color: c.textMuted },
+    // Marcador de troca de fuso (2026-09-11) — linha discreta, sem o
+    // aparato de horário/status de uma dose (não é uma dose), mas
+    // sempre no mesmo feed por data.
+    timezoneChangeRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingVertical: 10, paddingHorizontal: 4,
+    },
+    timezoneChangeText: { fontSize: 13, color: c.textMuted, flex: 1 },
     list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
     listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 8 },
     sectionHeaderBox: {

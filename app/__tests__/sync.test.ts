@@ -4,6 +4,7 @@ import { drainQueue, isNetworkError } from '../services/sync';
 import { enqueueLog, enqueueUndo, listPending } from '../services/offlineQueue';
 import { logDose, undoDose } from '../services/doses';
 import { queryClient } from '../services/queryClient';
+import { useToastStore } from '../store/toastStore';
 
 const resetMockDb = (SQLite as any).__resetMockDb as () => void;
 
@@ -91,7 +92,7 @@ describe('services/sync — drena a fila offline (2026-08-17)', () => {
     expect((remaining[0].payload as any).dose_schedule_id).toBe(2); // ordem preservada
   });
 
-  it('erro real do servidor descarta só aquela ação e segue pras próximas', async () => {
+  it('erro real do servidor não desiste na primeira — mantém na fila pra tentar de novo', async () => {
     await enqueueLog({ dose_schedule_id: 1, medication_id: 10, profile_id: 100, scheduled_at: 'a', status: 'taken' });
     await enqueueLog({ dose_schedule_id: 2, medication_id: 11, profile_id: 100, scheduled_at: 'b', status: 'taken' });
 
@@ -101,9 +102,60 @@ describe('services/sync — drena a fila offline (2026-08-17)', () => {
 
     const result = await drainQueue();
 
-    expect(result).toEqual({ synced: 1, failed: 1 });
+    // Retry limitado (2026-09-11, achado real do Rilson: dose não pode
+    // se perder silenciosamente) — 1 falha não conta como desistência
+    // ainda, só quando esgota MAX_RETRIES (ver testes abaixo).
+    expect(result).toEqual({ synced: 1, failed: 0 });
     expect(mockedLogDose).toHaveBeenCalledTimes(2); // não travou na primeira
-    expect(await listPending()).toHaveLength(0); // as duas saíram da fila
+    const remaining = await listPending();
+    expect(remaining).toHaveLength(1); // a que falhou continua na fila
+    expect(remaining[0].retry_count).toBe(1);
+  });
+
+  // "Isso é importante" — pergunta direta do Rilson: uma ação que
+  // falhou uma vez por erro real do servidor ainda sincroniza se a
+  // causa era passageira (servidor engasgado) e uma tentativa seguinte
+  // já funciona.
+  it('uma ação que falhou 1x com erro real ainda sincroniza numa tentativa seguinte, antes de esgotar', async () => {
+    await enqueueLog({ dose_schedule_id: 1, medication_id: 10, profile_id: 100, scheduled_at: 'a', status: 'taken' });
+
+    mockedLogDose.mockRejectedValueOnce(serverError(500));
+    const first = await drainQueue();
+    expect(first).toEqual({ synced: 0, failed: 0 });
+    expect(await listPending()).toHaveLength(1);
+
+    mockedLogDose.mockResolvedValueOnce({ id: 1 } as any);
+    const second = await drainQueue();
+
+    expect(second).toEqual({ synced: 1, failed: 0 });
+    expect(await listPending()).toHaveLength(0);
+  });
+
+  it('desiste de vez só depois de esgotar MAX_RETRIES tentativas, e avisa (toast)', async () => {
+    const showToastSpy = jest.spyOn(useToastStore.getState(), 'showToast');
+    await enqueueLog({ dose_schedule_id: 1, medication_id: 10, profile_id: 100, scheduled_at: 'a', status: 'taken' });
+
+    // MAX_RETRIES = 3 — falha 3 vezes seguidas, cada uma na sua própria
+    // sincronização (retry não é em sequência na mesma chamada).
+    mockedLogDose.mockRejectedValue(serverError(500));
+
+    const r1 = await drainQueue();
+    expect(r1).toEqual({ synced: 0, failed: 0 });
+    expect(showToastSpy).not.toHaveBeenCalled(); // ainda tentando, não é notícia pra ninguém
+
+    const r2 = await drainQueue();
+    expect(r2).toEqual({ synced: 0, failed: 0 });
+    expect(showToastSpy).not.toHaveBeenCalled();
+
+    const r3 = await drainQueue();
+    expect(r3).toEqual({ synced: 0, failed: 1 }); // 3ª tentativa esgota, desiste de vez
+
+    expect(await listPending()).toHaveLength(0);
+    expect(showToastSpy).toHaveBeenCalledTimes(1);
+    expect(showToastSpy).toHaveBeenCalledWith(
+      '1 registro não sincronizou depois de várias tentativas — pode ter se perdido, confira',
+      { haptic: false },
+    );
   });
 
   it('undo pendente que recebe 404 (já não existe mais) é tratado como sincronizado, não como erro', async () => {

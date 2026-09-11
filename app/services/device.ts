@@ -29,20 +29,40 @@ export function getDeviceLanguage(): SupportedLanguage {
   }
 }
 
+export interface ProfileTimezoneChangeResult {
+  profileId: number;
+  oldTimezone: string;
+  newTimezone: string;
+}
+
 // Autocorreção pra quem já tinha perfil antes desta feature existir (todos
 // nasceram com o default 'America/Sao_Paulo' na migration). Chamada no
 // carregamento da tela Hoje, best-effort — não trava o app se falhar.
 // Só perfis próprios: não faz sentido o dispositivo de um cuidador
 // sobrescrever o fuso do paciente que ele só está visitando/acompanhando.
+//
+// Devolve o que REALMENTE mudou (2026-09-11, entrevista de decisões de
+// horário — ver ROADMAP.md, item 1/6) — antes era silencioso (efeito
+// colateral escondido, sem nenhum jeito da tela saber que algo mudou).
+// Princípio do Rilson: "transparência total" — o chamador usa isto pra
+// mostrar um toast na hora (o backend grava o marcador permanente do
+// Histórico sozinho, ver ProfileController::update).
 export async function syncOwnedProfileTimezones(
   profiles: Array<{ id: number; is_owner?: boolean; timezone?: string }>,
-): Promise<void> {
+): Promise<ProfileTimezoneChangeResult[]> {
   const deviceTz = getDeviceTimezone();
   const stale = profiles.filter((p) => p.is_owner !== false && p.timezone !== deviceTz);
 
-  await Promise.all(
-    stale.map((p) =>
-      api.put(`/profiles/${p.id}`, { timezone: deviceTz }).catch(() => {}),
-    ),
+  const results = await Promise.all(
+    stale.map(async (p) => {
+      try {
+        await api.put(`/profiles/${p.id}`, { timezone: deviceTz });
+        return { profileId: p.id, oldTimezone: p.timezone!, newTimezone: deviceTz };
+      } catch {
+        return null;
+      }
+    }),
   );
+
+  return results.filter((r): r is ProfileTimezoneChangeResult => r !== null);
 }

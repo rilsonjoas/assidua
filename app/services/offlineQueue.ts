@@ -33,6 +33,12 @@ export interface PendingAction {
   type: 'log' | 'undo';
   payload: LogActionPayload | UndoActionPayload;
   created_at: string;
+  // Retry limitado (2026-09-11, achado real do Rilson: dose descartada
+  // silenciosamente num erro real do servidor, sem tentar de novo nem
+  // avisar ninguém) — conta quantas vezes esta ação JÁ falhou com erro
+  // real (não falta de rede, essa já reintenta sozinha via
+  // `startAutoSync`/NetInfo). Ver `services/sync.ts`.
+  retry_count: number;
 }
 
 const DB_NAME = 'offline_queue.db';
@@ -49,6 +55,17 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
           created_at TEXT NOT NULL
         );
       `);
+      // Migração local (2026-09-11) — quem já tinha o app instalado
+      // antes disto tem a tabela SEM esta coluna; `ADD COLUMN` falha
+      // com "duplicate column" se já existir (reinstalação/segunda
+      // abertura), por isso o try/catch — mesmo padrão simples de
+      // migração local que outros apps RN/SQLite usam, sem precisar de
+      // framework de migração só pra 1 coluna nova.
+      try {
+        await db.execAsync('ALTER TABLE pending_actions ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;');
+      } catch {
+        // Coluna já existe — instalação que já tinha passado por aqui antes.
+      }
       return db;
     });
   }
@@ -107,20 +124,35 @@ export async function hasPendingLog(doseScheduleId: number, scheduledAt: string)
 
 export async function listPending(): Promise<PendingAction[]> {
   const db = await getDb();
-  const rows = await db.getAllAsync<{ local_id: number; type: 'log' | 'undo'; payload: string; created_at: string }>(
-    'SELECT local_id, type, payload, created_at FROM pending_actions ORDER BY local_id ASC',
-  );
+  const rows = await db.getAllAsync<{
+    local_id: number;
+    type: 'log' | 'undo';
+    payload: string;
+    created_at: string;
+    retry_count: number;
+  }>('SELECT local_id, type, payload, created_at, retry_count FROM pending_actions ORDER BY local_id ASC');
   return rows.map((r) => ({
     local_id: r.local_id,
     type: r.type,
     payload: JSON.parse(r.payload),
     created_at: r.created_at,
+    retry_count: r.retry_count,
   }));
 }
 
 export async function removePending(localId: number): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM pending_actions WHERE local_id = ?', localId);
+}
+
+// Retry limitado (2026-09-11) — chamado só quando a ação chegou a ter
+// resposta do servidor e foi um erro REAL (não falta de rede). Mantém
+// na fila (não remove) pra tentar de novo na próxima sincronização —
+// `services/sync.ts` decide quando desistir de vez com base neste
+// contador.
+export async function incrementRetryCount(localId: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE pending_actions SET retry_count = retry_count + 1 WHERE local_id = ?', localId);
 }
 
 export async function pendingCount(): Promise<number> {

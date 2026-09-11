@@ -18,6 +18,7 @@ import { getMedications, formatDosageUnit, LOW_STOCK_DAYS_THRESHOLD } from '../.
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
+import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 
@@ -68,6 +69,7 @@ export default function MedicationsScreen() {
 
   return (
     <View style={styles.container}>
+      <ProfileContextBar />
       {!isLoading && medications.length > 0 && (
         <View style={styles.sortRow}>
           {SORT_OPTIONS.map((option) => {

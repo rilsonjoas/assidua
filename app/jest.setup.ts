@@ -126,17 +126,24 @@ jest.mock('react-native-purchases', () => ({
 // faz (INSERT/SELECT/DELETE/COUNT numa tabela só), sem precisar de
 // SQLite nativo de verdade rodando no runner de CI.
 jest.mock('expo-sqlite', () => {
-  let rows: Array<{ local_id: number; type: string; payload: string; created_at: string }> = [];
+  let rows: Array<{ local_id: number; type: string; payload: string; created_at: string; retry_count: number }> = [];
   let nextId = 1;
   const db = {
     execAsync: jest.fn(async () => {}),
     runAsync: jest.fn(async (sql: string, ...params: any[]) => {
       if (sql.startsWith('INSERT')) {
         const [type, payload, created_at] = params;
-        rows.push({ local_id: nextId++, type, payload, created_at });
+        // retry_count (2026-09-11) — mesmo default `0` da coluna real
+        // (`INTEGER NOT NULL DEFAULT 0`), nunca inserido explicitamente
+        // pelo código (só a migração declara o default).
+        rows.push({ local_id: nextId++, type, payload, created_at, retry_count: 0 });
       } else if (sql.startsWith('DELETE')) {
         const [localId] = params;
         rows = rows.filter((r) => r.local_id !== localId);
+      } else if (sql.startsWith('UPDATE') && sql.includes('retry_count')) {
+        const [localId] = params;
+        const row = rows.find((r) => r.local_id === localId);
+        if (row) row.retry_count += 1;
       }
     }),
     getAllAsync: jest.fn(async (sql: string) => {
@@ -164,5 +171,21 @@ jest.mock('@sentry/react', () => ({
   init: jest.fn(),
   captureException: jest.fn(),
 }));
+
+// Picker nativo de horário (2026-09-11) — módulo nativo, não existe no
+// ambiente de teste. Mock repassa TODAS as props (`value`, `onChange`,
+// `testID`...) direto pra um `View` — testes leem `.props.value` pra
+// checar o valor pré-preenchido e disparam `fireEvent(picker, 'change',
+// event, date)` pra simular a escolha, sem precisar de um diálogo
+// nativo de verdade.
+jest.mock('@react-native-community/datetimepicker', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props: any) =>
+      React.createElement(View, { ...props, testID: props.testID ?? 'mock-datetimepicker' }),
+  };
+});
 
 

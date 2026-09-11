@@ -1,5 +1,528 @@
 # Roadmap — Meus Remédios
 
+## 🔔👤 Mais 2 melhorias de UI/UX propostas e aprovadas (2026-09-11) — ✅ implementado, ⏸️ NÃO publicado
+
+> Depois do "Modo Privacidade" em todas as abas (seção abaixo), pedido
+> do Rilson: "Que outras melhorias de ui/ux você pode propor? Umas 3+
+> por favor." — 3 achados reais (código lido, não inventado), propostas
+> de UI feitas antes de implementar (`grill-me`, 3 perguntas), as 2 que
+> precisavam de decisão aprovadas com as opções recomendadas.
+
+**1. Notificações respeitando o Modo Privacidade** — antes, toda
+notificação (lembrete de dose, alerta de estoque) sempre mostrava o
+nome real do remédio, mesmo com o Modo Privacidade ligado — a
+superfície mais exposta de todas (tela de bloqueio, sem precisar
+desbloquear). Decisões aprovadas: mesmo toggle (`isPrivate`), sem
+configuração nova; texto só atualiza no próximo reagendamento natural
+(editar remédio/horário), sem forçar reagendar tudo na hora do toggle.
+- [x] `services/notifications.ts` (nativo) e `.web.ts`: título do
+      lembrete de dose vira "Hora de tomar seu remédio" (sem nome);
+      corpo do alerta de estoque vira "Um remédio vai acabar em X
+      dias..." — lido direto de `usePrivacyStore.getState()` no
+      momento do agendamento.
+- [x] Testes novos: `notifications.test.ts` (+5 casos, nativo),
+      `notifications.web.test.ts` (+3 casos, mock de `window.Notification`
+      já que o ambiente de teste não tem a API real).
+
+**2. Aviso "Cuidando de {{nome}}" + troca de perfil em todas as abas**
+— antes só a Home avisava de quem eram os dados vistos e só Home/Perfil
+deixavam trocar de perfil; Histórico/Remédios/Estoque não tinham nem
+aviso nem troca (mesmo risco de confusão "é meu remédio ou da minha
+mãe?" que o banner da Home já existia pra evitar, sem cobertura ali).
+Escopo aprovado: aviso + seletor de perfil juntos (não só o aviso).
+- [x] `ProfileContextBar` novo (`components/`), extraído da Home —
+      mesma lógica/texto, cores neutras de tema (o cabeçalho das
+      outras abas é claro, não o roxo próprio da Home). Só aparece
+      quando tem algo real pra mostrar (é cuidador OU mais de 1
+      perfil) — Home mantém a versão dela, própria, sempre visível.
+- [x] Plugado em Remédios/Histórico/Estoque. Perfil NÃO recebeu (já
+      tem a lista completa de perfis própria, mais rica — duplicar
+      seria clutter, não ajuda).
+- [x] Testes novos: `profile-context-bar.test.tsx` (5 casos: nada com
+      1 perfil só, aviso de cuidador, chips com 2+ perfis, troca ao
+      tocar, `accessibilityState.selected` correto).
+
+**Achado extra durante a implementação**: `scheduleRefillAlert` nunca
+tinha teste no arquivo nativo (`notifications.test.ts`) antes de hoje —
+mock de `cancelScheduledNotificationAsync` sem `mockResolvedValue`
+quebrava na primeira chamada real à função. Corrigido junto.
+
+- [x] Suíte completa depois de tudo isso: 48/48 suites, 382/382
+      testes, `tsc --noEmit` limpo.
+
+## 👁️ "Modo Privacidade" em todas as abas (2026-09-11) — ✅ implementado, ⏸️ NÃO publicado
+
+> Achado real do Rilson: "o olhinho para esconder ou mostrar nomes de
+> remédios só aparece na tela de hoje, o usuário tem que voltar lá para
+> ativar de novo. Não tem como deixar nas outras telas? Aliás, o
+> objetivo daquele olhinho está claro para os usuários?" — proposta
+> feita antes de implementar (2 perguntas via `grill-me`), aprovada com
+> as duas opções recomendadas.
+
+- [x] O ESTADO (`isPrivate`) já era global/persistido — todas as telas
+      já liam o mesmo store. O problema real era só o CONTROLE: existia
+      apenas no cabeçalho custom da Home.
+- [x] `PrivacyToggleButton` novo, plugado uma vez só em
+      `screenOptions.headerRight` do layout das abas — aparece agora em
+      Remédios/Histórico/Estoque/Perfil também (Home mantém o dela,
+      própria, no cabeçalho colorido).
+- [x] Linha "Modo Privacidade" nova em Perfil → "Privacidade e
+      Segurança" (mesmo padrão visual do Alto Contraste/Bloqueio
+      biométrico) — fecha a string `profile.privacyMode` que já
+      existia no i18n mas nunca tinha virado UI de verdade. Seção
+      passa a aparecer sempre (antes só existia se o bloqueio
+      biométrico fosse suportado pelo aparelho).
+- [x] Toast explicativo só na PRIMEIRA vez que a pessoa mexe no
+      olhinho, de qualquer um dos lugares (`togglePrivacyWithHint`,
+      `lib/privacy.ts`, flag `hasSeenPrivacyToggleHint` persistida) —
+      nunca mais depois disso.
+- [x] `accessibilityState={{ checked }}` + `accessibilityRole="switch"`
+      alinhados em todos os lugares (o da Home não anunciava estado
+      antes).
+- [x] **Achado extra revisando o código** (mesma categoria, achado
+      sozinho): `home.skippedLabel` (rótulo de acessibilidade do botão
+      "Pulado") usava `item.medication.name` cru em vez de
+      `maskedName` — leitor de tela dizia o nome real do remédio mesmo
+      com o Modo Privacidade ligado. Corrigido.
+- [x] Testes novos: `privacy.test.ts` (toast só na primeira vez, 3
+      casos); `profile-collaborators.test.tsx` ajustado (query
+      `getByText('Desativado')` deixou de ser única na tela com a
+      seção sempre visível — escopado com `within()`).
+- [x] Suíte completa: 47/47, 369/369, `tsc --noEmit` limpo.
+
+## 🔒 Auditoria de segurança pré-build (2026-09-11) — em andamento, ⏸️ NÃO publicada
+
+> O Rilson perguntou "está tudo testado? documentado? seguro? vale a
+> pena gerar o APK?" — resposta honesta foi "os testes automatizados
+> cobrem o que dá pra cobrir sem um build nativo real; segurança não
+> tinha sido auditada de propósito ainda". Ele pediu pra rodar a
+> auditoria antes do build ("Sim, rode a auditoria, e depois seguimos
+> para o build").
+
+- [x] **Achado real — corrida de reidratação no `privacyStore`
+      (bloqueio biométrico "falha aberta")**: `BiometricLockScreen` lia
+      `isBiometricsEnabled` direto do `usePrivacyStore`, sem esperar o
+      `zustand-persist` terminar de reidratar do AsyncStorage
+      (assíncrono — mesma classe de bug já achada e corrigida uma vez
+      neste projeto, em `onboardingStore.ts`). No intervalo entre o app
+      abrir e a reidratação terminar, o valor em memória é o default
+      `false` — alguém que tinha o bloqueio biométrico LIGADO de
+      verdade podia ver uma fresta real do app (dados de saúde) antes
+      do bloqueio "descobrir" que devia travar. Corrigido com o mesmo
+      padrão de `hasHydrated`/`onRehydrateStorage` já usado em
+      `onboardingStore.ts`: `BiometricLockScreen` agora represa a
+      decisão (`readyToDecide`) até os dois stores persistidos
+      hidratarem, cobrindo a tela (sem ainda pedir biometria) nesse
+      meio-tempo em vez de arriscar mostrar o app — falha FECHADA, não
+      aberta. Arquivos: `store/privacyStore.ts`,
+      `components/BiometricLockScreen.tsx`. Testado:
+      `biometric-lock-screen.test.tsx`, 6/6 passando depois da mudança.
+- [x] Revisão de autorização em todos os controllers do backend
+      (`api/app/Http/Controllers/*.php`): todo endpoint que expõe um
+      recurso de um perfil/remédio/dose/schedule específico passa por
+      `Gate::authorize` (policies já existentes) antes de tocar no
+      dado; `PushTokenController::store` escopa por `user()->id` do
+      token autenticado; `DataExportController` usa URL assinada com
+      expiração curta (LGPD, portabilidade) — id embutido na própria
+      assinatura, não confiável sem ela; `ProfileCollaboratorController
+      ::accept` valida convite pendente/não-expirado antes de
+      qualquer coisa; `RevenueCatWebhookController` compara o secret
+      com `hash_equals` (tempo constante, já corrigido em auditoria
+      anterior de 2026-09-08). Nenhum achado novo aqui.
+- [x] Checado SQL/SQLite injection nas mudanças novas desta sessão
+      (`offlineQueue.ts`, migração `retry_count`) — tudo via query
+      parametrizada, nenhuma interpolação de string. Nenhum achado.
+- [x] Revisão de config de build (`eas.json`/`app.json`) —
+      `appVersionSource: "remote"` (sem bump manual necessário),
+      `runtimeVersion.policy: "appVersion"`. Sem achados.
+- [ ] Reportar auditoria completa pro Rilson e aguardar confirmação
+      antes do `eas build` (instrução dele: "rode a auditoria, e depois
+      seguimos para o build" — sequencial, não simultâneo).
+
+## 🆕 "Tomei antes da hora" (2026-09-11) — ✅ implementado, ⏸️ NÃO publicado
+
+> Achado real do Rilson usando o app: tocar "Tomei" numa dose ainda
+> longe no futuro (ex.: remédio das 20h, tocado às 17h) simplesmente
+> gravava o horário AGENDADO como tomado, sem perguntar nada — só o
+> lado ATRASADO tinha a oferta de "quer adiantar o horário de hoje/
+> sempre?" (ver seção "Rodada de transparência" abaixo). Pergunta dele:
+> "Se eu clicar em Tomei antes da hora ele não deveria me perguntar se
+> eu quero adiantar a hora hoje e outros dias? Deveria."
+
+- [x] Nova função `isEarly()` (espelha `isDelayed()`, mesmo limiar de
+      30min já decidido pra "diferença grande o bastante pra valer a
+      pena perguntar" — vale nos dois sentidos, não só atraso).
+- [x] `handleTakePress` agora abre o modal "Outro horário" (em vez de
+      marcar direto) tanto pra Atrasado quanto pra Adiantado 30min+;
+      chip "No horário previsto" também fixado nos dois casos.
+- [x] Toda a infraestrutura de recálculo ("só hoje"/"pra sempre",
+      diálogo, endpoint `recalculate-today`, `PUT /schedules/{id}`) já
+      era 100% direction-agnostic (usa diferença absoluta / `time` cru)
+      — zero mudança de backend precisou, só o roteamento no frontend
+      que faltava.
+- [x] Testes novos em `home.test.tsx` (describe "Tomei numa dose muito
+      adiantada"): abre modal em vez de marcar direto; "Agora" oferece
+      o diálogo de recalcular; "No horário previsto" continua gravando
+      o horário agendado sem oferecer recalcular.
+
+## 🗣️ Rodada de transparência/UX pós-implementação (2026-09-11) — ✅ concluída, ⏸️ NÃO publicada
+
+> A pedido do Rilson, depois de fechar a entrevista de decisões de
+> horário: revisão do app inteiro com a lente de "transparência total +
+> mínimo de builds de APK possíveis" (motivo dele: custo — cada build
+> EAS não é de graça). Achados reais no código (não suposição), cada um
+> virando uma decisão registrada aqui.
+
+1. **Terminologia "Não tomado" vs. "Perdido"** — achado: o Histórico já
+   usava `"filterMissed": "Não tomado"` pro status `missed`, diferente
+   do "Perdido" que eu tinha acabado de colocar na Home no mesmo dia.
+   **Decisão do Rilson: "Não tomado" é mais claro pra audiência em
+   português — alinhar os dois pra essa palavra.** ✅ Implementado: Home
+   agora reusa a MESMA chave i18n que o Histórico (`history.filterMissed`),
+   não uma cópia — não tem mais como as duas telas divergirem de novo
+   sem ninguém perceber (foi exatamente isso que causou a inconsistência
+   original). Textos dos diálogos ("Continua perdida" etc.) também
+   ajustados pt/en/es. Testado (`home.test.tsx`).
+2. **Permissão de notificação negada era invisível pra sempre** —
+   achado: só pedida 1x no onboarding, nunca mais checada; negar ou
+   revogar depois nas configs do aparelho parava os lembretes sem
+   nenhum aviso em lugar nenhum. **Decisão do Rilson: "Sim, ative isso.
+   E explique para o usuário como ativar."** ✅ Implementado:
+   `NotificationPermissionBanner` novo (mesma posição/padrão visual do
+   `OfflineBanner` já existente), reconsulta a permissão sempre que o
+   app volta a ficar ativo (`AppState`, não só no boot — pega quem
+   revogou enquanto o app estava em segundo plano). Toque no banner
+   explica o passo a passo e abre as Configurações do aparelho direto
+   (`Linking.openSettings()`). `getNotificationPermissionStatus` novo
+   em `services/notifications.ts`/`.web.ts`. Testado (6/6,
+   `notification-permission-banner.test.tsx`).
+3. **Dose perdida no offline sync, sem avisar ninguém** — achado: dose
+   registrada offline que falha ao sincronizar por erro REAL do
+   servidor (não falta de rede) era descartada silenciosamente, só um
+   `console.error` que ninguém via; o contador `failed` já existia num
+   store (`syncStore`) mas nada na tela lia ele. Rilson perguntou
+   explicitamente se o sync automático ao reconectar já existia —
+   **confirmado no código: sim** (`startAutoSync`, `NetInfo.addEventListener`
+   persistente, drena a fila toda vez que a conexão volta, durante toda
+   a sessão). **Decisão do Rilson: "vá pelo recomendado" (retry
+   limitado) + garantir que nenhum dado se perca silenciosamente.**
+   ✅ Implementado: retry de até 3 tentativas (uma por sincronização,
+   não em sequência — evita bater no servidor repetido pro mesmo erro
+   em segundos) antes de desistir de vez; erro de REDE continua
+   reintentando pra sempre como já era (sem limite, resolve sozinho ao
+   reconectar). Só avisa (toast) na desistência DEFINITIVA, nunca numa
+   tentativa que ainda vai repetir — sincronização com sucesso continua
+   silenciosa. Migração local nova (`retry_count` na tabela SQLite do
+   device, `ALTER TABLE` com fallback pra quem já tinha o app
+   instalado). Testado (`sync.test.ts`, incluindo prova de que uma
+   falha isolada ainda sincroniza numa tentativa seguinte, antes de
+   esgotar).
+4. **Bloqueio biométrico (`services/biometrics.ts`) construído, nunca
+   conectado a nenhuma tela** — achado ao auditar dependências nativas
+   pendentes de build; o toggle (`isBiometricsEnabled`) também já
+   existia pronto no `privacyStore`, igualmente nunca lido em lugar
+   nenhum. **Decisão do Rilson: retomar e conectar, "com todo cuidado e
+   teste possível" — só trava na ABERTURA do app (não a cada volta de
+   segundo plano), toggle em Perfil (nova seção "Privacidade e
+   Segurança", ao lado do "Modo Privacidade" que já existe — "se
+   colocamos é para a privacidade, não é? Faz todo sentido"), sem
+   brecha nenhuma se a autenticação falhar.** ✅ Implementado:
+   `BiometricLockScreen` novo (overlay de tela cheia, mesmo padrão do
+   `PrivacyBlur`/`OfflineBanner` já existentes), só ativa com usuário
+   logado + onboarding completo (não trava a tela de login, que não tem
+   nada sensível ainda); toggle escondido por completo em aparelhos sem
+   biometria configurada (mostrar um toggle que não protege nada de
+   verdade seria sua própria quebra de transparência). Fallback pra
+   PIN/senha do aparelho já vem de graça do `authenticateWithBiometrics`
+   existente. Testado (6/6, `biometric-lock-screen.test.tsx`, cobrindo
+   os 4 cenários de quando trava/não trava + sucesso + falha com retry).
+5. **Fricção do fluxo "Tomei numa dose Atrasada"** — Rilson perguntou se
+   existia UI melhor que o diálogo de 2 botões + reabrir "Outro
+   horário" (até 3 toques pro caso comum e trivial). Proposta: fundir
+   os dois — "Tomei" numa dose Atrasada abre o modal "Outro horário"
+   DIRETO, que ganha "No horário previsto (HH:mm)" fixado e destacado
+   acima do grid de atalhos de sempre (mesmas 2 escolhas de antes,
+   nenhuma opção a menos). **Decisão do Rilson: "vá no recomendado".**
+   ✅ Implementado: diálogo separado removido, `handleTakePress`
+   redireciona pro modal já existente; testado (`home.test.tsx`,
+   incluindo prova de que o botão NÃO aparece numa dose que não está
+   atrasada).
+
+**Suítes verdes depois de tudo isso**: frontend 47/47 (363/363 testes),
+`tsc --noEmit` limpo. Backend não foi tocado nesta rodada (todos os 5
+itens são só frontend). Nada commitado/buildado/publicado ainda — só o
+picker de horário de mais cedo hoje precisa de build nativo; o
+bloqueio biométrico TAMBÉM precisa (`expo-local-authentication`, já
+instalado desde antes mas nunca ativado num build de verdade) — os
+dois podem entrar juntos no mesmo build quando aprovado. Todo o resto
+(retry de sync, banner de notificação, terminologia, fusão de UI) é JS
+puro, pode ir via `eas update` a qualquer momento.
+
+---
+
+## 🗣️ Entrevista de decisões de horário (skill `grilling`, 2026-09-11) — em andamento, nada implementado ainda
+
+> A pedido do Rilson: usar a skill `grill-me`/`grilling` pra tirar dúvidas
+> de produto sobre horário ANTES de mexer em código, uma rodada de
+> perguntas por vez, registrando as respostas antes de seguir pra
+> próxima rodada. Ordem explícita dele: **"Registrar, testar, perguntar,
+> isso é muito importante"** — nada abaixo está implementado ainda, é só
+> o registro das decisões já tomadas na entrevista.
+>
+> **Princípio geral que ele articulou, cobrindo todas as respostas**:
+> nenhuma decisão automática sobre a saúde da pessoa deve acontecer
+> escondida ou sem escolha dela — transparência total, agência total.
+> Toda vez que o app decidir algo por conta própria sobre horário/dose,
+> isso precisa ficar visível e, quando fizer sentido, virar pergunta pro
+> usuário, não automatismo silencioso.
+
+### Rodada 1 — decisões confirmadas
+
+1. **Fuso do celular muda o fuso do perfil (mantém o comportamento
+   atual)** — mas **precisa ficar claro pro usuário quando isso
+   acontecer**. Hoje o `syncOwnedProfileTimezones` troca o fuso
+   silenciosamente ao carregar a Hoje. Falta: avisar visivelmente
+   quando o fuso realmente mudar.
+2. **Adicionar período de tolerância antes de marcar "Perdido"**
+   (hoje é instantâneo, sem tolerância nenhuma) — e isso precisa ficar
+   claro pra pessoa (estado visual, não só timer invisível). Além
+   disso: ao escolher um novo horário via "Outro horário" pra uma dose
+   que já tinha virado "Perdido", **a pessoa deve poder escolher se ela
+   continua contando como perdida ou não** — não é automático virar
+   "Tomado" só porque um horário foi registrado.
+3. **Horário fixo também deve poder recalcular as próximas doses do
+   dia** (hoje só existe pra intervalo, fixo é rejeitado com 422) — mas
+   **sempre como pergunta ao usuário**, nunca automático. "Ele que deve
+   ser a pessoa capaz de escolher sobre o futuro de sua saúde pessoal."
+4. **Recalcular que cruza a meia-noite deve "vazar" pro dia seguinte**
+   (hoje simplesmente some — amanhã volta pro horário-âncora normal,
+   sem herdar o deslocamento). Motivo dele: gente esquece de marcar,
+   não vê notificação, esquece de recalcular — a aplicação precisa
+   prever isso e deixar a escolha nas mãos do usuário, não descartar
+   silenciosamente.
+5. **Cancelar de verdade o lembrete local antigo ao recalcular** (hoje
+   cria um lembrete novo e deixa o antigo vivo — pode notificar 2x pra
+   mesma dose). "Esse tipo de coisa faz o usuário se confundir e
+   ressentir do desenvolvedor."
+
+### Rodada 2 — respondida
+
+6. **Troca de fuso**: os dois — toast no momento + marcador permanente
+   no Histórico ("fuso mudou de X pra Y aqui").
+7. **Tolerância antes de "Perdido"**: 30 minutos.
+8. **Estado visual durante a tolerância**: NENHUM estado novo — a dose
+   continua parecendo "Pendente" normal pelos 30 minutos inteiros, sem
+   virar "Atrasado" nem nada diferente antes disso. Só depois dos 30min
+   vira "Perdido" de vez. ("Deixe sem atrasado até passar dos 30
+   minutos.")
+9. **Escolha de manter "Perdido" ou não em "Outro horário"**: opção (c)
+   — só pergunta quando a dose JÁ estava "Perdida" de verdade antes de
+   abrir "Outro horário". No fluxo comum (dose ainda pendente, só
+   atrasada dentro da tolerância) não pergunta nada, "Outro horário" já
+   implica que foi tomado.
+10. **Recalcular horário fixo**: opção (a) — desloca todas as próximas
+    doses fixas do dia pelo mesmo atraso, **sempre com confirmação**
+    (reforçado explicitamente: "mas perguntar para confirmar").
+11. **Limiar de 30min pro horário fixo**: sim, mesmo número do
+    intervalo — e "deixar isso claro para o usuário" (o limiar não pode
+    ser um número escondido/mágico, precisa aparecer de algum jeito
+    visível pra pessoa entender por que foi ou não oferecido).
+12. **Cruzar a meia-noite / mudança permanente vs. só hoje**: resolvido
+    depois de uma rodada de esclarecimento — em vez do app decidir entre
+    "só hoje" ou "pra sempre" sozinho, **pergunta explicitamente ao
+    usuário**: "Voltar ao horário normal amanhã ou reajustar todos os
+    dias?". As duas opções já existem em espírito na arquitetura atual:
+    "só hoje" = o `today_override_date`/`today_override_time` que já
+    existe; "pra sempre" = equivalente a editar o `time` permanente do(s)
+    `dose_schedule`(s) — mesma coisa que "Editar horário" já faz, só que
+    disparado por este fluxo também.
+13. **Essa escolha (só hoje / pra sempre) é sempre oferecida ao
+    recalcular** — intervalo ou fixo, cruzando meia-noite ou não. Não é
+    condicional a nenhum cenário específico; vira a pergunta padrão de
+    todo recálculo, substituindo o "Ajustar as próximas doses de hoje?"
+    de hoje por uma pergunta com essas duas opções.
+
+### Rodada 3 — grill-me do Claude em cima da entrevista (achados de código relidos antes de perguntar)
+
+> Revisão de código encontrou pontos que a entrevista original não
+> fechava: `home.delayed`/"Atrasado" é hoje o ÚNICO label pro status
+> `missed`, sem nada chamado "Perdido" em lugar nenhum; e o comando
+> agendado real `api/app/Console/Commands/CheckMissedDoses.php` flipa
+> pra `missed` de forma **instantânea** (`if (! $scheduledAt->isPast())
+> continue;`, zero tolerância) — confirmando que a tolerância É mudança
+> de backend, não só de exibição.
+
+14. **Terminologia — revisa o item 8**: mantém "Atrasado" (mais claro e
+    suave que "Perdido"). Mas o modelo ganha um segundo patamar: a
+    tolerância de 30min (item 7) passa a ser o limiar pra **"Atrasado"**
+    (não pendente mais, mas ainda não perdido), e um limiar NOVO de
+    **24h** vira o gatilho pra **"Perdido"** de vez. Ou seja: `<30min` =
+    Pendente (sem mudança visual) → `30min–24h` = Atrasado (estado
+    visual novo, computado) → `>24h` = Perdido (status `missed` real do
+    backend, `CheckMissedDoses` passa a esperar 24h em vez de 0).
+15. **Confirmado**: a mudança de tolerância é no backend
+    (`CheckMissedDoses`), não cosmética de app. Constante global fixa
+    (24h agora, não mais os 30min brutos) — sem configuração por
+    remédio/perfil por enquanto.
+16. **Limiar visível (item 11)**: aceito como recomendado — o diálogo de
+    confirmação passa a citar o número explícito ("mais de 30 minutos
+    de diferença do horário previsto") em vez do atual "bem diferente",
+    vago. Nenhum indicador novo pra diferença pequena.
+17. **Item 4 (vazar pra meia-noite)**: aceito como coberto por 12/13 —
+    "pra sempre" já resolve o vazamento por construção; sem lógica
+    própria adicional.
+18. **Notificação duplicada em "só hoje" (item 5)** — Rilson não aceitou
+    a resposta inicial ("não tem como evitar 100%"), pediu reinvestigar:
+    "não tem mesmo como cancelar notificação e reagendar outra? Se não
+    vai confundir o usuário." **Em aberto pra Rodada 4** — análise mais
+    funda encontrou uma distinção real entre 2 casos (tomar ATRASADO vs.
+    ADIANTADO em relação ao horário previsto) que muda o que é
+    tecnicamente possível; ver pergunta detalhada na próxima rodada.
+19. **Recalcular horário fixo (item 3/6 do grill)**: confirmado — escopo
+    restrito só ao MESMO `dose_schedule` que foi ajustado. NÃO desloca
+    outro horário fixo do mesmo remédio (ex.: 08h e 20h como schedules
+    separados) sem perguntar por ele especificamente — deslocar sem
+    perguntar violaria o princípio de agência total do próprio Rilson.
+20. **Marcador de troca de fuso (item 6)**: aceito como recomendado —
+    evento de sistema misturado no feed do Histórico (não seção
+    separada), persistido no backend (sobrevive troca de aparelho/
+    reinstall, mesma fonte de verdade que o resto do Histórico).
+
+### Rodada 4 — respondida (UX/UI + fechar item 18)
+
+21. **Notificação duplicada em "só hoje" (fecha item 18)**: aceito —
+    cancelar+recriar o lembrete recorrente já resolve o caso comum
+    (tomar ATRASADO — horário original já passou, nunca dispara de
+    novo). Caso raro (tomar ADIANTADO, como o Ibuprofeno de hoje) pode
+    gerar 1 aviso a mais só naquele dia, sem persistir — mitigado
+    fazendo o app, se esse aviso for tocado, reconhecer que a dose já
+    foi registrada ("já registrado, nada a fazer") em vez de pedir pra
+    marcar de novo. Ataca a confusão real, não persegue zero-notificação
+    perfeito (que reabriria a decisão já descartada de processo em
+    segundo plano).
+22. **Cor do "Atrasado"**: própria, distinta da cor de "Perdido" — os
+    dois precisam ser diferenciáveis à distância, não só no texto.
+23. **Atualização ao vivo dos estados por tempo**: SIM, quer atualização
+    ao vivo (não só no próximo refresh). Confirmado técnico:
+    Pendente→Atrasado (30min) é 100% computado no cliente
+    (`scheduled_at` vs. agora) — dá pra ser instantâneo com um timer
+    local, sem custo de rede. Atrasado→Perdido (24h) é um status real
+    do backend, e o cron que faz esse flip (`doses:check-missed`,
+    confirmado em `bootstrap/app.php`) roda a cada **15 minutos** — ao
+    vivo de verdade aqui significa a tela reconsultar o servidor nesse
+    intervalo, não instantâneo como o outro.
+24. **"Outro horário" numa dose Atrasada (ainda não Perdida)**:
+    confirmado, não pergunta nada extra (só pergunta quando já virou
+    Perdido de verdade).
+25. **"Tomei" numa dose Atrasada — revisa a recomendação anterior**:
+    Rilson quer PERGUNTAR ("você tomou no horário certo?") em vez de
+    gravar `scheduled_at` silenciosamente. "Dar mais opções ao usuário é
+    sempre melhor." Desenho proposto (a confirmar): tocar "Tomei" numa
+    dose Atrasada abre uma pergunta rápida de 2 botões — "Sim, no
+    horário previsto" (comportamento atual, grava `scheduled_at`) vs.
+    "Não, foi outro horário" (abre o fluxo "Outro horário" já existente)
+    — sem inventar um terceiro caminho novo, só reconectando os 2 que já
+    existem.
+
+### Rodada 5 — respondida, entrevista concluída
+
+26. **Cadência do "ao vivo"**: aceito como recomendado — timer local
+    ~1min pra Pendente→Atrasado (sem custo de rede), `refetchInterval`
+    ~5min pra pegar o flip real de Perdido do backend.
+27. **Desenho do "Tomei numa dose Atrasada"**: aceito como recomendado —
+    2 botões ("Sim, no horário previsto" / "Não, foi outro horário"),
+    sem inventar um terceiro fluxo.
+
+**Entrevista concluída (27 decisões, 5 rodadas). Autorizado a implementar:
+"Pode começar depois de registrar. Pode ir até terminar." Pedido
+explícito: capricho de UI/UX, usar skill de design se fizer diferença.**
+
+---
+
+## 📋 Plano de implementação consolidado (2026-09-11) — ✅ concluído, ⏸️ NÃO publicado
+
+> Resumo de tudo que a entrevista decidiu, como checklist de execução.
+> **Tudo abaixo está codificado e testado** — backend 274/274 (PHPUnit,
+> Docker `laravelsail/php84-composer` já que não há PHP local), frontend
+> 349/349 (Jest) + `tsc --noEmit` limpo. Ainda **NÃO publicado** — nada
+> commitado/buildado/deployado, mesma instrução de hoje: só sobe quando
+> o Rilson mandar.
+
+**Backend (Laravel, `api/`)**
+- [x] `CheckMissedDoses`: threshold de instantâneo pra 24h
+      (`DoseLog::MISSED_TOLERANCE_HOURS`, fonte única também usada por
+      `DoseLogController::today()`). Achado no caminho: o comando só
+      olhava "hoje" — uma ocorrência tarde da noite nunca completava
+      24h antes de "hoje" pro comando já ter virado outro dia; corrigido
+      olhando "ontem" também.
+- [x] Recalcular aceita horário FIXO também — na prática não precisou
+      mexer no endpoint `recalculate-today` (um schedule fixo só gera 1
+      ocorrência/dia, não sobra nada pra deslocar no mesmo dia); o
+      frontend trata "só hoje" pra fixo como confirmação sem chamada
+      nenhuma, e "pra sempre" reusa `PUT /schedules/{id}`.
+- [x] "Só hoje" (mecanismo `today_override_*` que já existia) vs. "pra
+      sempre" (edita `time` permanente via `updateSchedule`, mesmo
+      endpoint de "Editar horário") — implementado 100% no frontend,
+      sem precisar de endpoint novo.
+- [x] "Continua contando como perdida?" — vira um GATE no frontend antes
+      de abrir "Outro horário" numa dose `missed`; `store()` já aceita
+      status `taken` sobrescrevendo `missed` via `updateOrCreate`
+      (upsert por schedule+scheduled_at), não precisou de mudança.
+- [x] Marcador de troca de fuso — tabela nova `profile_timezone_changes`
+      (migration + model), gravado em `ProfileController::update`
+      quando o `timezone` muda de verdade (idempotente — reenviar o
+      mesmo fuso não cria marcador fantasma), exposto em
+      `DoseLogController::history()` como chave nova `timezone_changes`
+      (soma ao objeto do paginador, não quebra quem já consome só
+      `.data`).
+
+**Frontend (`app/`)**
+- [x] Estado "Atrasado" novo, 100% computado no cliente (30min–24h),
+      cor própria (`colors.delayed`, WCAG AA/AAA auditado nos 4 temas)
+      distinta de "Perdido". Label "Perdido" assume o lugar do
+      "Atrasado" antigo (`i18n` `missedStatus`, status `missed` real do
+      backend, >24h).
+- [x] Timer local 1min (`setInterval` + `nowTick`) pra Pendente→Atrasado
+      + `refetchInterval: 5min` na query de `today-doses` pro flip de
+      Perdido do backend.
+- [x] "Tomei" numa dose Atrasada abre confirmação de 2 botões ("Sim, no
+      horário previsto" / "Não, foi outro horário") — reconecta no
+      fluxo "Outro horário" já existente, sem inventar um terceiro.
+- [x] "Outro horário" numa dose Atrasada (não Perdida) continua sem
+      perguntar nada extra; só pergunta quando `status === 'missed'` de
+      verdade.
+- [x] Modal de recalcular reescrito: sempre pergunta "Só hoje" / "Sempre,
+      a partir de agora" (substitui o "Ajustar as próximas doses de
+      hoje?" simples de antes); funciona pra horário fixo também; texto
+      cita "mais de 30 minutos" explicitamente.
+- [x] Toast de troca de fuso (`syncOwnedProfileTimezones` deixou de ser
+      `void`, devolve o que mudou de verdade) + linha do marcador
+      intercalada no feed do Histórico por data (não seção à parte).
+- [x] Notificações — "pra sempre" reusa `scheduleScheduleNotifications`
+      (cancela+recria sozinho, zero duplicata, closed de graça por
+      reuso). **Item "toque numa notificação já registrada mostra 'já
+      registrado'" — achado durante a implementação: não existe nenhum
+      handler de toque de notificação neste app hoje** (sem
+      `addNotificationResponseReceivedListener`); o comportamento
+      padrão do SO ao tocar é só abrir o app na tela normal — que já
+      busca `today-doses` fresco e mostra o estado REAL (dose já
+      tomada aparece "Tomado", não reabre nenhum fluxo de marcar).
+      Construir esse handler do zero seria infraestrutura nova só pra
+      um caso raro (registrar ADIANTADO, no mesmo dia) que o
+      comportamento padrão já resolve na prática — decisão de não
+      construir, não pendência esquecida.
+- [x] i18n: pt/en/es pra tudo isso (`home.*`, `history.*`).
+- [x] Testes cobrindo cada item — backend: `CheckMissedDosesCommandTest`
+      (+3 casos novos, incl. o achado de "ontem"), `DoseLogTodayTest`
+      (revisado, endpoint não marca mais "missed" sozinho),
+      `ProfileTimezoneTest` (+3 casos), `DoseLogHistoryTest` (+1).
+      Frontend: `home.test.tsx` (Atrasado, diálogos novos, recalcular
+      fixo/intervalo × só-hoje/sempre), `history.test.tsx` (marcador de
+      fuso), `device-timezone.test.ts` (retorno novo),
+      `color-contrast.test.tsx` (token `delayed`).
+
+---
+
 ## ✅ Renomeação pra "Assídua" concluída (2026-08-22/23) — gate liberado
 
 > **Histórico**: colisão de nome confirmada ("Meus Remedios" já existia
@@ -1119,6 +1642,127 @@ localmente pra debugar, não só neste teste específico.
 > precisou de 3 tentativas — as duas primeiras foram interrompidas por
 > reinícios da sessão antes de terminar, confirmado via `eas
 > update:list` que nada tinha ido ao ar até a 3ª).
+
+---
+
+## 🔴 Bug real: notificação de remédio que não existe mais na lista de hoje — ✅ causa raiz achada e corrigido em código, ⏸️ NÃO publicado (aguardando aprovação do Rilson)
+
+> Achado do Rilson (2026-09-11), com print da tela "Hoje" (4 doses reais:
+> Ibuprofeno, Maleato de dexclorfeniramina+betametasona, Vitamina B) ao
+> lado do print das notificações do Android mostrando "Hora de tomar
+> Vick Vaporub", "Dorflex" e "Pantoprazol" às 08:42 — nenhum dos 3 está
+> em nenhum remédio cadastrado hoje.
+>
+> **Causa raiz**: todo cancelamento de notificação local é OPORTUNISTA —
+> só roda no caminho de UI que exclui/pausa/edita um horário
+> (`medication/[id].tsx`). O gatilho `DAILY` do Expo/SO fica agendado
+> pra sempre até alguém cancelar explicitamente; nada no app varria
+> "o que está agendado no aparelho ainda corresponde a algo real?".
+> **"Excluir medicamento" só passou a cancelar notificação a partir do
+> commit `bc3a66f` (2026-09-08, 3 dias atrás)** — qualquer remédio
+> apagado antes disso (bem provável serem os 3 do achado, todos testados
+> num momento de desenvolvimento anterior) ficou com o lembrete `DAILY`
+> órfão, tocando todo santo dia, sem nenhum jeito de se autocorrigir
+> sozinho.
+>
+> **Corrigido**: `reconcileScheduledNotifications()` nova em
+> `services/notifications.ts` — varre TUDO que está agendado no SO
+> (`getAllScheduledNotificationsAsync`) contra o estado real (todos os
+> perfis da conta, não só o ativo — um cuidador quer continuar avisado
+> do remédio do paciente mesmo com outra aba aberta), cancela o que
+> sobrou. Roda 1x por abertura do app (`app/_layout.tsx`, mesmo lugar
+> que já resincroniza push token), best-effort (não trava login se
+> falhar). Contraparte no-op em `notifications.web.ts` (web não tem
+> notificação persistente pra virar órfã). 5 testes novos em
+> `notifications.test.ts` (órfão cancelado, ativo preservado, pausado
+> cancelado, todos os perfis considerados, `refill_*` não é tocado por
+> engano) + `auth-guard.test.tsx` atualizado.
+>
+> **NÃO publicado** — só existe no working tree local, nada commitado/
+> buildado/publicado. Instrução explícita do Rilson: "não coloque nada
+> em produção até eu te mandar". Quando aprovado, cobre tanto o histórico
+> órfão de quem já tem o app instalado quanto qualquer futuro caminho de
+> mutação que a gente esqueça de cancelar.
+
+---
+
+## 🔴 Card da Home mostrava horário AGENDADO, não o REGISTRADO, pra dose tomada via "Outro horário" — ✅ causa raiz achada e corrigido em código, ⏸️ NÃO publicado (aguardando aprovação do Rilson)
+
+> Achado do Rilson (2026-09-11): "Pedi para reajustar horário do
+> Ibuprofeno que tomei às 9h. O horário certo aparece no próximo (17h),
+> mas o horário errado ainda aparece no card do segundo horário (10h em
+> vez de 9h)."
+>
+> **Causa raiz — mesmo bug do "Bug 2" já corrigido no Histórico em
+> 2026-09-09** (item 17 acima), só que aquela rodada mexeu só em
+> `history.tsx` — o card da tela "Hoje" (`app/(tabs)/index.tsx`) tinha
+> exatamente a mesma falha e ficou de fora: o horário exibido em cada
+> dose sempre lia `item.scheduled_at`, nunca `item.taken_at`, mesmo pra
+> dose já tomada com um horário explicitamente diferente (via "Outro
+> horário"). A dose recalculada seguinte usava o novo horário certo
+> (vem de `today_occurrences`, caminho diferente) — só a dose que a
+> pessoa acabou de registrar continuava mostrando o horário agendado
+> antigo.
+>
+> **Corrigido**: mesma lógica condicional que já existe em
+> `history.tsx` — `taken && item.taken_at ? format(taken_at) :
+> format(scheduled_at)`. Teste de regressão novo em `home.test.tsx`
+> provando o cenário exato (registra em horário diferente do agendado,
+> confirma que o card passa a mostrar o horário novo, não o antigo).
+> Suíte completa (336/336) e typecheck limpos.
+>
+> **NÃO publicado** — só no working tree local, mesma instrução de hoje
+> ("não coloque nada em produção até eu te mandar"). Esta é uma
+> correção de JS puro (sem módulo nativo novo) — pode ir via
+> `eas update` (OTA) quando aprovado, não precisa esperar o build nativo
+> que os outros dois itens de hoje exigem.
+
+---
+
+## 🟡 UX: campo de horário HH:MM trocado por atalhos + picker nativo — código pronto, ⏸️ NÃO publicado (aguardando aprovação do Rilson)
+
+> Achado do Rilson (2026-09-11) revendo o modal "Foi em outro horário?"
+> com olhar de usuário menos técnico: digitar `HH:MM` de cabeça é fácil
+> de errar/confundir (nem todo mundo pensa em "14:30" — pensa "duas e
+> meia da tarde"). Reverte parte da decisão de 08/09 (que tinha escolhido
+> texto livre "por menos risco, mais consistente com o resto do app") —
+> motivo novo, não tinha pesado na decisão original.
+>
+> **Decisão de UX** (perguntada e confirmada com o Rilson): atalhos
+> relativos (Agora / Há 15 min / Há 30 min / Há 1 hora) pro caso comum,
+> sem exigir leitura de hora nenhuma — cobrem o cenário sem depender de
+> módulo nativo nenhum (funcionam mesmo num build antigo). "Escolher um
+> horário específico" abre o picker nativo do SO
+> (`@react-native-community/datetimepicker`, roda/relógio) só quando
+> precisa de um horário exato.
+>
+> **Módulo nativo — precisa de build EAS novo** (confirmado com o
+> Rilson): não entra por OTA/`expo-updates`, igual à pendência já
+> existente do `react-native-svg`/`react-native-purchases` — pode entrar
+> na MESMA leva de build, não precisa de um build extra só pra isso.
+> `require` tardio + cache (não import estático no topo), mesmo padrão
+> já usado em `pickPhoto`/`expo-image-picker`
+> (`app/medication/[id].tsx`) — num build sem o módulo compilado ainda,
+> "Escolher um horário específico" mostra aviso amigável
+> ("Seletor de horário indisponível nesta versão") em vez de travar a
+> tela inteira; os atalhos relativos continuam funcionando normalmente
+> mesmo assim.
+>
+> A lógica de ancorar o horário escolhido no DIA do agendamento (não em
+> "hoje" — achado antigo de 2026-09-08, dose antes da meia-noite) foi
+> preservada só pro caminho do picker específico; os atalhos relativos
+> usam `Date.now() - N minutos` direto (nem precisam da ancoragem, já
+> são um instante real completo).
+>
+> Testado (`home.test.tsx` — atalhos, picker pré-preenchido com agora,
+> confirmação iOS/web via botão "Registrar", confirmação Android direto
+> no evento `'set'` do diálogo nativo — o Android já tem seu próprio
+> OK/Cancelar, sem precisar de um segundo toque no app).
+>
+> **NÃO publicado** — código no working tree local, `@react-native-community/datetimepicker`
+> instalado (`package.json`) e `app.json` já tem o config plugin
+> (efeito só no próximo build). Nada commitado/buildado/publicado até o
+> Rilson aprovar.
 
 ---
 
