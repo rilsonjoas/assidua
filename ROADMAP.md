@@ -1095,6 +1095,31 @@ localmente pra debugar, não só neste teste específico.
 > commit `68c9dd7`. Publicado via `eas update` canal `preview` — update
 > group `1d68db11-ecc6-471f-9834-75f1652b8535`.
 
+## 🟢 "Tomei" grava horário agendado, não instante do toque — ✅ resolvido 2026-09-11
+
+> Decisão de produto do Rilson, achada ao ver o Histórico de verdade
+> depois do fix de exibição do dia anterior (que passou a mostrar
+> `taken_at` em vez de `scheduled_at`): tocar "Tomei" às 00:01 numa dose
+> das 00:00 aparecia como "tomado às 00:01" — ruído sem valor pra quem
+> só tomou o remédio no horário normal e tocou o botão simples.
+>
+> **Corrigido**: `markDose` (toque simples) agora manda
+> `dose.scheduled_at` como `taken_at`, não `new Date()`. "Outro horário"
+> continua sendo o único caminho que passa um `takenAt` explícito —
+> nada mudou nele. Revisão completa de todo botão/ação que toca em
+> horário (Tomei, Outro horário, Ajustar as próximas doses, Pular,
+> Desfazer, Editar horário, Histórico, PDF de consulta, notificação
+> local, export CSV/JSON) confirmando que cada um continua fazendo
+> sentido com a mudança — nenhum outro ponto quebrado.
+>
+> Testado (328/328, incluindo teste novo/atualizado em `home.test.tsx`
+> provando `taken_at === scheduled_at` no toque simples), typecheck
+> limpo. Commit `560e893`. Publicado via `eas update` canal `preview`
+> — update group `efa87e3a-8b3c-4492-8bc3-943837462dd0` (a publicação
+> precisou de 3 tentativas — as duas primeiras foram interrompidas por
+> reinícios da sessão antes de terminar, confirmado via `eas
+> update:list` que nada tinha ido ao ar até a 3ª).
+
 ---
 
 ## 📦 Publicação de tudo desta sessão (2026-09-09)
