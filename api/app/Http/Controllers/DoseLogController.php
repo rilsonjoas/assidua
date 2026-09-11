@@ -84,7 +84,14 @@ class DoseLogController extends Controller
                     // — mesma ação usada pelo comando agendado, garante que
                     // o cuidador é avisado tanto quando o paciente abre o
                     // app quanto quando ninguém abre (cron).
-                    if (! $log && $scheduledAt->isPast()) {
+                    //
+                    // Tolerância de 24h (2026-09-11, entrevista de decisões
+                    // de horário — ver ROADMAP.md): mesma regra/constante
+                    // do comando agendado (`DoseLog::MISSED_TOLERANCE_HOURS`)
+                    // — sem isso, abrir o app durante a janela de "Atrasado"
+                    // (calculada no cliente) marcaria "Perdido" na hora só
+                    // por ter aberto a tela, contradizendo a tolerância.
+                    if (! $log && $scheduledAt->copy()->addHours(DoseLog::MISSED_TOLERANCE_HOURS)->isPast()) {
                         $log = $markMissed->handle($schedule, $medication, $profile, $scheduledAt);
                     }
 
@@ -208,7 +215,22 @@ class DoseLogController extends Controller
             'taken_at' => $log->takenAtInTimezone($profile->timezone)?->toISOString(),
         ]);
 
-        return response()->json($logs);
+        // Marcador de troca de fuso (2026-09-11, entrevista de decisões
+        // de horário — ver ROADMAP.md, item 6/20) — chave NOVA somada ao
+        // objeto do paginador (`...$logs->toArray()` preserva `data`,
+        // `current_page`, etc. exatamente como antes — não quebra quem
+        // já consome só `.data`), não uma tabela separada dentro de
+        // `dose_logs`. O app intercala isso na lista visual do Histórico
+        // por data — mesmo período (`$cutoff`) da consulta acima.
+        $timezoneChanges = $profile->timezoneChanges()
+            ->where('changed_at', '>=', $cutoff)
+            ->orderBy('changed_at', 'desc')
+            ->get(['old_timezone', 'new_timezone', 'changed_at']);
+
+        return response()->json([
+            ...$logs->toArray(),
+            'timezone_changes' => $timezoneChanges,
+        ]);
     }
 
     public function store(Request $request, CalculateAdherenceStreak $calculateStreak, GenerateScheduleOccurrences $generateOccurrences): JsonResponse

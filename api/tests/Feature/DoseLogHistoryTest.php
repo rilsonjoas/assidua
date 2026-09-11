@@ -52,6 +52,32 @@ class DoseLogHistoryTest extends TestCase
         $response->assertOk()->assertJsonCount(1, 'data');
     }
 
+    // Marcador de troca de fuso (2026-09-11, entrevista de decisões de
+    // horário — ver ROADMAP.md, item 6/20) — devolvido junto do
+    // histórico, não como tabela separada de dose_logs. Fora do
+    // paginador de doses (é uma fonte diferente), mas no mesmo response.
+    public function test_historico_devolve_trocas_de_fuso_do_periodo(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $profile->timezoneChanges()->create([
+            'old_timezone' => 'America/Sao_Paulo',
+            'new_timezone' => 'Europe/Lisbon',
+            'changed_at' => now(),
+        ]);
+        // Fora da janela de 30 dias (usuário free) — não deve aparecer.
+        $profile->timezoneChanges()->create([
+            'old_timezone' => 'UTC',
+            'new_timezone' => 'America/Sao_Paulo',
+            'changed_at' => now()->subDays(40),
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/history");
+
+        $response->assertOk()->assertJsonCount(1, 'timezone_changes');
+        $this->assertSame('Europe/Lisbon', $response->json('timezone_changes.0.new_timezone'));
+    }
+
     public function test_filtra_por_status(): void
     {
         $user = User::factory()->create();

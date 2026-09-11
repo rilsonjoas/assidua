@@ -151,26 +151,51 @@ class DoseLogTodayTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function test_marca_dose_como_perdida_quando_horario_ja_passou(): void
+    // Tolerância de 24h (2026-09-11, entrevista de decisões de horário —
+    // ver ROADMAP.md): antes desta mudança, abrir "Hoje" já marcava
+    // "missed" na hora pra qualquer dose atrasada. Como este endpoint só
+    // olha ocorrências de HOJE (nunca de ontem), e um dia tem no máximo
+    // ~24h, uma ocorrência de hoje NUNCA consegue ficar 24h+ atrasada
+    // enquanto ainda é hoje — na prática, este endpoint deixou de marcar
+    // "missed" sozinho (quem faz isso agora é o cron `CheckMissedDoses`,
+    // que olha ontem+hoje). Dentro da tolerância, a dose continua
+    // "pending" no backend — "Atrasado" é 100% visual, calculado no app.
+    public function test_dose_atrasada_dentro_da_tolerancia_continua_pending_via_endpoint_hoje(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
+        Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00')); // 2h de atraso
 
         $user = User::factory()->create();
         $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
-        $schedule = $medication->schedules()->create([
-            'time' => '08:00:00', // já passou às 10h
+        $medication->schedules()->create([
+            'time' => '08:00:00',
             'days_of_week' => null,
         ]);
 
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
 
         $response->assertOk()->assertJsonCount(1);
-        $response->assertJsonFragment(['status' => 'missed']);
-        $this->assertDatabaseHas('dose_logs', [
-            'dose_schedule_id' => $schedule->id,
-            'status' => 'missed',
-        ]);
+        $response->assertJsonFragment(['status' => 'pending']);
+        $this->assertSame(0, DoseLog::count());
+    }
+
+    // Prova o limite: mesmo bem tarde no MESMO dia (23:59), uma
+    // ocorrência de hoje segue sem completar 24h de atraso — este
+    // endpoint genuinamente não marca "missed" sozinho nunca mais
+    // (fica sempre a cargo do cron, que olha o dia anterior também).
+    public function test_dose_de_hoje_nunca_vira_missed_via_endpoint_hoje_mesmo_bem_tarde(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 23:59:00'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $medication->schedules()->create(['time' => '00:01:00', 'days_of_week' => null]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonFragment(['status' => 'pending']);
+        $this->assertSame(0, DoseLog::count());
     }
 
     public function test_dose_perdida_continua_com_horario_futuro_como_pendente(): void
@@ -191,6 +216,10 @@ class DoseLogTodayTest extends TestCase
         $response->assertJsonFragment(['status' => 'pending']);
     }
 
+    // Cenário real: a dose já passou de 24h (o cron `CheckMissedDoses`
+    // já teria marcado "missed" antes deste teste rodar — simulado aqui
+    // direto no banco, já que este endpoint sozinho não faz mais esse
+    // flip, ver testes acima) e a pessoa ainda assim marca como tomada.
     public function test_dose_perdida_ainda_pode_ser_marcada_como_tomada_depois(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-15 10:00:00'));
@@ -199,10 +228,13 @@ class DoseLogTodayTest extends TestCase
         $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
-
-        // Abre o app às 10h — vira "missed" automaticamente.
-        $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
-        $this->assertDatabaseHas('dose_logs', ['dose_schedule_id' => $schedule->id, 'status' => 'missed']);
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'status' => 'missed',
+        ]);
 
         // Usuário percebe e marca como tomada mesmo assim, atrasada.
         $response = $this->actingAs($user)->postJson('/api/dose-logs', [
@@ -257,7 +289,13 @@ class DoseLogTodayTest extends TestCase
         $this->assertSame(['07:00', '15:00', '23:00'], $times->all());
     }
 
-    public function test_schedule_de_intervalo_marca_ocorrencias_passadas_como_perdidas_individualmente(): void
+    // Tolerância de 24h (2026-09-11) — revisa o teste original: mesmo
+    // com 07h e 15h já passadas das 16h "agora", nenhuma das duas chega
+    // a 24h de atraso NO MESMO DIA (impossível, um dia só tem ~24h) —
+    // todas as 3 ocorrências continuam "pending" no backend. "Atrasado"
+    // pras 2 primeiras é responsabilidade só do app, calculado do
+    // `scheduled_at`, sem gravar nada aqui.
+    public function test_schedule_de_intervalo_mantem_ocorrencias_passadas_pending_dentro_da_tolerancia(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-15 16:00:00'));
 
@@ -274,10 +312,10 @@ class DoseLogTodayTest extends TestCase
 
         $response->assertOk()->assertJsonCount(3);
         $byTime = collect($response->json())->keyBy(fn ($d) => substr($d['scheduled_at'], 11, 5));
-        // 07h e 15h já passaram das 16h "agora" -> perdidas. 23h ainda não -> pendente.
-        $this->assertSame('missed', $byTime['07:00']['status']);
-        $this->assertSame('missed', $byTime['15:00']['status']);
+        $this->assertSame('pending', $byTime['07:00']['status']);
+        $this->assertSame('pending', $byTime['15:00']['status']);
         $this->assertSame('pending', $byTime['23:00']['status']);
+        $this->assertSame(0, DoseLog::count());
     }
 
     // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado

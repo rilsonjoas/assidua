@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\DoseLog;
 use App\Models\Medication;
 use App\Models\Profile;
+use App\Models\ProfileTimezoneChange;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,6 +78,41 @@ class ProfileTimezoneTest extends TestCase
         $this->assertDatabaseHas('profiles', ['id' => $profile->id, 'timezone' => 'Europe/Lisbon']);
     }
 
+    // Marcador de troca de fuso (2026-09-11, entrevista de decisões de
+    // horário — ver ROADMAP.md, item 6/20) — "transparência total"
+    // pedida pelo Rilson: a troca fica registrada de verdade, não só um
+    // toast que passa e some.
+    public function test_troca_de_timezone_registra_marcador(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
+
+        $this->actingAs($user)->putJson("/api/profiles/{$profile->id}", [
+            'timezone' => 'Europe/Lisbon',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('profile_timezone_changes', [
+            'profile_id' => $profile->id,
+            'old_timezone' => 'America/Sao_Paulo',
+            'new_timezone' => 'Europe/Lisbon',
+        ]);
+    }
+
+    // Evita marcador fantasma: `syncOwnedProfileTimezones` (app) manda
+    // PUT com o fuso do aparelho toda vez que a Hoje carrega, mesmo sem
+    // mudança real — não é pra virar um marcador novo cada vez.
+    public function test_reenviar_o_mesmo_timezone_nao_cria_marcador(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
+
+        $this->actingAs($user)->putJson("/api/profiles/{$profile->id}", [
+            'timezone' => 'America/Sao_Paulo',
+        ])->assertOk();
+
+        $this->assertSame(0, ProfileTimezoneChange::count());
+    }
+
     public function test_dose_nao_vira_perdida_antes_da_hora_no_fuso_do_perfil(): void
     {
         // 10h UTC = 07h em América/São_Paulo (UTC-3) — a dose das 08h
@@ -94,21 +131,53 @@ class ProfileTimezoneTest extends TestCase
         $this->assertDatabaseMissing('dose_logs', ['medication_id' => $medication->id, 'status' => 'missed']);
     }
 
-    public function test_dose_vira_perdida_depois_da_hora_no_fuso_do_perfil(): void
+    // Tolerância de 24h (2026-09-11, entrevista de decisões de horário
+    // — ver ROADMAP.md): 1h de atraso não basta mais pra virar "missed"
+    // em lugar nenhum (nem no endpoint /doses/today — que aliás nunca
+    // mais marca "missed" sozinho, só olha "hoje", nunca 24h+ dentro do
+    // mesmo dia — ver DoseLogTodayTest). Quem decide "missed" de verdade
+    // agora é o cron `doses:check-missed`; este teste passa a provar
+    // que a conversão de fuso continua certa NELE, não mais no endpoint.
+    public function test_dose_vira_perdida_depois_de_24h_no_fuso_do_perfil(): void
     {
-        // 12h UTC = 09h em América/São_Paulo — agora sim, passou das 08h locais.
-        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+        // 08h locais em SP (UTC-3) de 15/07 = 11h UTC. +24h = 11h UTC de
+        // 16/07. "Agora" 1min depois disso, ainda em fuso local diferente
+        // de UTC — prova que a comparação usa o fuso do PERFIL, não o do
+        // servidor.
+        Carbon::setTestNow(Carbon::parse('2026-07-16 11:01:00', 'UTC'));
 
         $user = User::factory()->create();
         $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
         $medication = Medication::factory()->create(['profile_id' => $profile->id]);
         $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
 
-        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+        $this->artisan('doses:check-missed')->assertSuccessful();
 
-        $response->assertOk();
-        $response->assertJsonFragment(['status' => 'missed']);
         $this->assertDatabaseHas('dose_logs', ['dose_schedule_id' => $schedule->id, 'status' => 'missed']);
+    }
+
+    // Mesmo cenário, mas ainda DENTRO das 24h — não pode marcar ainda,
+    // nem no endpoint (nunca marca "hoje" sozinho) nem no cron.
+    public function test_dose_nao_vira_perdida_antes_de_completar_24h_no_fuso_do_perfil(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC')); // 09h em SP, só 1h de atraso
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'America/Sao_Paulo']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        // days_of_week só na quarta (15/07 é quarta em SP nesse instante
+        // também) — sem isso o schedule também gera a ocorrência de
+        // ONTEM (14/07 08h local), que já passaria de 24h de atraso de
+        // verdade e seria corretamente marcada, mascarando o que este
+        // teste quer provar (mesmo padrão do fix em
+        // CheckMissedDosesCommandTest).
+        $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => [3]]);
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+        $response->assertOk()->assertJsonFragment(['status' => 'pending']);
+
+        $this->artisan('doses:check-missed')->assertSuccessful();
+        $this->assertSame(0, DoseLog::count());
     }
 
     public function test_dois_perfis_em_fusos_diferentes_veem_dias_diferentes_no_mesmo_instante(): void

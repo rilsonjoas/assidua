@@ -11,6 +11,15 @@ class DoseLog extends Model
 {
     use HasFactory;
 
+    // Tolerância antes de marcar "Perdido" de verdade (2026-09-11,
+    // entrevista de decisões de horário — ver ROADMAP.md, item 15/23).
+    // Fonte única — usada por CheckMissedDoses (marca no banco) e
+    // DoseLogController::today() (detecção sob demanda, mesma regra).
+    // Abaixo disso o app mostra "Atrasado" sozinho, 100% calculado no
+    // cliente a partir de `scheduled_at` — nenhum dos dois lugares
+    // abaixo precisa saber desse estado intermediário.
+    public const MISSED_TOLERANCE_HOURS = 24;
+
     protected $fillable = [
         'dose_schedule_id',
         'medication_id',

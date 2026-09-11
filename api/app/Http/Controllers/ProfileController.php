@@ -82,6 +82,20 @@ class ProfileController extends Controller
             'timezone' => 'sometimes|timezone',
         ]);
 
+        // Marcador de troca de fuso (2026-09-11, entrevista de decisões
+        // de horário — ver ROADMAP.md) — registrado ANTES do update, pra
+        // capturar o fuso ANTIGO antes dele ser sobrescrito. Só grava
+        // quando muda de verdade (evita marcador fantasma em todo PUT
+        // que só reenvia o mesmo fuso, ex.: `syncOwnedProfileTimezones`
+        // rodando de novo sem mudança real).
+        if (array_key_exists('timezone', $data) && $data['timezone'] !== $profile->timezone) {
+            $profile->timezoneChanges()->create([
+                'old_timezone' => $profile->timezone,
+                'new_timezone' => $data['timezone'],
+                'changed_at' => now(),
+            ]);
+        }
+
         $profile->update($data);
 
         return response()->json($profile);

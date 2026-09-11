@@ -18,8 +18,15 @@ use Illuminate\Console\Command;
 // bootstrap/app.php, precisa do cron `schedule:run` rodando no VPS
 // (ver hetzner-infra — não existia antes desta feature, foi adicionado
 // junto).
+//
+// Tolerância de 24h antes de marcar "Perdido" (2026-09-11, entrevista
+// de decisões de horário no ROADMAP.md — item 15/23) — antes disto era
+// instantâneo (`isPast()` cru). Abaixo de 24h de atraso, o app mostra
+// "Atrasado" (estado 100% calculado no CLIENTE, este comando nem sabe
+// que existe); só depois de 24h de verdade este comando marca como
+// "Perdido" de fato no banco.
 #[Signature('doses:check-missed')]
-#[Description('Marca doses passadas do horário como perdidas e notifica cuidadores (Fase 1.5)')]
+#[Description('Marca doses passadas do horário (com tolerância de 24h) como perdidas e notifica cuidadores (Fase 1.5)')]
 class CheckMissedDoses extends Command
 {
     public function handle(MarkDoseMissedAndNotifyCollaborators $markMissed, GenerateScheduleOccurrences $generateOccurrences): int
@@ -41,13 +48,22 @@ class CheckMissedDoses extends Command
                     $profile = $schedule->medication->profile;
                     $today = Carbon::today($profile->timezone);
 
-                    // "Frequência de horário" (2026-08-14): mesma Action
-                    // usada em DoseLogController::today() — um schedule
-                    // pode gerar mais de uma ocorrência perdível no dia.
-                    $occurrences = $generateOccurrences->handle($schedule, $today);
+                    // Achado real (2026-09-11, junto da tolerância de
+                    // 24h): este comando roda de 15 em 15min e sempre
+                    // calculava "hoje" fresco a cada execução — uma
+                    // ocorrência tarde da noite (ex.: 23:50) só completa
+                    // 24h de atraso já no dia SEGUINTE, quando "hoje" pro
+                    // comando já virou outro dia e essa ocorrência nunca
+                    // mais aparecia em `generateOccurrences->handle($schedule,
+                    // $today)` — ficava perdida (sem marcar "Perdido") pra
+                    // sempre. Olha ONTEM também, não só hoje.
+                    $occurrences = [
+                        ...$generateOccurrences->handle($schedule, $today->copy()->subDay()),
+                        ...$generateOccurrences->handle($schedule, $today),
+                    ];
 
                     foreach ($occurrences as $scheduledAt) {
-                        if (! $scheduledAt->isPast()) {
+                        if (! $scheduledAt->copy()->addHours(DoseLog::MISSED_TOLERANCE_HOURS)->isPast()) {
                             continue;
                         }
 
