@@ -157,7 +157,13 @@ export default function HomeScreen() {
         medication_id: dose.medication_id,
         profile_id: dose.profile_id,
         scheduled_at: dose.scheduled_at,
-        taken_at: (takenAt ?? new Date()).toISOString(),
+        // Decisão de produto do Rilson (2026-09-11): "Tomei" (toque
+        // simples) grava o horário AGENDADO como taken_at, não o
+        // instante do toque — tocar às 00:01 pra uma dose das 00:00 não
+        // deveria aparecer como "tomado às 00:01" no Histórico. Só
+        // "Outro horário" (takenAt explícito, vindo do modal) registra
+        // um horário genuinamente diferente do agendado.
+        taken_at: (takenAt ?? parseISO(dose.scheduled_at)).toISOString(),
         status: 'taken' as const,
       };
       try {

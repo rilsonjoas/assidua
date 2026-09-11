@@ -109,6 +109,12 @@ describe('HomeScreen — marcar dose como tomada', () => {
           medication_id: 10,
           profile_id: 1,
           status: 'taken',
+          // Decisão de produto do Rilson (2026-09-11): "Tomei" (toque
+          // simples) grava o horário AGENDADO, não o instante do toque
+          // — só "Outro horário" registra um horário diferente. Sem
+          // isso, tocar às 00:01 numa dose das 00:00 aparecia como
+          // "tomado às 00:01" no Histórico, confundindo o Rilson.
+          taken_at: pendingDose.scheduled_at,
         }),
       );
     });
