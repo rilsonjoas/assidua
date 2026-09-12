@@ -1645,6 +1645,47 @@ localmente pra debugar, não só neste teste específico.
 
 ---
 
+## 🔴 "Reajustar todos" (pra sempre) duplicava a dose de hoje — ✅ resolvido 2026-09-12
+
+> Achado real do Rilson, com print: "adianto um remédio, digo que tomei
+> agora, digo pra atualizar o horário daqui pra frente" — Ibuprofeno
+> (interval) aparecia DUAS vezes na Home no mesmo horário, uma "Tomado"
+> e outra pendente com os botões de ação.
+>
+> **Causa raiz**: `confirmRecalculateForever` só chamava `updateSchedule`
+> (muda o `time` permanente do agendamento) — nunca avisava "hoje" sobre
+> essa mudança. O DoseLog recém-criado (com o `scheduled_at` do horário
+> ANTIGO) virava órfão (mostrado certinho como "Tomado" pelo fix de
+> 2026-09-09, via `taken_at`) — mas a ocorrência de HOJE, recalculada do
+> zero a partir do NOVO horário-âncora (que geralmente coincide com o
+> horário que a pessoa acabou de registrar), não tinha log nenhum
+> batendo com ela, e aparecia como uma dose pendente nova. "Só hoje"
+> nunca teve esse problema porque usa `recalculateScheduleToday`, que
+> pula a própria âncora de propósito (evita exatamente esse tipo de
+> duplicata, documentado desde 2026-09-08).
+>
+> **Corrigido**: `confirmRecalculateForever` agora roda os dois passos —
+> `updateSchedule` (horário permanente, dias seguintes) E
+> `recalculateScheduleToday` (mesmo mecanismo de "só hoje", pula a
+> âncora de hoje) — só pro modo intervalo. "Pra sempre" passa a ser
+> literalmente "só hoje" + editar o futuro, não só editar o futuro.
+>
+> **Pendência conhecida, não uma regressão desta correção**: horário
+> fixo não tem endpoint de recálculo "só hoje" (backend rejeita com
+> 422) — o mesmo bug de duplicata provavelmente ainda existe pra
+> "pra sempre" em horário fixo (sem mecanismo de reconciliação de
+> "hoje" nesse caso). Também seguem pendentes os itens da entrevista de
+> horário sobre horário fixo (Q10: "recalcular" deslocar TODAS as
+> próximas doses fixas do dia pelo mesmo atraso) — nunca chegaram a ser
+> implementados, só o "pra sempre" simples existe hoje pra fixo.
+>
+> Testado: teste antigo que travava o bug como comportamento esperado
+> ("não chama recalculateScheduleToday — são exclusivos") corrigido pra
+> provar o oposto; teste de horário fixo continua confirmando que ele
+> NÃO chama `recalculateScheduleToday` (backend rejeitaria).
+
+---
+
 ## 🔴 Bug real: notificação de remédio que não existe mais na lista de hoje — ✅ causa raiz achada e corrigido em código, ⏸️ NÃO publicado (aguardando aprovação do Rilson)
 
 > Achado do Rilson (2026-09-11), com print da tela "Hoje" (4 doses reais:

@@ -870,12 +870,26 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
   // "Pra sempre" (2026-09-11, item 12/13) — reaproveita updateSchedule
   // (mesmo endpoint de "Editar horário") + scheduleScheduleNotifications
   // (cancela+recria o lembrete sozinho, fecha o item 5/21 de graça).
-  it('confirmar "Sempre, a partir de agora" chama updateSchedule com o novo horário', async () => {
+  //
+  // Bug real corrigido 2026-09-12 (Rilson, com print): "pra sempre" só
+  // editava o horário permanente, sem avisar "hoje" — o log recém-criado
+  // virava órfão E a ocorrência de hoje (recalculada do novo horário)
+  // aparecia como uma dose pendente NOVA, idêntica em horário à que
+  // acabou de ser tomada. Agora "pra sempre" também chama
+  // recalculateScheduleToday (mesmo mecanismo de "só hoje", que pula a
+  // própria âncora de propósito) — o teste antigo aqui chegou a travar o
+  // bug como comportamento esperado ("não chama recalculateScheduleToday
+  // — são exclusivos"), corrigido junto.
+  it('confirmar "Sempre, a partir de agora" chama updateSchedule E recalculateScheduleToday (evita duplicar a dose de hoje)', async () => {
     mockedDoses.getTodayDoses.mockResolvedValue([intervalDose]);
     mockedDoses.logDose.mockResolvedValueOnce({ ...intervalDose, status: 'taken' });
     mockedMedications.updateSchedule.mockResolvedValueOnce({
       ...intervalDose.dose_schedule,
       time: '20:00',
+    } as any);
+    mockedMedications.recalculateScheduleToday.mockResolvedValueOnce({
+      schedule: { ...intervalDose.dose_schedule, time: '20:00', today_override_date: '2026-08-08', today_override_time: '20:00:00' },
+      today_occurrences: ['2026-08-09T04:00:00+00:00'],
     } as any);
 
     renderHome();
@@ -887,6 +901,9 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     fireEvent.press(screen.getByText('Registrar'));
     fireEvent.press(await screen.findByLabelText('Sempre, a partir de agora'));
 
+    const expectedAnchor = new Date();
+    expectedAnchor.setHours(20, 0, 0, 0);
+
     await waitFor(() => {
       expect(mockedMedications.updateSchedule).toHaveBeenCalledWith(7, { time: '20:00' });
     });
@@ -895,8 +912,20 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
         expect.objectContaining({ scheduleId: 7, time: '20:00', medicationName: 'Losartana' }),
       );
     });
-    // Não chama o caminho de "só hoje" — são exclusivos.
-    expect(mockedMedications.recalculateScheduleToday).not.toHaveBeenCalled();
+    // A correção: também roda o mecanismo de "hoje" (pula a própria
+    // âncora), pra não duplicar a dose que acabou de ser registrada.
+    await waitFor(() => {
+      expect(mockedMedications.recalculateScheduleToday).toHaveBeenCalledWith(7, expectedAnchor.toISOString());
+    });
+    await waitFor(() => {
+      expect(mockedNotifications.rescheduleTodayOccurrences).toHaveBeenCalledWith({
+        scheduleId: 7,
+        todayOccurrences: ['2026-08-09T04:00:00+00:00'],
+        medicationName: 'Losartana',
+        dosage: '50',
+        unit: 'mg',
+      });
+    });
   });
 
   it('diferença pequena (menos de 30min) não oferece recalcular', async () => {
@@ -1028,5 +1057,8 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     await waitFor(() => {
       expect(mockedMedications.updateSchedule).toHaveBeenCalledWith(8, { time: '20:00' });
     });
+    // Horário fixo não tem endpoint de recálculo "só hoje" (backend
+    // rejeita) — editar o permanente é tudo que "pra sempre" faz aqui.
+    expect(mockedMedications.recalculateScheduleToday).not.toHaveBeenCalled();
   });
 });

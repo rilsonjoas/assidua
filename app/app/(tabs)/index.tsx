@@ -469,15 +469,31 @@ export default function HomeScreen() {
   // recria o lembrete por conta própria (mesmo caminho que "Editar
   // horário" usa) — zero duplicata, sem precisar de nenhum código novo
   // de notificação aqui (item 5/21 fechado de graça por reuso).
+  //
+  // Bug real achado 2026-09-12 (Rilson, com print): "pra sempre" só
+  // mudava o horário-âncora do FUTURO — "hoje" recalculava as
+  // ocorrências a partir do NOVO horário sem saber que a dose que
+  // acabou de ser tomada já "usou" esse horário. Resultado: o log virava
+  // órfão (mostrado certinho como "Tomado" pelo fix de 2026-09-09) E a
+  // ocorrência nova de hoje (calculada do novo horário) aparecia como
+  // pendente — duas doses no mesmo horário, uma tomada e outra pra
+  // tomar. "Só hoje" nunca teve esse problema porque usa
+  // `recalculateScheduleToday` (pula a própria âncora de propósito). A
+  // correção é fazer "pra sempre" rodar os dois: edita o horário
+  // permanente (dias seguintes) E aplica o mesmo override de "só hoje"
+  // (pula a âncora de hoje, sem duplicar). Só vale pra modo intervalo —
+  // horário fixo não tem o endpoint de recálculo (backend rejeita com
+  // 422; mesma limitação que "só hoje" já tinha pra ele, ver
+  // `isFixedSchedule` abaixo — registrado como pendência separada no
+  // ROADMAP, não uma regressão desta correção).
   async function confirmRecalculateForever() {
     if (confirmDialog?.kind !== 'recalculate') return;
-    const { scheduleId, anchor, medication } = confirmDialog;
+    const { scheduleId, anchor, medication, isFixedSchedule } = confirmDialog;
     closeConfirmDialog();
     const newTime = format(anchor, 'HH:mm');
 
     try {
       const updated = await updateSchedule(scheduleId, { time: newTime });
-      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       queryClient.invalidateQueries({ queryKey: ['medications'] });
       showToast(t('home.recalculatedForeverToast', { time: newTime }));
       scheduleScheduleNotifications({
@@ -485,6 +501,25 @@ export default function HomeScreen() {
         time: newTime,
         days_of_week: updated.days_of_week,
         interval_hours: updated.interval_hours,
+        medicationName: medication.name,
+        dosage: medication.dosage,
+        unit: medication.unit,
+      }).catch((err) => console.warn('[assidua] Falha ao resincronizar lembretes locais:', err));
+
+      if (isFixedSchedule) {
+        // Horário fixo: sem endpoint de recálculo "só hoje" (backend
+        // rejeita). Editar o horário permanente já é tudo que dá pra
+        // fazer hoje sem duplicar — pendência conhecida de "hoje" não
+        // ficar 100% reconciliado nesse caso específico (ver ROADMAP).
+        queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+        return;
+      }
+
+      const result = await recalculateScheduleToday(scheduleId, anchor.toISOString());
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      rescheduleTodayOccurrences({
+        scheduleId,
+        todayOccurrences: result.today_occurrences,
         medicationName: medication.name,
         dosage: medication.dosage,
         unit: medication.unit,
