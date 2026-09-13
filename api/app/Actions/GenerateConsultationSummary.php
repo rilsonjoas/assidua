@@ -27,6 +27,15 @@ class GenerateConsultationSummary
         $today = Carbon::today($profile->timezone);
         $periodStart = $today->copy()->subDays($days - 1);
 
+        // Achado real do Rilson (2026-09-12), mesma auditoria do "pausar
+        // não deveria esconder o que já aconteceu": esta query nunca
+        // filtrou `is_paused` (nem devia — o resumo de consulta é sobre
+        // o passado real). Mas sem `is_paused`/`paused_at` no select do
+        // `with('medication')`, GenerateScheduleOccurrences não tinha
+        // como saber a partir de quando parar de contar "devido" pra um
+        // remédio pausado — geraria "perdida" fantasma pra sempre depois
+        // da pausa. Corrigido só ampliando as colunas carregadas; a
+        // lógica de corte já existe, centralizada lá.
         $schedules = DoseSchedule::where('is_active', true)
             ->whereHas('medication', function ($q) use ($profile, $medicationId) {
                 $q->where('profile_id', $profile->id);
@@ -34,7 +43,7 @@ class GenerateConsultationSummary
                     $q->where('id', $medicationId);
                 }
             })
-            ->with('medication:id,name')
+            ->with('medication:id,name,is_paused,paused_at')
             ->get();
 
         $totalDue = 0;

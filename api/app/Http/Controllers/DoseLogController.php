@@ -38,15 +38,25 @@ class DoseLogController extends Controller
                 'stock',
             ])
             ->where('is_active', true)
-            // Pausado (2026-08-12): visível na tela Remédios, mas não
-            // gera dose nem entra na tela Hoje enquanto estiver pausado.
-            ->where('is_paused', false)
+            // Achado real do Rilson (2026-09-12): "pausado" NÃO filtra
+            // mais o medicamento inteiro daqui — fazia a dose de HOJE já
+            // tomada antes da pausa sumir junto (mesma família do bug de
+            // "duplicar" já corrigido). GenerateScheduleOccurrences agora
+            // decide isso caso a caso, pelo instante exato da pausa
+            // (`paused_at`) — ocorrência até esse instante conta,
+            // depois dele nunca é gerada. Ver comentário lá.
             ->get();
 
         $doses = [];
 
         foreach ($medications as $medication) {
             foreach ($medication->schedules as $schedule) {
+                // Evita N+1 em GenerateScheduleOccurrences (que precisa
+                // de `$schedule->medication` pra checar pausa) — a
+                // relação inversa não vem de graça só por ter carregado
+                // via `$medication->schedules` acima.
+                $schedule->setRelation('medication', $medication);
+
                 // "Frequência de horário" (2026-08-14): um schedule pode
                 // gerar mais de uma dose no dia agora (ex.: de 8 em 8h ->
                 // 3 ocorrências). GenerateScheduleOccurrences decide
@@ -324,8 +334,12 @@ class DoseLogController extends Controller
         // de uma dose devida hoje agora — conta ocorrências, não
         // schedules, senão "completar o dia" dispararia cedo demais pra
         // quem tem remédio de intervalo.
+        // Mesmo achado de CalculateAdherenceStreak (2026-09-12): sem
+        // filtro de pausado, GenerateScheduleOccurrences decide pelo
+        // instante de `paused_at`.
         $schedules = DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true)->where('is_paused', false))
+            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true))
+            ->with('medication:id,is_paused,paused_at')
             ->get();
 
         $dueScheduleIds = [];
@@ -473,9 +487,13 @@ class DoseLogController extends Controller
             $monthEnd = $today->copy();
         }
 
+        // Mesmo achado de CalculateAdherenceStreak (2026-09-12): sem
+        // filtro de pausado, GenerateScheduleOccurrences decide pelo
+        // instante de `paused_at`.
         $schedules = DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true)->where('is_paused', false))
-            ->get(['id', 'time', 'days_of_week', 'interval_hours']);
+            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true))
+            ->with('medication:id,is_paused,paused_at')
+            ->get(['id', 'medication_id', 'time', 'days_of_week', 'interval_hours']);
 
         $days = [];
         for ($date = $month->copy(); $date->lte($monthEnd); $date->addDay()) {

@@ -56,10 +56,23 @@ class DoseScheduleController extends Controller
         return response()->json($doseSchedule);
     }
 
+    // "Excluir horário não deveria apagar histórico" (entrevista de
+    // horário, 2026-09-12) — achado investigando o bug do pausar: apagar
+    // de verdade (`->delete()`) cascateava (`cascadeOnDelete` na
+    // migration) e sumia com TODO DoseLog daquele horário pra sempre,
+    // sem aviso nenhum na tela — mais grave que o bug do pausar (perda
+    // de dado real, não só de exibição). Decisão do Rilson: mesma
+    // filosofia de pausar (`is_active = false` já existe e já é
+    // respeitado em toda leitura — index() aqui, today(), streak,
+    // adesão) — esconde o horário do futuro, preserva o passado.
+    // Diferente de propósito de "excluir medicamento" (Medication-
+    // Controller::destroy), que continua apagando tudo em cascata: essa
+    // é uma decisão já confirmada antes, com aviso explícito na tela,
+    // não mudou aqui.
     public function destroy(Request $request, DoseSchedule $doseSchedule): JsonResponse
     {
         Gate::authorize('delete', $doseSchedule);
-        $doseSchedule->delete();
+        $doseSchedule->update(['is_active' => false]);
 
         return response()->json(null, 204);
     }

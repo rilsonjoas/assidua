@@ -24,6 +24,10 @@ class Medication extends Model
         'notes',
         'is_active',
         'is_paused',
+        // "Pausar não deveria esconder o que já aconteceu" (entrevista
+        // de horário, 2026-09-12) — ver migration. Setado/limpo em
+        // MedicationController::update quando `is_paused` muda.
+        'paused_at',
         'photo_path',
         'treatment_duration_days',
         // Achado real (2026-08-14): faltou aqui na primeira versão —
@@ -58,6 +62,11 @@ class Medication extends Model
         return [
             'is_active' => 'boolean',
             'is_paused' => 'boolean',
+            // Instante real (UTC), igual created_at/updated_at — não sofre
+            // o problema de DoseLog::scheduled_at/taken_at (aqueles são
+            // hora LOCAL do perfil gravada sem fuso; este é gravado via
+            // now() puro, um instante absoluto de verdade).
+            'paused_at' => 'datetime',
             'treatment_end_notified_at' => 'datetime',
         ];
     }

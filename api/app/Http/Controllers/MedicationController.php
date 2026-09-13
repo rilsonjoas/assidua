@@ -87,6 +87,19 @@ class MedicationController extends Controller
             'treatment_duration_days' => 'sometimes|nullable|integer|min:1|max:3650',
         ]);
 
+        // "Pausar não deveria esconder o que já aconteceu" (entrevista
+        // de horário, 2026-09-12) — grava o INSTANTE exato da pausa
+        // (não só o booleano) pra GenerateScheduleOccurrences saber
+        // separar "hoje antes de pausar" (conta) de "hoje depois de
+        // pausar" (nunca deveria ter sido gerado). Limpa ao retomar —
+        // sem pausa ativa, não há instante nenhum a considerar.
+        // Só nas TRANSIÇÕES de verdade — reenviar is_paused=true enquanto
+        // já está pausado (ex.: outro campo mudando junto) não pode
+        // empurrar `paused_at` pra um instante mais novo à toa.
+        if (array_key_exists('is_paused', $data) && $data['is_paused'] !== $medication->is_paused) {
+            $data['paused_at'] = $data['is_paused'] ? now() : null;
+        }
+
         $medication->update($data);
 
         return response()->json($medication->load(['schedules', 'stock']));

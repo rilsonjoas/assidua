@@ -1686,6 +1686,84 @@ localmente pra debugar, não só neste teste específico.
 
 ---
 
+## 🔴 "O que acontece com o registro de hoje quando o remédio/horário muda de estado" — ✅ resolvido 2026-09-13
+
+> Achado real do Rilson, com print: pausou o Ibuprofeno depois de já ter
+> tomado a dose de hoje, e ela sumiu inteira da tela Hoje — "o registro
+> tem que estar lá, ele só não deve aparecer nos horários seguintes".
+> Mesma família de bug do "Reajustar todos" acima (duas rodadas seguidas
+> do mesmo padrão) — o Rilson pediu uma 2ª sessão de `grilling` pra
+> mapear a regra GERAL antes de corrigir de novo caso a caso. 4
+> decisões saíram dessa entrevista, implementadas juntas:
+>
+> **1) Pausar não escondia mais a dose de hoje já resolvida — causa
+> raiz**: `is_paused` filtrava o medicamento INTEIRO fora de
+> `today()`, `CalculateAdherenceStreak`, `CalculateDailyAdherence`,
+> `CalculateWeeklyAdherence` — um booleano só, sem noção de "quando" a
+> pausa aconteceu. Corrigido com `paused_at` (novo timestamp em
+> `medications`, carimbado por `MedicationController::update` só numa
+> transição de verdade de `is_paused`): `GenerateScheduleOccurrences`
+> passou a decidir, ocorrência por ocorrência, "até `paused_at`
+> (inclusive) é história real, depois dele nunca existiu" — centralizado
+> lá pelo mesmo motivo de sempre (evitar a mesma conta divergindo em 5
+> lugares). `paused_at` nulo com `is_paused=true` (dado sem o instante,
+> ex. seed/legado) assume o mais seguro — sempre esteve pausado, mesmo
+> comportamento de antes desta mudança. `CheckMissedDoses` (o cron)
+> continua filtrando `is_paused` do jeito antigo, de propósito — é o
+> único consumidor genuinamente pra FRENTE, não pode gerar "perdida"
+> fantasma pra sempre depois da pausa.
+>
+> **2) Excluir horário apagava histórico pra sempre, achado investigando
+> o item 1 (mais grave que o que foi reportado)**: `DoseScheduleController::destroy`
+> fazia `->delete()`, que cascateava (`cascadeOnDelete` na migration) e
+> apagava TODO `DoseLog` daquele horário, com só um aviso mild na tela
+> ("cancelar as notificações"), sem mencionar que era irreversível.
+> Decisão do Rilson (opção B): não apaga mais — `is_active = false`
+> (campo que já existia, já respeitado em toda leitura: `index()`,
+> `today()`, streak, adesão). Some da lista, para de gerar dose nova,
+> preserva o passado. Diferente de "excluir medicamento" inteiro
+> (`MedicationController::destroy`), que continua cascateando de
+> propósito — essa já tem aviso explícito e destrutivo na tela, decisão
+> anterior confirmada, não mudou.
+>
+> **3) Editar horário tinha a MESMA causa raiz do "Reajustar todos"**:
+> mudar `time`/`interval_hours` permanente de um schedule de intervalo
+> já existente, sem reconciliar "hoje", deixava o `DoseLog` de hoje
+> órfão e duplicava com uma ocorrência nova. Corrigido reaproveitando
+> exatamente `recalculateScheduleToday` depois de `updateSchedule` (só
+> intervalo — fixo o backend rejeita, mesma limitação já registrada
+> acima), best-effort: se a reconciliação falhar, o horário permanente
+> já salvou certo, não trava nem assusta a pessoa com erro sobre detalhe
+> secundário.
+>
+> **4) Perguntar antes de pausar, se tem dose vencida sem ação**: item
+> explícito do Rilson — "é bom deixar pro usuário decidir". Ao tocar em
+> Pausar, o app busca as doses de hoje; se alguma estiver vencida
+> (`scheduled_at` no passado) e ainda `pending`, mostra um ConfirmDialog
+> bloqueante ANTES de completar a pausa — "Marcar como perdida" ou
+> "Ignorar" (= pular, mesma semântica de status já usada no resto do
+> app), só então pausa de verdade. Falha na checagem (rede etc.) não
+> trava quem só quer pausar — segue best-effort pro comportamento
+> anterior. Retomar nunca pergunta (não existe "dose vencida por causa
+> da retomada").
+>
+> **Testado**: backend 278/278 (PHPUnit, incluindo 5 testes que
+> travavam o comportamento ANTIGO como esperado — corrigidos pra provar
+> a regra nova — e 5 testes novos cobrindo dose-já-tomada-sobrevive-à-pausa,
+> adesão-continua-contando, dose-ainda-não-vencida-continua-escondida,
+> histórico-sobrevive-à-exclusão-de-horário); frontend 389/389 (Jest,
+> incluindo 7 testes novos do fluxo perguntar-antes-de-pausar e da
+> reconciliação de "hoje" ao editar horário de intervalo); `tsc --noEmit`
+> limpo.
+>
+> **Pendência conhecida**: item 12 da 1ª entrevista de horário
+> ("recalcular deve deixar claro que vai afetar todos os dias
+> seguintes") ainda não tem um aviso textual explícito na UI pro fluxo
+> de editar horário — só o próprio nome do campo ("horário salva
+> sozinho"). Não bloqueante, candidato a próxima rodada de UX.
+
+---
+
 ## 🔴 Bug real: notificação de remédio que não existe mais na lista de hoje — ✅ causa raiz achada e corrigido em código, ⏸️ NÃO publicado (aguardando aprovação do Rilson)
 
 > Achado do Rilson (2026-09-11), com print da tela "Hoje" (4 doses reais:

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DoseLog;
 use App\Models\DoseSchedule;
 use App\Models\Medication;
 use App\Models\Profile;
@@ -162,6 +163,12 @@ class DoseScheduleTest extends TestCase
         $response->assertForbidden();
     }
 
+    // "Excluir horário não deveria apagar histórico" (entrevista de
+    // horário, 2026-09-12) — decisão B do Rilson: não é mais hard delete
+    // (achado real: cascateava e apagava TODO DoseLog daquele horário
+    // sem aviso). Agora é desativação (`is_active=false`): some da lista
+    // (index() já filtra por is_active) e para de gerar dose nova, mas a
+    // linha e o histórico continuam no banco.
     public function test_remove_schedule(): void
     {
         $user = User::factory()->create();
@@ -172,7 +179,33 @@ class DoseScheduleTest extends TestCase
         $response = $this->actingAs($user)->deleteJson("/api/schedules/{$schedule->id}");
 
         $response->assertNoContent();
-        $this->assertDatabaseMissing('dose_schedules', ['id' => $schedule->id]);
+        $this->assertDatabaseHas('dose_schedules', ['id' => $schedule->id, 'is_active' => false]);
+    }
+
+    public function test_remove_schedule_preserva_historico_de_dose_e_some_da_lista(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $log = DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today('UTC')->setTimeFromTimeString('08:00:00'),
+            'taken_at' => now(),
+            'status' => 'taken',
+        ]);
+
+        $this->actingAs($user)->deleteJson("/api/schedules/{$schedule->id}")->assertNoContent();
+
+        // Log de verdade continua existindo, nada foi apagado em cascata.
+        $this->assertDatabaseHas('dose_logs', ['id' => $log->id]);
+
+        // Mas o horário desativado some da listagem que a tela usa.
+        $index = $this->actingAs($user)->getJson("/api/medications/{$medication->id}/schedules");
+        $index->assertOk()->assertJsonCount(0);
     }
 
     public function test_nao_permite_remover_schedule_de_outro_usuario(): void

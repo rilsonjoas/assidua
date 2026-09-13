@@ -23,9 +23,13 @@ class CalculateDailyAdherence
 
     public function handle(Profile $profile, Carbon $date, ?Collection $schedules = null): array
     {
+        // Mesmo achado de CalculateAdherenceStreak (2026-09-12): sem
+        // filtro de pausado aqui, GenerateScheduleOccurrences decide pelo
+        // instante de `paused_at`.
         $schedules ??= DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true)->where('is_paused', false))
-            ->get(['id', 'time', 'days_of_week', 'interval_hours']);
+            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true))
+            ->with('medication:id,is_paused,paused_at')
+            ->get(['id', 'medication_id', 'time', 'days_of_week', 'interval_hours']);
 
         if ($schedules->isEmpty()) {
             return ['taken' => 0, 'due' => 0, 'percentage' => null];

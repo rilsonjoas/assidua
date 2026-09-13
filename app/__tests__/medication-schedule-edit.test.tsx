@@ -9,6 +9,7 @@ import MedicationFormScreen from '../app/medication/[id]';
 import { useProfileStore } from '../store/profileStore';
 import * as medicationsService from '../services/medications';
 import * as notificationsService from '../services/notifications';
+import * as dosesService from '../services/doses';
 
 jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
@@ -22,8 +23,19 @@ jest.mock('../services/medications', () => ({
   deleteMedicationPhoto: jest.fn(),
   updateStock: jest.fn(),
   deleteMedication: jest.fn(),
+  recalculateScheduleToday: jest.fn(),
 }));
 jest.mock('../services/notifications');
+// "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) — sem
+// isso, requestPause chamaria o axios de verdade em toda a suíte (não só
+// nos testes que mexem em pausa), deixando handle assíncrono aberto
+// depois do teste terminar (achado real: "Jest did not exit" antes desta
+// mudança).
+jest.mock('../services/doses', () => ({
+  ...(jest.requireActual('../services/doses') as object),
+  getTodayDoses: jest.fn(),
+  logDose: jest.fn(),
+}));
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(),
   requestMediaLibraryPermissionsAsync: jest.fn(),
@@ -33,6 +45,7 @@ jest.mock('expo-image-picker', () => ({
 
 const mockedMedications = jest.mocked(medicationsService);
 const mockedNotifications = jest.mocked(notificationsService);
+const mockedDoses = jest.mocked(dosesService);
 const mockedImagePicker = jest.mocked(ImagePicker);
 const mockedSearchParams = useLocalSearchParams as jest.Mock;
 
@@ -127,6 +140,10 @@ describe('MedicationFormScreen — editar horário existente (Fase 2)', () => {
 
     // volta pro estado de lista, sem o form aberto
     expect(screen.queryByText('Editar horário')).toBeNull();
+    // Reconciliar "hoje" (recalculateScheduleToday) só se aplica a
+    // intervalo — horário fixo não tem "próxima dose" pra deslocar, e o
+    // próprio backend rejeita esse recálculo pra ele (ver ROADMAP).
+    expect(mockedMedications.recalculateScheduleToday).not.toHaveBeenCalled();
   });
 
   it('cancelar a edição não chama updateSchedule', async () => {
@@ -250,6 +267,65 @@ describe('MedicationFormScreen — frequência de horário: fixo vs intervalo (2
 
     expect(await screen.findByText('A cada 12 horas')).toBeTruthy();
   });
+
+  // "Editar horário tem a mesma falha do 'pra sempre'" (entrevista de
+  // horário, 2026-09-12, confirmado pelo Rilson) — mudar o horário
+  // permanente de um intervalo já existente reconcilia "hoje" pelo
+  // mesmo mecanismo do recálculo "pra sempre" da Home, senão o DoseLog
+  // de hoje fica órfão e uma ocorrência nova duplica em cima dele.
+  it('salvar edição de horário de intervalo reconcilia "hoje" via recalculateScheduleToday', async () => {
+    const intervalSchedule = { id: 21, medication_id: 10, time: '06:00:00', days_of_week: null, interval_hours: 12, is_active: true };
+    mockedMedications.getMedication.mockResolvedValue({ ...medication, schedules: [intervalSchedule] } as any);
+    mockedMedications.updateSchedule.mockResolvedValueOnce({ ...intervalSchedule, time: '10:00:00' } as any);
+    mockedMedications.recalculateScheduleToday.mockResolvedValueOnce({
+      schedule: { ...intervalSchedule, time: '10:00:00' },
+      today_occurrences: [],
+    } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Editar horário das 06:00:00, A cada 12 horas'));
+    fireEvent.changeText(screen.getByPlaceholderText('08:00'), '10:00');
+    fireEvent.press(screen.getByText('Salvar'));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateSchedule).toHaveBeenCalledWith(21, {
+        time: '10:00',
+        days_of_week: null,
+        interval_hours: 12,
+      });
+      expect(mockedMedications.recalculateScheduleToday).toHaveBeenCalledWith(21, expect.any(String));
+    });
+
+    // A âncora enviada é o instante de hoje às 10:00 (não uma data
+    // qualquer nem o horário antigo).
+    const [, anchorIso] = mockedMedications.recalculateScheduleToday.mock.calls[0];
+    const anchor = new Date(anchorIso as string);
+    expect(anchor.getHours()).toBe(10);
+    expect(anchor.getMinutes()).toBe(0);
+  });
+
+  // Falha ao reconciliar "hoje" não pode travar nem reverter a mudança
+  // permanente do horário — essa já salvou certinho, "hoje" é
+  // best-effort (mesmo princípio do recálculo "pra sempre" na Home).
+  it('se recalculateScheduleToday falhar, o horário permanente continua salvo e o form fecha normal', async () => {
+    const intervalSchedule = { id: 21, medication_id: 10, time: '06:00:00', days_of_week: null, interval_hours: 12, is_active: true };
+    mockedMedications.getMedication.mockResolvedValue({ ...medication, schedules: [intervalSchedule] } as any);
+    mockedMedications.updateSchedule.mockResolvedValueOnce({ ...intervalSchedule, time: '10:00:00' } as any);
+    mockedMedications.recalculateScheduleToday.mockRejectedValueOnce(new Error('falha de rede'));
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Editar horário das 06:00:00, A cada 12 horas'));
+    fireEvent.changeText(screen.getByPlaceholderText('08:00'), '10:00');
+    fireEvent.press(screen.getByText('Salvar'));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateSchedule).toHaveBeenCalled();
+    });
+    expect(await screen.findByText('A cada 12 horas')).toBeTruthy();
+    expect(screen.queryByText('Editar horário')).toBeNull();
+  });
 });
 
 // Trocar de modo (fixo ↔ intervalo) num remédio que JÁ TEM horário
@@ -362,6 +438,10 @@ describe('MedicationFormScreen — pausar/reativar medicamento (Fase 2, 2026-08-
     mockedSearchParams.mockReturnValue({ id: '10' });
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedMedications.getMedication.mockResolvedValue(medication as any);
+    // Default: sem dose vencida sem ação — pausar não deveria travar em
+    // pergunta nenhuma neste caso comum, só nos testes que simulam o
+    // contrário abaixo.
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
   });
 
   it('pausar chama updateMedication e cancela a notificação de cada horário', async () => {
@@ -425,6 +505,108 @@ describe('MedicationFormScreen — pausar/reativar medicamento (Fase 2, 2026-08-
     renderScreen();
 
     expect(await screen.findByText(/não vai gerar dose nem lembrete/)).toBeTruthy();
+  });
+});
+
+// "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) — item
+// 2 confirmado pelo Rilson: uma dose de hoje vencida e sem ação nenhuma
+// não pode ser decidida escondida pelo sistema ao pausar; a pessoa
+// escolhe (marcar como perdida, ou ignorar = pular), bloqueando a pausa
+// até responder.
+describe('MedicationFormScreen — perguntar antes de pausar se há dose vencida sem ação (2026-09-12)', () => {
+  const overdueDose = {
+    id: 'pending_20',
+    dose_schedule_id: 20,
+    medication_id: 10,
+    profile_id: 1,
+    scheduled_at: '2026-09-12 08:00:00',
+    taken_at: null,
+    status: 'pending' as const,
+    notes: null,
+    medication,
+    dose_schedule: schedule,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSearchParams.mockReturnValue({ id: '10' });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedication.mockResolvedValue(medication as any);
+  });
+
+  it('com dose vencida sem ação, tocar em pausar mostra a pergunta em vez de pausar direto', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([overdueDose] as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+
+    expect(await screen.findByText('Tem dose pendente')).toBeTruthy();
+    expect(mockedMedications.updateMedication).not.toHaveBeenCalled();
+  });
+
+  it('"Marcar como perdida" registra a dose como missed e só então pausa', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([overdueDose] as any);
+    mockedDoses.logDose.mockResolvedValue({ ...overdueDose, status: 'missed' } as any);
+    mockedMedications.updateMedication.mockResolvedValueOnce({ ...medication, is_paused: true } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+    fireEvent.press(await screen.findByLabelText('Marcar como perdida'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalledWith(
+        expect.objectContaining({ dose_schedule_id: 20, scheduled_at: '2026-09-12 08:00:00', status: 'missed' }),
+      );
+      expect(mockedMedications.updateMedication).toHaveBeenCalledWith(10, { is_paused: true });
+    });
+  });
+
+  it('"Ignorar" pula a dose (status skipped) e só então pausa', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([overdueDose] as any);
+    mockedDoses.logDose.mockResolvedValue({ ...overdueDose, status: 'skipped' } as any);
+    mockedMedications.updateMedication.mockResolvedValueOnce({ ...medication, is_paused: true } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+    fireEvent.press(await screen.findByLabelText('Ignorar'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalledWith(
+        expect.objectContaining({ dose_schedule_id: 20, status: 'skipped' }),
+      );
+      expect(mockedMedications.updateMedication).toHaveBeenCalledWith(10, { is_paused: true });
+    });
+  });
+
+  it('sem dose vencida, pausar acontece direto sem pergunta nenhuma', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedMedications.updateMedication.mockResolvedValueOnce({ ...medication, is_paused: true } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateMedication).toHaveBeenCalledWith(10, { is_paused: true });
+    });
+    expect(screen.queryByText('Tem dose pendente')).toBeNull();
+  });
+
+  it('retomar (despausar) nunca pergunta — dose vencida só é problema ao pausar', async () => {
+    mockedMedications.getMedication.mockResolvedValue({ ...medication, is_paused: true } as any);
+    mockedMedications.updateMedication.mockResolvedValueOnce({ ...medication, is_paused: false } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Reativar medicamento'));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateMedication).toHaveBeenCalledWith(10, { is_paused: false });
+    });
+    expect(mockedDoses.getTodayDoses).not.toHaveBeenCalled();
   });
 });
 

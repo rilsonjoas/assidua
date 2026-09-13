@@ -35,9 +35,17 @@ class CalculateAdherenceStreak
     {
         $today = Carbon::today($profile->timezone);
 
+        // Achado real do Rilson (2026-09-12): "pausado" não filtra mais
+        // aqui — um dia em que a dose já tinha sido tomada ANTES de
+        // pausar não pode deixar de contar pra sequência só porque o
+        // remédio está pausado hoje. GenerateScheduleOccurrences decide
+        // isso caso a caso (pelo instante de `paused_at`), não esta
+        // query. `medication_id` no select + `with('medication')`: a
+        // Action acima precisa da relação carregada pra checar a pausa.
         $schedules = DoseSchedule::where('is_active', true)
-            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true)->where('is_paused', false))
-            ->get(['id', 'time', 'days_of_week', 'interval_hours']);
+            ->whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id)->where('is_active', true))
+            ->with('medication:id,is_paused,paused_at')
+            ->get(['id', 'medication_id', 'time', 'days_of_week', 'interval_hours']);
 
         if ($schedules->isEmpty()) {
             return ['current_streak' => 0, 'best_streak' => 0];

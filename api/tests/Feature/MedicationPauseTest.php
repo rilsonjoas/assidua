@@ -130,4 +130,89 @@ class MedicationPauseTest extends TestCase
 
         $this->assertSame(3, $streak['current_streak']);
     }
+
+    // "Pausar não deveria esconder o que já aconteceu" (entrevista de
+    // horário, 2026-09-12) — o bug real reportado pelo Rilson: pausar o
+    // Ibuprofeno depois de já ter tomado a dose de hoje fazia ela sumir
+    // inteira da tela Hoje. Cobre exatamente esse caminho: toma → pausa
+    // (via controller, que carimba `paused_at`) → dose de hoje continua
+    // aparecendo.
+    public function test_dose_ja_tomada_hoje_continua_na_tela_apos_pausar(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-12 09:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today('UTC')->setTimeFromTimeString('08:00:00'),
+            'taken_at' => now(),
+            'status' => 'taken',
+        ]);
+
+        // Pausa DEPOIS de tomar, pelo mesmo caminho de produção (é o
+        // MedicationController::update quem carimba paused_at).
+        $this->actingAs($user)->putJson("/api/medications/{$medication->id}", ['is_paused' => true])
+            ->assertOk();
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(1);
+        $response->assertJsonFragment(['status' => 'taken']);
+    }
+
+    // Mesmo cenário acima, mas verificando o efeito na adesão do dia: a
+    // dose já tomada antes da pausa não pode virar "0 due / 0 taken" só
+    // porque o medicamento está pausado agora — ela aconteceu de
+    // verdade, tem que contar.
+    public function test_dose_ja_tomada_hoje_continua_contando_na_adesao_apos_pausar(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-12 09:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $schedule = $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => Carbon::today('UTC')->setTimeFromTimeString('08:00:00'),
+            'taken_at' => now(),
+            'status' => 'taken',
+        ]);
+
+        $this->actingAs($user)->putJson("/api/medications/{$medication->id}", ['is_paused' => true])
+            ->assertOk();
+
+        $result = app(\App\Actions\CalculateDailyAdherence::class)->handle($profile->fresh(), Carbon::parse('2026-08-12', 'UTC'));
+
+        $this->assertSame(['taken' => 1, 'due' => 1, 'percentage' => 100], $result);
+    }
+
+    // Já pausado ANTES do horário da dose vencer: essa ocorrência nunca
+    // deveria ter existido (é o significado real de "pausei antes de
+    // vencer") — continua fora da tela Hoje e fora da conta de adesão.
+    public function test_dose_de_hoje_que_ainda_nao_venceu_ao_pausar_nao_aparece(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-08-12 07:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id]);
+        $medication->schedules()->create(['time' => '08:00:00', 'days_of_week' => null]);
+
+        $this->actingAs($user)->putJson("/api/medications/{$medication->id}", ['is_paused' => true])
+            ->assertOk();
+
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/doses/today");
+
+        $response->assertOk()->assertJsonCount(0);
+    }
 }

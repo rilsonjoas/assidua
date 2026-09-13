@@ -40,16 +40,65 @@ class GenerateScheduleOccurrences
      */
     public function handle(DoseSchedule $schedule, Carbon $date): array
     {
-        if ($schedule->interval_hours !== null) {
-            return $this->intervalOccurrences($schedule, $date);
-        }
+        $occurrences = $schedule->interval_hours !== null
+            ? $this->intervalOccurrences($schedule, $date)
+            : $this->fixedOccurrences($schedule, $date);
 
+        return $this->excludeOccurrencesAfterPause($schedule, $occurrences);
+    }
+
+    /**
+     * @return Carbon[]
+     */
+    private function fixedOccurrences(DoseSchedule $schedule, Carbon $date): array
+    {
         $dayOfWeek = (int) $date->dayOfWeek;
         if ($schedule->days_of_week !== null && ! in_array($dayOfWeek, $schedule->days_of_week, true)) {
             return [];
         }
 
         return [$date->copy()->setTimeFromTimeString($schedule->time)];
+    }
+
+    // "Pausar não deveria esconder o que já aconteceu" (entrevista de
+    // horário, 2026-09-12) — achado real do Rilson: pausar um remédio
+    // hoje escondia a dose já tomada hoje inteira (a tela Hoje excluía o
+    // medicamento pausado de ponta a ponta). Mas simplesmente PARAR de
+    // filtrar por `is_paused` também está errado: uma ocorrência de hoje
+    // que ainda nem tinha vencido no momento da pausa nunca deveria ter
+    // sido gerada (é exatamente isso que pausar significa pro futuro).
+    // A divisa certa é o INSTANTE da pausa, não o dia inteiro: ocorrência
+    // até `paused_at` (inclusive) é história real, continua contando;
+    // depois de `paused_at`, nunca existiu. Centralizado aqui (não em
+    // cada chamador) pelo mesmo motivo do resto desta classe — evitar a
+    // mesma conta divergindo em 5 lugares.
+    /**
+     * @param  Carbon[]  $occurrences
+     * @return Carbon[]
+     */
+    private function excludeOccurrencesAfterPause(DoseSchedule $schedule, array $occurrences): array
+    {
+        $medication = $schedule->medication;
+        if (! $medication || ! $medication->is_paused) {
+            return $occurrences;
+        }
+
+        // `paused_at` desconhecido (registro de teste/seed/legado que
+        // marcou `is_paused=true` direto, sem passar pelo
+        // MedicationController::update, que é quem carimba o instante) —
+        // sem o instante exato não dá pra separar "antes"/"depois" da
+        // pausa, então assume o mais seguro: sempre esteve pausado. Igual
+        // ao comportamento de antes desta mudança (esconde tudo), nunca
+        // pior — evita um médio-termo estranho de "mostra tudo porque não
+        // sei quando pausou".
+        if (! $medication->paused_at) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $occurrences,
+            fn (Carbon $occurrence) => $occurrence->lte($medication->paused_at),
+        ));
     }
 
     // "Dose fora do horário + recálculo" (item 8, 2026-09-08) — achado

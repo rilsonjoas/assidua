@@ -23,6 +23,9 @@ import { useToastStore } from '../../store/toastStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { parseStockQuantity, isStockNeverSet } from '../../lib/stockQuantity';
+// "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) — ver
+// requestPause/resolveOverdueThenPause abaixo.
+import { getTodayDoses, logDose, DoseLog } from '../../services/doses';
 import {
   createMedication,
   updateMedication,
@@ -30,6 +33,7 @@ import {
   createSchedule,
   updateSchedule,
   deleteSchedule,
+  recalculateScheduleToday,
   uploadMedicationPhoto,
   deleteMedicationPhoto,
   updateStock,
@@ -197,6 +201,10 @@ export default function MedicationFormScreen() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [pausing, setPausing] = useState(false);
+  // "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) —
+  // ver requestPause/resolveOverdueThenPause.
+  const [pendingOverdueDoses, setPendingOverdueDoses] = useState<DoseLog[] | null>(null);
+  const [resolvingOverdue, setResolvingOverdue] = useState(false);
   const [saving, setSaving] = useState(false);
   // "Excluir medicamento" (2026-09-07, item 15) — hard delete em cascata
   // no backend (schedules, dose logs e estoque somem junto), por isso
@@ -437,6 +445,70 @@ export default function MedicationFormScreen() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  // "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) —
+  // achado real do Rilson, mesma sessão do bug de "sumir do Hoje":
+  // pausar com uma dose de hoje ainda vencida e sem ação nenhuma (nem
+  // tomada, nem pulada) decidia o destino dela escondida — o backend
+  // simplesmente parava de avaliar. Princípio já repetido em toda a
+  // entrevista: "é bom deixar pro usuário decidir" — pergunta ANTES de
+  // completar a pausa, bloqueando até responder (mesmo padrão de toda
+  // outra confirmação importante do app). Só verifica ao PAUSAR
+  // (`!isPaused` de propósito) — retomar nunca teve esse problema, não
+  // existe dose "vencida por causa da retomada".
+  async function requestPause() {
+    if (isPaused || !activeProfile) {
+      togglePause();
+      return;
+    }
+    try {
+      const doses = await getTodayDoses(activeProfile.id);
+      const overdue = doses.filter(
+        (d) =>
+          d.medication_id === Number(id) &&
+          d.status === 'pending' &&
+          new Date(d.scheduled_at).getTime() <= Date.now(),
+      );
+      if (overdue.length > 0) {
+        setPendingOverdueDoses(overdue);
+        return; // espera a escolha do usuário antes de pausar de verdade
+      }
+    } catch {
+      // Best-effort — se a checagem falhar (rede etc.), não trava quem
+      // só quer pausar; segue direto, mesmo comportamento de antes desta
+      // mudança.
+    }
+    togglePause();
+  }
+
+  // "Marcar como perdida" ou "Ignorar" (= pular, mesma semântica de
+  // status já usada no resto do app — decisão informada, não falha) pra
+  // cada dose de hoje que ainda estava vencida e sem ação. Só DEPOIS de
+  // resolvidas é que a pausa de verdade acontece — nunca ao contrário.
+  async function resolveOverdueThenPause(status: 'missed' | 'skipped') {
+    if (!pendingOverdueDoses || !activeProfile) return;
+    setResolvingOverdue(true);
+    try {
+      await Promise.all(
+        pendingOverdueDoses.map((dose) =>
+          logDose({
+            dose_schedule_id: dose.dose_schedule_id,
+            medication_id: dose.medication_id,
+            profile_id: dose.profile_id,
+            scheduled_at: dose.scheduled_at,
+            status,
+          }),
+        ),
+      );
+      setPendingOverdueDoses(null);
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      await togglePause();
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('medicationForm.errorPauseToggle'));
+    } finally {
+      setResolvingOverdue(false);
     }
   }
 
@@ -803,6 +875,32 @@ export default function MedicationFormScreen() {
           ? prev.map((s) => (s.id === schedule.id ? schedule : s))
           : [...prev, schedule],
       );
+
+      // "Editar horário tem a mesma falha do 'pra sempre'" (entrevista
+      // de horário, 2026-09-12, item confirmado pelo Rilson): mudar o
+      // `time`/`interval_hours` permanente de um schedule de intervalo
+      // JÁ EXISTENTE, sem reconciliar "hoje", deixa um DoseLog de hoje
+      // (se já houver) órfão E gera uma ocorrência nova coincidindo com
+      // ele — mesmo bug de duplicata corrigido na Home pro fluxo "pra
+      // sempre" (ver index.tsx). Reaproveita exatamente o mesmo
+      // mecanismo (`recalculateScheduleToday`, pula a própria âncora)
+      // — só horário fixo fica de fora, backend rejeita recálculo pra
+      // ele (mesma limitação já registrada no ROADMAP).
+      if (editingScheduleId && isInterval) {
+        const now = new Date();
+        const [hour, minute] = newTime.split(':').map(Number);
+        const anchorToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0, 0);
+        try {
+          await recalculateScheduleToday(editingScheduleId, anchorToday.toISOString());
+        } catch (err) {
+          // Best-effort — o horário permanente já salvou certinho acima
+          // (fonte da verdade real); se "hoje" não reconciliar por
+          // algum erro de rede, não trava o fluxo nem assusta a pessoa
+          // com um erro sobre um detalhe secundário.
+          console.warn('[assidua] Falha ao reconciliar "hoje" após editar horário:', err);
+        }
+      }
+
       cancelScheduleForm();
       queryClient.invalidateQueries({ queryKey: ['today-doses'] });
       showToast(t('medicationForm.scheduleSavedToast'));
@@ -1637,7 +1735,7 @@ export default function MedicationFormScreen() {
       {!isNew && (
         <TouchableOpacity
           style={[styles.pauseBtn, isPaused && styles.pauseBtnActive]}
-          onPress={togglePause}
+          onPress={requestPause}
           disabled={pausing}
           accessibilityRole="button"
           accessibilityLabel={isPaused ? t('medicationForm.resume') : t('medicationForm.pause')}
@@ -1725,6 +1823,20 @@ export default function MedicationFormScreen() {
       busy={switchingScheduleKind}
       onCancel={() => setPendingScheduleKind(null)}
       onConfirm={confirmScheduleKindChange}
+    />
+    <ConfirmDialog
+      visible={!!pendingOverdueDoses}
+      title={t('medicationForm.overdueBeforePauseTitle')}
+      message={
+        pendingOverdueDoses
+          ? t('medicationForm.overdueBeforePauseMessage', { count: pendingOverdueDoses.length })
+          : ''
+      }
+      cancelLabel={t('medicationForm.overdueBeforePauseIgnore')}
+      confirmLabel={t('medicationForm.overdueBeforePauseMarkMissed')}
+      busy={resolvingOverdue}
+      onCancel={() => resolveOverdueThenPause('skipped')}
+      onConfirm={() => resolveOverdueThenPause('missed')}
     />
     <ConfirmDialog
       visible={confirmingDelete}
