@@ -1,5 +1,36 @@
 # Roadmap — Meus Remédios
 
+## ⏸️ Projeto Pausado — Requisitos e Roteiro de Publicação na Google Play Store (L0)
+
+> O projeto **Assídua** encontra-se em desenvolvimento e **pausado para publicação** aguardando a execução do pipeline de lançamento na Google Play Store. O custo para publicar um aplicativo na Google Play Store é uma taxa única de **US$ 25** para registrar a conta no Google Play Console (sem anuidade ou cobrança por app enviado).
+
+### O Processo de Publicação (4 Fases Fundamentais):
+
+1. **Abertura e Validação da Conta:**
+   - Criar a conta no [Google Play Console](https://play.google.com/console/) e pagar a taxa única de **US$ 25**.
+   - **Tipo de conta:** Escolher entre *Pessoal* ou *Organização* (contas de empresa exigem número D-U-N-S e dados fiscais).
+   - **Validação de identidade:** Envio obrigatório de documento de identificação com foto e comprovante de endereço.
+
+2. **Preparação dos Assets e do Build:**
+   - **Pacote de compilação:** O Google exige o formato **AAB (Android App Bundle)** assinado com a chave de release (`eas build --platform android`); arquivos `.apk` diretos não são aceitos para novos lançamentos.
+   - **Ficha da loja:** 
+     - Título (até 30 caracteres)
+     - Descrição curta (até 80 caracteres)
+     - Descrição completa (até 4.000 caracteres)
+     - Ícone em alta resolução (512x512 px)
+     - Banner promocional / Feature Graphic (1024x500 px)
+     - Pelo menos 2 capturas de tela por formato suportado.
+   - **Políticas e privacidade:** Link obrigatório para a Política de Privacidade hospedada na web, declaração de público-alvo (classificação etária), acesso a permissões sensíveis (dados de saúde / Health Data Safety Form) e detalhes de monetização/anúncios.
+
+3. **Teste Fechado Obrigatório (para contas pessoais):**
+   - Contas de desenvolvedor pessoais criadas recentemente exigem uma etapa obrigatória de **teste fechado**: pelo menos **20 testadores cadastrados** que optem por testar o aplicativo ativamente por um período contínuo de **14 dias** antes de habilitar a liberação para produção.
+
+4. **Envio para Revisão e Publicação:**
+   - Após concluir os testes e preencher todo o checklist de conteúdo, promover o app para a faixa de **Produção**.
+   - A revisão manual do Google costuma levar entre alguns dias e uma semana. Assim que aprovado, o aplicativo fica disponível na loja.
+   - *(Nota de monetização: Caso haja venda de itens in-app ou assinaturas Pro via RevenueCat/Google Play Billing, o Google retém uma taxa de serviço de 15% sobre o primeiro US$ 1 milhão de receita anual e 30% no excedente).*
+
+
 ## 🔔👤 Mais 2 melhorias de UI/UX propostas e aprovadas (2026-09-11) — ✅ implementado, ⏸️ NÃO publicado
 
 > Depois do "Modo Privacidade" em todas as abas (seção abaixo), pedido
