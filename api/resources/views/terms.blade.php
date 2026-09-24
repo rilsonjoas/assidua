@@ -28,6 +28,8 @@
         .box h2 { margin-top: 0; }
         a { color: #6366f1; }
     </style>
+    <!-- Umami Analytics — cookieless, self-hosted -->
+    <script defer src="https://umami.narniano.com/script.js" data-website-id="de2b19fa-0346-4e96-9643-60f27b686003"></script>
 </head>
 <body>
     <h1>Termos de Uso</h1>
