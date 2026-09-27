@@ -7,14 +7,37 @@
  */
 return [
 
-    // Achado real, 2026-08-09: rodar `php artisan test` localmente
-    // estava mandando evento pro Sentry de produção toda vez que um
-    // teste passava por uma exceção — poluindo o projeto com "erros"
-    // que nunca aconteceram de verdade. APP_ENV=testing (definido no
-    // phpunit.xml) força DSN nulo aqui, SDK vira no-op nesse ambiente,
-    // mesmo padrão "enabled: !!dsn" já usado no app mobile.
+    //POR QUE ESTA LINHA É UMA LISTA DE PERMISSÃO, E NÃO DE BLOQUEIO
+    //
+    // Primeira versão (2026-08-09) era `APP_ENV === 'testing' ? null : dsn`
+    // — bloqueava SÓ o `testing`. Isso resolveu o caso de então
+    // (`php artisan test`.reportando erro para o Sentry de produção) e
+    // deixou a mesma armadilha aberta para todo valor novo de APP_ENV.
+    //
+    // Segundo estrago, 2026-09-27, o dia em que isto foi pago de novo:
+    // `php artisan migrate` rodado localmente com `APP_ENV=local` (que
+    // não é `testing`) caiu num Postgres inexistente e disparou DOIS
+    // alertas de "high priority" no projeto Sentry **de produção** —
+    // `could not find driver` e `Connection refused`. Nenhum era problema
+    // de produção; os dois eram uma verificação minha. Alguém no VPS teria
+    // recebido um alerta vermelho de banco fora do ar, às 15h de uma
+    // sexta, por causa do meu terminal.
+    //
+    // A lição: uma lista de bloqueio só está segura enquanto ninguém
+    // inventar valor novo. `local`, `staging`, `dev`, `ci` — qualquer um
+    // deles passa direto. Lista de permissão é o padrão certo: só quem é
+    // produção reporta, e todo ambiente novo nasce desligado por padrão.
+    //
+    // ⚠️ CONFERIR AO MUDAR: `APP_ENV` em produção é `production`
+    // (ver `.env.production.example`). Se algum dia existir outro
+    // ambiente implantado que precise de Sentry, ele entra NA lista
+    // abaixo de propósito — nunca o contrário (nunca afrouxar a regra
+    // para resolver um ambiente novo).
+    //
     // @see https://docs.sentry.io/concepts/key-terms/dsn-explainer/
-    'dsn' => env('APP_ENV') === 'testing' ? null : env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN')),
+    'dsn' => in_array(env('APP_ENV'), ['production'], true)
+        ? env('SENTRY_LARAVEL_DSN', env('SENTRY_DSN'))
+        : null,
 
     // @see https://spotlightjs.com/
     // 'spotlight' => env('SENTRY_SPOTLIGHT', false),

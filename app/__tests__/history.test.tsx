@@ -1,10 +1,11 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import HistoryScreen from '../app/(tabs)/history';
 import { useProfileStore } from '../store/profileStore';
 import { useAuthStore } from '../store/authStore';
+import { usePrivacyStore } from '../store/privacyStore';
 import * as dosesService from '../services/doses';
 import * as medicationsService from '../services/medications';
 
@@ -17,10 +18,16 @@ jest.mock('../services/doses', () => ({
   // (achado rodando esta suíte depois de adicionar o calendário).
   getDailyAdherence: jest.fn(),
   getConsultationSummary: jest.fn(),
+  // P3: edição da nota na linha.
+  updateDoseNote: jest.fn(),
 }));
 jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
   getMedications: jest.fn(),
+}));
+jest.mock('../services/offlineQueue', () => ({
+  ...(jest.requireActual('../services/offlineQueue') as object),
+  listPending: jest.fn(),
 }));
 jest.mock('../lib/reportPdf', () => ({
   exportConsultationReportPdf: jest.fn(),
@@ -29,6 +36,7 @@ jest.mock('../lib/reportPdf', () => ({
 const mockedDoses = jest.mocked(dosesService);
 const mockedMedications = jest.mocked(medicationsService);
 const mockedReportPdf = jest.mocked(require('../lib/reportPdf'));
+const mockedQueue = jest.mocked(require('../services/offlineQueue'));
 
 const profile = { id: 1, user_id: 1, name: 'Rilson', color: '#6366f1', avatar_emoji: 'account', is_active: true };
 
@@ -72,6 +80,16 @@ async function selectMedicationInPicker(label: string) {
   fireEvent.press(await screen.findByLabelText(label));
 }
 
+// Reset global do modo privado (P1/§9.2, 2026-09-25). O store é global e
+// nenhum bloco o reiniciava: um teste que liga o modo privado vaza
+// `isPrivate: true` para todos os testes seguintes do ARQUIVO, e eles
+// falham com symptomas que não têm nada a ver com privacidade. Jest roda
+// o beforeEach externo antes dos internos, então este vale como piso para
+// todos os blocos.
+beforeEach(() => {
+  usePrivacyStore.setState({ isPrivate: false });
+});
+
 describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -80,6 +98,7 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
     mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedQueue.listPending.mockResolvedValue([]);
   });
 
   // Timeout maior que o padrão do Jest (2026-09-08): achado real em CI
@@ -135,6 +154,265 @@ describe('HistoryScreen — filtro por medicamento (Fase 2, 2026-08-12)', () => 
 
     await screen.findByText('Losartana'); // espera a lista carregar (do log, não do filtro)
     expect(screen.queryByLabelText(/^Filtrar por remédio, seleção atual:/)).toBeNull();
+  });
+});
+
+// 9.5b e 9.5c (2026-09-25). Duas mentiras no mesmo card de resumo:
+//
+//  · "Perdidas" era `total - taken` = `skipped + missed`, então PULAR DE
+//    PROPÓSITO virava "perdida" — enquanto o relatório do médico exclui
+//    `skipped` por decisão explícita ("decisão informada não é falha").
+//  · O "% de adesão" é sobre os 50 registros da página 1, não sobre o
+//    histórico. A correção de raiz é estrutural e vai para a P2; o que o
+//    app pode fazer agora é PARAR de mentir em silêncio.
+describe('HistoryScreen — o card de resumo não mente (9.5b e 9.5c)', () => {
+  const doseCom = (status: 'taken' | 'skipped' | 'missed', i: number) => ({
+    id: 1000 + i,
+    dose_schedule_id: 20,
+    medication_id: 10,
+    profile_id: 1,
+    scheduled_at: `2026-08-${String(20 - (i % 5)).padStart(2, '0')}T08:00:00Z`,
+    taken_at: status === 'taken' ? '2026-08-20T08:05:00Z' : null,
+    status,
+    notes: null,
+    medication: losartana,
+    dose_schedule: { id: 20, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedications.mockResolvedValue([losartana, paracetamol] as any);
+    mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedQueue.listPending.mockResolvedValue([]);
+  });
+
+  it('9.5b: "Perdidas" conta só o que é perdida — pular de propósito não vira perda', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [
+        doseCom('taken', 0), doseCom('taken', 1),
+        doseCom('skipped', 2),
+        doseCom('missed', 3),
+      ],
+    } as any);
+
+    renderHistory();
+
+    // 2 tomadas, 1 pulada, 1 perdida. A conta antiga (4 - 2) diria 2
+    // "Perdidas", o que contaria a dose pulada como perda.
+    // O item do card anuncia valor e rótulo juntos (9.5b), então a
+    // asserção é sobre o que a pessoa realmente ouve.
+    expect(await screen.findByLabelText('Perdidas: 1')).toBeTruthy();
+    expect(screen.queryByLabelText('Perdidas: 2')).toBeNull();
+    expect(screen.getByLabelText('Tomadas: 2')).toBeTruthy();
+  });
+
+  it('9.5b: quando ninguém pulou, "Perdidas" bate com o total menos tomadas', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [doseCom('taken', 0), doseCom('taken', 1), doseCom('missed', 2), doseCom('missed', 3)],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByLabelText('Perdidas: 2')).toBeTruthy();
+    expect(screen.getByLabelText('Tomadas: 2')).toBeTruthy();
+  });
+
+  // P2/§10.2 — o Histórico devolve OCORRÊNCIAS, e uma dose prevista que
+  // ninguém registrou chega com `unrecorded`. Ela **não pode** cair no
+  // fallback de `missed`: sem esta entrada no STATUS_CONFIG, o
+  // `?? STATUS_CONFIG.missed` a pintaria de vermelho com o rótulo
+  // "Perdida". É a mesma mentira do 9.5b por outro caminho — e este
+  // teste é a trava.
+  it('dose sem registro NÃO aparece como "Perdida" em vermelho', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [
+        { ...doseCom('taken', 0), state: 'recorded' },
+        { ...doseCom('missed', 1), state: 'marked_missed' },
+        {
+          ...doseCom('unrecorded' as never, 2),
+          state: 'unrecorded',
+          taken_at: null,
+        },
+      ],
+    } as any);
+
+    renderHistory();
+
+    // Uma "Perdida" só: a dose sem registro não entra na contagem.
+    expect(await screen.findByLabelText('Perdidas: 1')).toBeTruthy();
+    // E ela é rotulada como ausência de informação, não como veredito.
+    expect(await screen.findByText('Sem registro')).toBeTruthy();
+  });
+
+  it('derivada sem o campo state continua certa (backend antigo / cache offline)', async () => {
+    // Contra um backend uma versão atrás, `state` não vem. O app não pode
+    // depender dele para ser correto — daí o `derivedState` com
+    // mapeamento explícito, e não um `?? status` ingênuo (que compararia
+    // 'missed' com 'marked_missed' e daria 0).
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [
+        { ...doseCom('taken', 0) },
+        { ...doseCom('missed', 1) },
+      ],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByLabelText('Perdidas: 1')).toBeTruthy();
+  });
+
+  // P3 (2026-09-25) — a nota por escrito é **fato clínico** e estava
+  // invisível: a API aceitava `notes` desde sempre, o relatório agora
+  // mostra, mas a lista do Histórico não. Quem escreveu a nota não
+  // conseguia relê-la, e quem usava leitor de tela não recebia a única
+  // pista de uma reação adversa.
+  it('mostra a nota escrita na dose, e ela entra no rotulo do leitor de tela', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: 'Senti um pouco de tontura.' }],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByText('Senti um pouco de tontura.')).toBeTruthy();
+    // E no `rowLabel` — a nota não é informação só de quem enxerga.
+    expect(
+      await screen.findByLabelText(/nota: Senti um pouco de tontura/),
+    ).toBeTruthy();
+  });
+
+  // ── P3: editar a nota na linha (segunda parte da decisão) ──
+
+  it('a linha tem "Anotar" SEMPRE visivel, mesmo sem nota', async () => {
+    // Esconder atrás de toque longo seria função sem pista visual. E a
+    // nota é a única forma de a pessoa corrigir o registro com a própria
+    // voz — o app não pode decidir que ela não tem o que dizer.
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: null }],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByLabelText('Anotar')).toBeTruthy();
+  });
+
+  it('editar a nota atualiza a lista na hora (otimista) e manda pro backend', async () => {
+    mockedDoses.updateDoseNote.mockResolvedValue({ id: 1000, notes: 'corrigida' } as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: 'versao antiga' }],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByText('versao antiga')).toBeTruthy();
+    fireEvent.press(await screen.findByText('Editar anotação'));
+    fireEvent.changeText(await screen.findByLabelText('Editar a anotação desta dose'), 'versao nova');
+    fireEvent.press(screen.getByLabelText('Salvar anotação'));
+
+    await waitFor(() => {
+      expect(mockedDoses.updateDoseNote).toHaveBeenCalledWith(1000, 'versao nova');
+    });
+  });
+
+  it('falha ao salvar ROLLA BACK: a nota volta, nao fica um relato que nao foi salvo', async () => {
+    // Esta é a garantia que importa neste campo: a nota vai para o
+    // médico. Deixar na tela um relato que não foi gravado seria o pior
+    // bug possível aqui.
+    mockedDoses.updateDoseNote.mockRejectedValue(new Error('Network Error'));
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: 'versao original' }],
+    } as any);
+
+    renderHistory();
+
+    fireEvent.press(await screen.findByText('Editar anotação'));
+    fireEvent.changeText(await screen.findByLabelText('Editar a anotação desta dose'), 'isto nao salvou');
+    fireEvent.press(screen.getByLabelText('Salvar anotação'));
+
+    await waitFor(() => {
+      expect(mockedDoses.updateDoseNote).toHaveBeenCalled();
+    });
+    // A tela volta ao que o servidor tinha.
+    await waitFor(() => {
+      expect(screen.getByText('versao original')).toBeTruthy();
+    });
+  });
+
+  it('limpar o texto APAGA a nota (null, nao string vazia)', async () => {
+    mockedDoses.updateDoseNote.mockResolvedValue({ id: 1000, notes: null } as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: 'para apagar' }],
+    } as any);
+
+    renderHistory();
+
+    fireEvent.press(await screen.findByText('Editar anotação'));
+    fireEvent.changeText(await screen.findByLabelText('Editar a anotação desta dose'), '   ');
+    fireEvent.press(screen.getByLabelText('Salvar anotação'));
+
+    await waitFor(() => {
+      expect(mockedDoses.updateDoseNote).toHaveBeenCalledWith(1000, null);
+    });
+  });
+
+  it('a acao de editar a nota e alcancavel por leitor de tela (accessibilityAction)', async () => {
+    // P3: a linha é UM nó acessível, então o botão dentro dela não é
+    // alcançável por toque de leitor de tela — a solução é expor a ação
+    // na própria linha. Este teste cobre o caminho de quem não enxerga:
+    // se a `accessibilityAction` sumir, o botão "Editar" fica sendo
+    // alcançável **só** pelo toque, que é o bug que a revisão de
+    // acessibilidade proíbe.
+    mockedDoses.updateDoseNote.mockResolvedValue({ id: 1000, notes: 'ok' } as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: 'versao antiga' }],
+    } as any);
+
+    renderHistory();
+
+    const linha = await screen.findByLabelText(/versao antiga/);
+    fireEvent(linha, 'accessibilityAction', { nativeEvent: { actionName: 'activate' } });
+
+    // A edição abriu: o campo apareceu, o que prova que a ação executou.
+    expect(await screen.findByLabelText('Editar a anotação desta dose')).toBeTruthy();
+  });
+
+  it('dose sem nota nao inventa texto', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [{ ...doseCom('taken', 0), notes: null }],
+    } as any);
+
+    renderHistory();
+
+    expect(await screen.findByLabelText(/Tomadas/)).toBeTruthy();
+    expect(screen.queryByText(/nota:/i)).toBeNull();
+  });
+
+  it('9.5c: quando o histórico é maior que a página, a tela diz que é um recorte', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [doseCom('taken', 0), doseCom('taken', 1)],
+      total: 312,          // o paginador do Laravel devolve isto
+      current_page: 1,
+      last_page: 7,
+    } as any);
+
+    renderHistory();
+
+    // Sem isto, "adesão 100%" do histórico inteiro seria lido a partir de
+    // 2 registros — o número seria verdadeiro e enganoso ao mesmo tempo.
+    expect(await screen.findByText(/2 registros exibidos de 312/i)).toBeTruthy();
+  });
+
+  it('9.5c: quando cabe tudo na página, não mostra aviso de recorte', async () => {
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [doseCom('taken', 0), doseCom('taken', 1)],
+      total: 2,
+    } as any);
+
+    renderHistory();
+
+    await screen.findByLabelText('Perdidas: 0');
+    expect(screen.queryByText(/registros exibidos/i)).toBeNull();
   });
 });
 
@@ -216,7 +494,12 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
     mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
-    mockedDoses.getConsultationSummary.mockResolvedValue({ percentage: 90, taken: 9, due: 10, missed: [] } as any);
+    mockedQueue.listPending.mockResolvedValue([]);
+    mockedDoses.getConsultationSummary.mockResolvedValue({
+      percentage: 90, taken: 9, due: 10, missed: [],
+      period_start: '2026-08-01', period_end: '2026-08-30', all_taken: false,
+      doses: [{ medication_name: 'Paracetamol', scheduled_at: '2026-08-20T08:00:00Z', taken_at: null, state: 'unrecorded' }],
+    } as any);
     mockedReportPdf.exportConsultationReportPdf.mockResolvedValue('file://relatorio.pdf');
   });
 
@@ -251,6 +534,23 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
         expect.objectContaining({
           medicationName: 'Paracetamol',
           medications: [expect.objectContaining({ name: 'Paracetamol' })],
+          // P1/§9.2 — o gap que os `objectContaining` anteriores não
+          // pegavam: o backend passou a devolver `doses` (previsto +
+          // real) e o `handlePrintReport` simplesmente não repassava.
+          // O relatório melhorado existia nos testes da lib e nunca
+          // chegava no app. Estas três linhas são o que impede a
+          // regressão de voltar em silêncio.
+          doses: [
+            expect.objectContaining({
+              medication_name: 'Paracetamol',
+              scheduled_at: '2026-08-20T08:00:00Z',
+              taken_at: null,
+              state: 'unrecorded',
+            }),
+          ],
+          periodStart: '2026-08-01',
+          periodEnd: '2026-08-30',
+          allTaken: false,
         }),
       );
     });
@@ -279,6 +579,28 @@ describe('HistoryScreen — PDF respeita filtro + confirmação (2026-09-08)', (
     expect(screen.queryByText('Vai gerar o relatório de todos os medicamentos, últimos 30 dias.')).toBeNull();
     expect(mockedDoses.getConsultationSummary).not.toHaveBeenCalled();
   });
+
+  // `doses` traz `medication_name` igual ao `missed`. Mascarar só o
+  // `missed` vazava o nome do remédio no relatório em modo privado.
+  it('modo privado mascara o nome do remedio tambem dentro de doses', async () => {
+    mockedDoses.getConsultationSummary.mockResolvedValue({
+      percentage: 90, taken: 9, due: 10, missed: [],
+      period_start: '2026-08-01', period_end: '2026-08-30', all_taken: false,
+      doses: [{ medication_name: 'Losartana', scheduled_at: '2026-08-20T08:00:00Z', taken_at: null, state: 'unrecorded' }],
+    } as any);
+    usePrivacyStore.setState({ isPrivate: true });
+
+    renderHistory();
+
+    fireEvent.press(screen.getByLabelText('Gerar Relatório Médico (PDF)'));
+    fireEvent.press(await screen.findByText('Gerar relatório'));
+
+    await waitFor(() => {
+      expect(mockedReportPdf.exportConsultationReportPdf).toHaveBeenCalled();
+    });
+    const payload = mockedReportPdf.exportConsultationReportPdf.mock.calls[0][0];
+    expect(payload.doses[0].medication_name).not.toBe('Losartana');
+  });
 });
 
 // "PDF vira exclusivo Pro" (2026-09-08, decisão do Rilson) — usuário
@@ -294,6 +616,7 @@ describe('HistoryScreen — PDF exclusivo Pro (2026-09-08)', () => {
     mockedDoses.getDoseHistory.mockResolvedValue({ data: [logLosartana] } as any);
     mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedQueue.listPending.mockResolvedValue([]);
   });
 
   it('usuário free vê o selo "Pro" no botão de PDF', async () => {
@@ -322,7 +645,11 @@ describe('HistoryScreen — PDF exclusivo Pro (2026-09-08)', () => {
   });
 
   it('"Compartilhar resumo" continua livre pra usuário free', async () => {
-    mockedDoses.getConsultationSummary.mockResolvedValue({ percentage: 90, taken: 9, due: 10, missed: [] } as any);
+    mockedDoses.getConsultationSummary.mockResolvedValue({
+      percentage: 90, taken: 9, due: 10, missed: [],
+      period_start: '2026-08-01', period_end: '2026-08-30', all_taken: false,
+      doses: [{ medication_name: 'Paracetamol', scheduled_at: '2026-08-20T08:00:00Z', taken_at: null, state: 'unrecorded' }],
+    } as any);
     renderHistory();
 
     fireEvent.press(await screen.findByLabelText('Compartilhar resumo pra consulta'));
@@ -343,6 +670,7 @@ describe('HistoryScreen — marcador de troca de fuso (2026-09-11)', () => {
     mockedMedications.getMedications.mockResolvedValue([losartana] as any);
     mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
     mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedQueue.listPending.mockResolvedValue([]);
   });
 
   it('mostra o marcador de troca de fuso junto das doses do mesmo dia', async () => {
@@ -368,5 +696,103 @@ describe('HistoryScreen — marcador de troca de fuso (2026-09-11)', () => {
 
     expect(await screen.findByText('Losartana')).toBeTruthy();
     expect(screen.queryByText(/Fuso horário mudou/)).toBeNull();
+  });
+});
+
+
+// =============================================================
+// P4/§10.4 — a dose de resgate registrada OFFLINE.
+//
+// O teste que motivou este bloco: sem rede, a pessoa toca em
+// "Registrar dose", o app responde "dose registrada" — e ao abrir o
+// Histórico a dose não estava lá. O registro estava na fila, o app já
+// sabia disso, e mesmo assim a tela mostrava um histórico sem a dose que
+// ele acabava de dizer que salvou. Pior do que omissão: é o produto
+// contradizendo a si mesmo na mesma sessão.
+// =============================================================
+describe('HistoryScreen — dose de resgate pendente (P4/§10.4)', () => {
+  const dipirona = {
+    id: 12, profile_id: 1, name: 'Dipirona', dosage: '500', unit: 'mg', color: '#f97316',
+    instructions: null, notes: null, is_active: true, is_paused: false, is_prn: true,
+    schedules: [], stock: null, days_remaining: null,
+  };
+  // Montado em horário LOCAL de propósito. Com '2026-08-12T15:30:00Z'
+  // fixo, a linha renderiza conforme o fuso da máquina: em UTC-3 o
+  // `format` mostra 12:30 e o teste vira dependente de onde roda —
+  // o tipo de falha que passa local e quebra no CI. Com `new Date(y, m, d,
+  // h, min)` o "15:30" é 15:30 em qualquer fuso.
+  const TOMADA_LOCAL = new Date(2026, 7, 12, 15, 30);
+  const prnPendente = {
+    client_key: 'aaaa-1111',
+    medication_id: 12,
+    profile_id: 1,
+    taken_at: TOMADA_LOCAL.toISOString(),
+    status: 'taken' as const,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedications.mockResolvedValue([losartana, dipirona] as any);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
+    mockedDoses.getWeeklyAdherence.mockResolvedValue([]);
+    mockedDoses.getDailyAdherence.mockResolvedValue([]);
+    mockedQueue.listPending.mockResolvedValue([
+      { local_id: 1, type: 'log', payload: prnPendente, created_at: prnPendente.taken_at, retry_count: 0 },
+    ]);
+  });
+
+  it('mostra a dose de resgate que só existe na fila, com a hora real', async () => {
+    renderHistory();
+
+    // A hora real que a pessoa registrou — 15:30, não um horário
+    // agendado, que para o resgate simplesmente não existe.
+    expect(await screen.findByText('15:30')).toBeTruthy();
+    expect(screen.getByText('Dipirona')).toBeTruthy();
+  });
+
+  it('a dose pendente é rotulada como aguardando internet, nao como "tomado"', async () => {
+    renderHistory();
+
+    await screen.findByText('Dipirona');
+    // A distinção é o ponto: o registro NÃO foi confirmado pelo servidor.
+    expect(screen.getByText('aguardando internet')).toBeTruthy();
+  });
+
+  it('a dose pendente entra no dia em que foi tomada', async () => {
+    renderHistory();
+
+    // Agrupada por dia a partir do `taken_at` da fila — é o mesmo dia
+    // que `dayOfDose` usará depois que sincronizar, então a linha não
+    // "pula" de dia quando o servidor assumir o registro.
+    await screen.findByText('Dipirona');
+    expect(screen.getByText(/12 de agosto/i)).toBeTruthy();
+  });
+
+  it('a dose agendada pendente nao vira linha de resgate', async () => {
+    mockedQueue.listPending.mockResolvedValue([
+      {
+        local_id: 1,
+        type: 'log',
+        payload: {
+          dose_schedule_id: 1,
+          medication_id: 10,
+          profile_id: 1,
+          scheduled_at: '2026-08-12T08:00:00.000Z',
+          taken_at: '2026-08-12T08:00:00.000Z',
+          status: 'taken',
+        },
+        created_at: '2026-08-12T08:00:00.000Z',
+        retry_count: 0,
+      },
+    ]);
+
+    renderHistory();
+
+    // A dose de horário previsto continua coberta pelo
+    // `applyPendingOverlay` da Home; duplicá-la aqui mostraria a mesma
+    // dose duas vezes no histórico.
+    await waitFor(() => expect(mockedQueue.listPending).toHaveBeenCalled());
+    expect(screen.queryByText('aguardando internet')).toBeNull();
   });
 });

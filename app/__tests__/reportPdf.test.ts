@@ -3,6 +3,20 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { exportConsultationReportPdf } from '../lib/reportPdf';
 
+/**
+ * Campos que `ReportData` tornou OBRIGATÓRIOS em P1/§9.2. Repetidos em
+ * cada fixture antes por estarem opcionais — e é exatamente por isso que
+ * o `handlePrintReport` esqueceu de repassá-los e o app seguiu
+ * emitindo o relatório antigo sem o compilador reclamar.
+ */
+const base = {
+  doses: [] as { medication_name: string; scheduled_at: string; taken_at: string | null; state: 'recorded' | 'skipped' | 'unrecorded' | 'marked_missed' }[],
+  periodStart: '2026-08-01',
+  periodEnd: '2026-08-30',
+  allTaken: null as boolean | null,
+};
+
+
 jest.mock('expo-print', () => ({
   printToFileAsync: jest.fn(),
 }));
@@ -41,11 +55,12 @@ describe('exportConsultationReportPdf', () => {
     (Sharing.shareAsync as jest.Mock<any>).mockResolvedValue(undefined);
 
     const result = await exportConsultationReportPdf({
+      ...base,
       profileName: 'Maria',
       periodDays: 30,
       percentage: 95,
       taken: 28,
-      due: 30,
+      due: 30,      rescue: 0,
       missed: [],
       medications: [{ name: 'Dipirona', dosage: '500', unit: 'mg' }],
     });
@@ -69,11 +84,12 @@ describe('exportConsultationReportPdf', () => {
 
     await expect(
       exportConsultationReportPdf({
+      ...base,
         profileName: 'Maria',
         periodDays: 30,
         percentage: 95,
         taken: 28,
-        due: 30,
+        due: 30,        rescue: 0,
         missed: [],
         medications: [],
       }),
@@ -100,11 +116,12 @@ describe('exportConsultationReportPdf — nome de arquivo legível (2026-09-08)'
     (Sharing.shareAsync as jest.Mock<any>).mockResolvedValue(undefined);
 
     const result = await exportConsultationReportPdf({
+      ...base,
       profileName: 'Maria',
       periodDays: 30,
       percentage: 95,
       taken: 28,
-      due: 30,
+      due: 30,      rescue: 0,
       missed: [],
       medications: [{ name: 'Losartana', dosage: '50', unit: 'mg' }],
       medicationName: 'Losartana',
@@ -121,11 +138,12 @@ describe('exportConsultationReportPdf — nome de arquivo legível (2026-09-08)'
     (Sharing.shareAsync as jest.Mock<any>).mockResolvedValue(undefined);
 
     const result = await exportConsultationReportPdf({
+      ...base,
       profileName: 'Maria',
       periodDays: 30,
       percentage: 95,
       taken: 28,
-      due: 30,
+      due: 30,      rescue: 0,
       missed: [],
       medications: [],
     });
@@ -144,11 +162,12 @@ describe('exportConsultationReportPdf — nome de arquivo legível (2026-09-08)'
     (Sharing.shareAsync as jest.Mock<any>).mockResolvedValue(undefined);
 
     const result = await exportConsultationReportPdf({
+      ...base,
       profileName: 'Maria',
       periodDays: 30,
       percentage: 95,
       taken: 28,
-      due: 30,
+      due: 30,      rescue: 0,
       missed: [],
       medications: [],
       medicationName: 'Losartana',

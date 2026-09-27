@@ -189,3 +189,12 @@ jest.mock('@react-native-community/datetimepicker', () => {
 });
 
 
+// P4/§10.4 — `expo-crypto` é o que gera a `client_key` da dose de
+// resgate (ver `newPrnClientKey`). Módulo nativo: sem mock, `randomUUID()`
+// é `undefined` em Jest, e a chave sumia do payload SEM ERRO — o teste
+// só percebia porque a asserção exigia string. No app é o mesmo código.
+jest.mock('expo-crypto', () => ({
+  __esModule: true,
+  randomUUID: jest.fn(() => 'aaaa1111-bbbb-4ccc-8ddd-eeeeffff0000'),
+  getRandomBytes: jest.fn((n: number) => new Uint8Array(n)),
+}));

@@ -6,10 +6,12 @@ use App\Actions\CalculateAdherenceStreak;
 use App\Actions\CalculateDailyAdherence;
 use App\Actions\CalculateWeeklyAdherence;
 use App\Actions\GenerateConsultationSummary;
+use App\Actions\DeriveDoseOccurrences;
 use App\Actions\GenerateScheduleOccurrences;
 use App\Actions\MarkDoseMissedAndNotifyCollaborators;
 use App\Actions\ReactToDoseLog;
 use App\Models\DoseLog;
+use App\Models\Medication;
 use App\Models\DoseSchedule;
 use App\Models\Profile;
 use Carbon\Carbon;
@@ -19,6 +21,34 @@ use Illuminate\Support\Facades\Gate;
 
 class DoseLogController extends Controller
 {
+    /**
+     * Piso de segurança da janela de histórico — em dias.
+     *
+     * NÃO é um paywall. Antes desta constante a janela era
+     * `isPro() ? 3650 : 30`, e o teste de regressão é `CLAUDE.md`:
+     * o paciente não pode perder o acesso ao próprio registro por causa
+     * de plano. O plano barra CRIAÇÃO de recurso (perfis, medicamentos,
+     * cuidador) e formata ARTEFATO (resumo de consulta, PDF) — nunca
+     * leitura do que a pessoa já registrou, nunca export.
+     *
+     * O número continua existindo por dois motivos practical, não de
+     * produto: (a) a query dos `timezoneChanges` abaixo é um `get()` sem
+     * paginação e precisa de um teto; (b) um piso generoso protege de
+     * uma data absurda vinda de parâmetro. Nenhum paciente tem 10 anos
+     * de dose neste app, então na prática isto é "sempre".
+     */
+    private const HISTORY_FLOOR_DAYS = 3650;
+
+    /**
+     * Fallback da janela de derivação quando o app não manda
+     * `date_to` (decisão D11). A janela **segue o pedido**; isto é só o
+     * piso do "não sei, mostra alguma coisa". Não é questão legal: é
+     * custo de CPU.
+     */
+    private const HISTORY_DERIVED_WINDOW_DAYS = 90;
+
+    private const HISTORY_PER_PAGE = 50;
+
     public function today(Request $request, Profile $profile, MarkDoseMissedAndNotifyCollaborators $markMissed, GenerateScheduleOccurrences $generateOccurrences): JsonResponse
     {
         // Fase 1.5 (2026-08-09): abort_if direto virou Gate::authorize —
@@ -176,84 +206,154 @@ class DoseLogController extends Controller
         ];
     }
 
-    public function history(Request $request, Profile $profile): JsonResponse
+    public function history(Request $request, Profile $profile, DeriveDoseOccurrences $deriveOccurrences): JsonResponse
     {
         Gate::authorize('view', $profile);
 
-        $days = $request->user()->isPro() ? 3650 : 30;
+        // T1 (2026-09-25): era `isPro() ? 3650 : 30` — o plano grátis
+        // perdia o acesso ao próprio histórico depois de 30 dias. Agora
+        // é o piso incondicional (ver `HISTORY_FLOOR_DAYS` na classe).
+        // O que ainda dá para o usuário segurar o volume é o que já
+        // existia: `?date_from`/`?date_to` e a paginação de 50.
+        // ══ P2 / §10.2 (2026-09-25): o Histórico passa a DERIVAR por
+        // ocorrência, como a Home e o Relatório já faziam. ══
+        //
+        // Antes isto consultava `dose_logs` direto, e aí está o furo
+        // estrutural: uma dose prevista e nunca registrada **não
+        // aparecia**. A Home dizia 3 doses, o relatório dizia 2 e o
+        // Histórico dizia 1 — três telas, três verdades sobre o mesmo
+        // dia. A prova está em
+        // `DoseLogHistoryTest::test_dose_prevista_e_nunca_registrada_aparece_no_historico`.
+        //
+        // `DeriveDoseOccurrences` é a fonte única agora, com os mesmos 4
+        // estados do relatório, e com cache por dia (chave
+        // `occurrences:{perfil}:{geração}:{data}`). O custo deixou de ser
+        // "por request" e passou a ser "por dia, uma vez".
+        //
+        // **A janela segue o pedido** (decisão D11): `date_to` manda, e
+        // `HISTORY_DERIVED_WINDOW_DAYS` é só o fallback quando o app não
+        // manda filtro. Não é questão legal — é custo de CPU. E a lei
+        // joga do outro lado: a LGPD art. 18 dá ao titular acesso aos
+        // próprios dados, então limitar artificialmente a janela é o
+        // risco, não alargar.
 
-        // Achado 2026-09-09 (mesma auditoria do bug de fuso do
-        // taken_at/scheduled_at): `now()` sozinho monta o corte em UTC,
-        // mas `scheduled_at` no banco é hora LOCAL do perfil sem fuso —
-        // comparar os dois direto desloca a janela de "últimos N dias"
-        // pelo offset do perfil (podia cortar/incluir até ~algumas horas
-        // erradas na borda). `Carbon::now($profile->timezone)` garante
-        // que o corte é calculado no mesmo referencial dos dados.
-        $cutoff = Carbon::now($profile->timezone)->subDays($days)->format('Y-m-d H:i:s');
+        $windowTo = $request->filled('date_to')
+            ? Carbon::parse($request->date_to, $profile->timezone)
+            : Carbon::now($profile->timezone);
 
-        $query = $profile->doseLogs()
-            ->with(['medication', 'doseSchedule'])
-            ->where('scheduled_at', '>=', $cutoff);
+        $windowFrom = $request->filled('date_from')
+            ? Carbon::parse($request->date_from, $profile->timezone)
+            : $windowTo->copy()->subDays(self::HISTORY_DERIVED_WINDOW_DAYS);
 
+        // Piso de segurança, o mesmo `HISTORY_FLOOR_DAYS` de antes: uma
+        // data absurda vinda de parâmetro não pode fazer o servidor
+        // derivar década.
+        $hardFloor = Carbon::now($profile->timezone)->subDays(self::HISTORY_FLOOR_DAYS);
+        if ($windowFrom->lt($hardFloor)) {
+            $windowFrom = $hardFloor;
+        }
+
+        $occurrences = $deriveOccurrences->handle(
+            $profile,
+            $windowFrom,
+            $windowTo,
+            $request->filled('medication_id') ? (int) $request->medication_id : null,
+        );
+
+        // O filtro de status é aplicado SOBRE a lista derivada, não na
+        // query. `unrecorded` não é valor de `dose_logs.status` — é estado
+        // derivado — então um `where('status', ...)` nunca encontraria a
+        // dose que é justamente o motivo desta fase existir.
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $wanted = $request->status;
+            $occurrences = array_values(array_filter(
+                $occurrences,
+                fn ($o) => $o['status'] === $wanted,
+            ));
         }
 
-        if ($request->filled('medication_id')) {
-            $query->where('medication_id', $request->medication_id);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('scheduled_at', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('scheduled_at', '<=', $request->date_to);
-        }
-
-        $logs = $query->orderBy('scheduled_at', 'desc')->paginate(50);
-
-        // Bug de fuso horário (2026-09-09, ver DoseLog::scheduledAtInTimezone/
-        // takenAtInTimezone) — a serialização automática do Eloquent aqui
-        // rotulava os dois campos com o fuso errado (UTC do app, não o do
-        // perfil), 3h+ adiantado/atrasado do horário real pra perfil fora
-        // de UTC. `through()` remapeia os itens da página sem perder os
-        // metadados de paginação (current_page, last_page, etc.).
-        $logs = $logs->through(fn (DoseLog $log) => [
-            ...$log->toArray(),
-            'scheduled_at' => $log->scheduledAtInTimezone($profile->timezone)->toISOString(),
-            'taken_at' => $log->takenAtInTimezone($profile->timezone)?->toISOString(),
-        ]);
-
-        // Marcador de troca de fuso (2026-09-11, entrevista de decisões
-        // de horário — ver ROADMAP.md, item 6/20) — chave NOVA somada ao
-        // objeto do paginador (`...$logs->toArray()` preserva `data`,
-        // `current_page`, etc. exatamente como antes — não quebra quem
-        // já consome só `.data`), não uma tabela separada dentro de
-        // `dose_logs`. O app intercala isso na lista visual do Histórico
-        // por data — mesmo período (`$cutoff`) da consulta acima.
-        $timezoneChanges = $profile->timezoneChanges()
-            ->where('changed_at', '>=', $cutoff)
-            ->orderBy('changed_at', 'desc')
-            ->get(['old_timezone', 'new_timezone', 'changed_at']);
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = self::HISTORY_PER_PAGE;
+        $total = count($occurrences);
+        $lastPage = max(1, (int) ceil($total / $perPage));
 
         return response()->json([
-            ...$logs->toArray(),
-            'timezone_changes' => $timezoneChanges,
+            'data' => array_slice($occurrences, ($page - 1) * $perPage, $perPage),
+            'current_page' => $page,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            // A janela é **dita**, não assumida. Sem isto, um histórico
+            // maior que a janela pareceria completo — a mesma mentira do
+            // `all_taken` com `due === 0`, agora no outro extremo.
+            'derived_window' => [
+                'from' => $windowFrom->toDateString(),
+                'to' => $windowTo->toDateString(),
+            ],
+            'timezone_changes' => $this->timezoneChangesFor($profile, $windowFrom, $windowTo),
         ]);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function timezoneChangesFor(Profile $profile, Carbon $from, Carbon $to): array
+    {
+        return $profile->timezoneChanges()
+            ->where('changed_at', '>=', $from)
+            ->where('changed_at', '<=', $to->copy()->endOfDay())
+            ->orderBy('changed_at', 'desc')
+            ->get(['old_timezone', 'new_timezone', 'changed_at'])
+            ->toArray();
     }
 
     public function store(Request $request, CalculateAdherenceStreak $calculateStreak, GenerateScheduleOccurrences $generateOccurrences): JsonResponse
     {
+        // P4 (2026-09-25) — a dose **avulsa** (PRN, "de resgate"): não tem
+        // horário previsto, então `dose_schedule_id` e `scheduled_at` são
+        // nulos, e a identidade do registro passa a ser o `client_key`.
+        //
+        // Repare que as regras abaixo são só de FORMATO. Quem decide se a
+        // dose é agendada ou avulsa é o guarda logo depois, e essa
+        // separação é deliberada: expressar "ou isso, ou aquilo" com
+        // `required_without`/`required_without_all` na validação fica
+        //-correct só por acidente — e foi exatamente o que aconteceu
+        // aqui na primeira versão. `required_without_all:dose_schedule_id,
+        // scheduled_at` não rejeita o híbrido (agendada + client_key): a
+        // dose agendada era aceita e keyed pelo client_key, e um reenvio
+        // da MESMA dose agendada sem a chave caía no outro caminho e
+        // criava um log DUPLICADO. O guarda abaixo é um XOR explícito,
+        // que não tem como ser lido errado.
         $data = $request->validate([
-            'dose_schedule_id' => 'required|exists:dose_schedules,id',
+            'dose_schedule_id' => 'nullable|exists:dose_schedules,id',
             'medication_id' => 'required|exists:medications,id',
             'profile_id' => 'required|exists:profiles,id',
-            'scheduled_at' => 'required|date',
+            'scheduled_at' => 'nullable|date',
             'taken_at' => 'nullable|date',
             'status' => 'required|in:taken,skipped,missed',
             'notes' => 'nullable|string|max:500',
+            // UUID gerado no aparelho — a dose avulsa é criada offline, e
+            // o id do log só existe depois de sincronizar.
+            'client_key' => 'nullable|uuid',
         ]);
+
+        // Exatamente um dos dois formatos. Agendada: `dose_schedule_id` +
+        // `scheduled_at`, sem chave. Avulsa: só `client_key`. Nem as duas
+        // (o híbrido que duplicava), nem nenhuma (sem identidade, sem
+        // idempotência, sem como saber o que sobrescrever).
+        $ehAgendada = ! empty($data['dose_schedule_id']);
+        $ehAvulsa = ! empty($data['client_key']);
+        abort_if(
+            $ehAgendada === $ehAvulsa,
+            422,
+            'Envie dose_schedule_id + scheduled_at (dose agendada) ou client_key (dose de resgate), nunca os dois nem nenhum.'
+        );
+
+        // A dose agendada PRECISA do horário. Relaxar `scheduled_at` para
+        // `nullable` (para a PRN) abriu caminho para `dose_schedule_id` sem
+        // horário — e isso grava uma linha com `scheduled_at` nulo, que não
+        // pertence a dia nenhum: o histórico não sabe onde colocá-la, a
+        // adesão não sabe o que contar, e ninguém vê o erro. A regra é
+        // simétrica à da avulsa: cada formato carrega o que o identifica.
+        abort_if($ehAgendada && empty($data['scheduled_at']), 422, 'Dose agendada precisa de scheduled_at.');
 
         $profile = Profile::findOrFail($data['profile_id']);
         Gate::authorize('create', [DoseLog::class, $profile]);
@@ -269,11 +369,38 @@ class DoseLogController extends Controller
         // resolve o schedule escopado ao profile — 404 se não pertencer a
         // ele — e confere que o medication_id enviado bate com o do
         // schedule, antes de tocar em qualquer registro.
-        $schedule = DoseSchedule::whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id))
-            ->findOrFail($data['dose_schedule_id']);
-        abort_unless($schedule->medication_id === (int) $data['medication_id'], 404);
+        // P4: o `medication_id` continua sendo conferido contra o dono do
+        // perfil nos **dois** caminhos. Sem isso a porta da dose avulsa
+        // viraria um IDOR novo: bastava mandar `medication_id` de um
+        // remédio alheio com `client_key` novo, e a validação `exists`
+        // passaria.
+        if ($ehAgendada) {
+            $schedule = DoseSchedule::whereHas('medication', fn ($q) => $q->where('profile_id', $profile->id))
+                ->findOrFail($data['dose_schedule_id']);
+            abort_unless($schedule->medication_id === (int) $data['medication_id'], 404);
+        } else {
+            $medication = Medication::where('profile_id', $profile->id)
+                ->findOrFail($data['medication_id']);
+            abort_unless($medication->is_prn, 422, 'Medicamento não é de resgate.');
 
-        $scheduledAtFormatted = Carbon::parse($data['scheduled_at'])->setTimezone($profile->timezone)->format('Y-m-d H:i:s');
+            // Dose de resgate **precisa** de `taken_at` e não pode ser
+            // `skipped`. "Pular" uma dose de resgate não significa nada:
+            // se a pessoa não precisou, ela simplesmente não registra — e
+            // um `skipped` de PRN entraria no histórico como decisão sobre
+            // um horário que nunca existiu. A exigência fica aqui, e não
+            // no `validate`, porque `taken_at` é legitimamente nulo na
+            // dose agendada **pulada** e uma regra global quebraria esse
+            // caso.
+            abort_unless(
+                ! empty($data['taken_at']) && $data['status'] !== 'skipped',
+                422,
+                'Dose de resgate precisa de taken_at e não pode ser pulada.'
+            );
+        }
+
+        $scheduledAtFormatted = isset($data['scheduled_at'])
+            ? Carbon::parse($data['scheduled_at'])->setTimezone($profile->timezone)->format('Y-m-d H:i:s')
+            : null;
 
         // Bug real de fuso horário achado 2026-09-09 (mesma auditoria do
         // "sumiu do Hoje"): `scheduled_at` já convertia pro fuso do perfil
@@ -292,11 +419,28 @@ class DoseLogController extends Controller
             ? Carbon::parse($data['taken_at'])->setTimezone($profile->timezone)->format('Y-m-d H:i:s')
             : null;
 
+        // P4 (§10.4) — **a chave do `updateOrCreate` depende do caso**.
+        //
+        // Dose agendada: continua `(dose_schedule_id, scheduled_at)`, como
+        // sempre — reenviar a mesma ação 2x nunca duplica.
+        //
+        // Dose avulsa: os dois campos são nulos, e essa seria a chave
+        // `(NULL, NULL)` — a mesma para **todas** as doses avulsas. A
+        // segunda sobrescreveria a primeira, e o paciente perderia o
+        // registro sem erro nenhum. Por isso a chave é o `client_key`,
+        // gerado no aparelho.
+        //
+        // O discriminador é `$ehAgendada` (o mesmo do guarda XOR acima), e
+        // NÃO `! empty($data['client_key'])`. São equivalentes depois do
+        // guarda, mas acoplar a chave ao `client_key` deixaria o caminho
+        // agendado mudar de identidade se o campo aparecesse — e foi
+        // exatamente esse o bug do híbrido.
+        $chave = $ehAgendada
+            ? ['dose_schedule_id' => $data['dose_schedule_id'], 'scheduled_at' => $scheduledAtFormatted]
+            : ['client_key' => $data['client_key']];
+
         $log = DoseLog::updateOrCreate(
-            [
-                'dose_schedule_id' => $data['dose_schedule_id'],
-                'scheduled_at' => $scheduledAtFormatted,
-            ],
+            $chave,
             array_merge($data, ['scheduled_at' => $scheduledAtFormatted, 'taken_at' => $takenAtFormatted])
         );
 
@@ -311,10 +455,15 @@ class DoseLogController extends Controller
             // Bug de fuso horário (2026-09-09, ver DoseLog::scheduledAtInTimezone/
             // takenAtInTimezone) — sobrescreve o que `$log->toArray()` já
             // devolveu rotulado errado (UTC do app, não o do perfil).
-            'scheduled_at' => $log->scheduledAtInTimezone($profile->timezone)->toISOString(),
+            // P4: a dose avulsa não tem `scheduled_at` nem `dose_schedule`.
+            // Sem o `?->`, o `toISOString()` em cima de `null` estouraria
+            // a tela inteira — a dose de resgate é justamente a mais
+            // provável de ser registrada offline, ou seja, no caminho em
+            // que menos se pode errar.
+            'scheduled_at' => $log->scheduledAtInTimezone($profile->timezone)?->toISOString(),
             'taken_at' => $log->takenAtInTimezone($profile->timezone)?->toISOString(),
-            'medication' => $log->medication->only(['id', 'name', 'dosage', 'unit', 'color']),
-            'dose_schedule' => $log->doseSchedule->only(['id', 'time', 'days_of_week']),
+            'medication' => $log->medication->only(['id', 'name', 'dosage', 'unit', 'color', 'is_prn']),
+            'dose_schedule' => $log->doseSchedule?->only(['id', 'time', 'days_of_week']),
             'streak_milestone' => $milestone,
         ]), 201);
     }
@@ -326,6 +475,16 @@ class DoseLogController extends Controller
         }
 
         $today = Carbon::today($profile->timezone);
+        // P4: a dose de resgate não tem `scheduled_at`, e não tem como
+        // "completar o dia" — ela não estava prevista em nenhum horário.
+        // E o marco de streak é sobre concluir o que foi PLANEJADO, que
+        // é exatamente o denominador que o PRN não toca (D13). Sem este
+        // early return, o `parse(null)` de baixo estouraria o 500 no
+        // registro de uma dose de resgate.
+        if (empty($data['scheduled_at'])) {
+            return null;
+        }
+
         if (! Carbon::parse($data['scheduled_at'])->isSameDay($today)) {
             return null;
         }
@@ -395,6 +554,38 @@ class DoseLogController extends Controller
     // "Reação do cuidador" (2026-08-22) — 1 toque pra reagir a uma dose
     // já tomada, sem virar chat. Ver ReactToDoseLog pra regra de quem é
     // notificado.
+    /**
+     * Editar **só** a nota da dose (P3, 2026-09-25).
+     *
+     * Rota dedicada em vez de reenviar pro `store` — e o motivo é de
+     * integridade, não de elegância. O `store` é `updateOrCreate` na chave
+     * `(dose_schedule_id, scheduled_at)`, ou seja, "editar a nota"
+     * significaria reenviar a dose INTEIRA: o cliente teria que reenviar
+     * `taken_at` e `status` (ambos `required` na validação), e qualquer
+     * imprecisão ali **reescreve o registro da dose** para salvar um
+     * campo de texto. Pior, o `store` dispara a verificação de marco de
+     * streak, que podia comemorar de novo um marco já-deleteado.
+     *
+     * Aqui só `notes` é tocável. `taken_at` e `status` ficam
+     * estruturalmente fora do alcance, então não há como degradar a dose
+     * por causa de uma nota.
+     */
+    public function updateNote(Request $request, DoseLog $doseLog): JsonResponse
+    {
+        Gate::authorize('update', $doseLog);
+
+        $data = $request->validate([
+            // `nullable` e não `required`: apagar a nota é uma ação
+            // legítima, e `max:500` é o mesmo teto do `store` — um
+            // registro não pode ter um limite e o outro não.
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $doseLog->update(['notes' => $data['notes'] !== null ? $data['notes'] : null]);
+
+        return response()->json($doseLog->fresh());
+    }
+
     public function react(Request $request, DoseLog $doseLog, ReactToDoseLog $reactToDoseLog): JsonResponse
     {
         Gate::authorize('react', $doseLog);
@@ -439,8 +630,13 @@ class DoseLogController extends Controller
     {
         Gate::authorize('view', $profile);
 
-        $maxDays = $request->user()->isPro() ? 3650 : 30;
-        $weeks = min((int) floor($maxDays / 7), 8);
+        // T1 (2026-09-25): o gráfico é leitura do registro da própria
+        // pessoa, então o teto de janela não é mais coisa de plano.
+        // Antes, `isPro()` aqui só escolhia entre 4 e 8 semanas — e o
+        // `min(..., 8)` já limitava o Pro a 8 de qualquer jeito, ou
+        // seja, a diferença era densidade de apresentação, não acesso a
+        // dado. Agora todo mundo vê as 8 semanas.
+        $weeks = 8;
 
         $today = Carbon::today($profile->timezone);
         $points = [];
@@ -463,10 +659,12 @@ class DoseLogController extends Controller
     // "Calendário de adesão" (v1.3, aprovado 2026-09-02) — um dia por
     // linha (não uma semana agregada), pro app pintar verde/amarelo/
     // vermelho em cada dia do mês. `?month=AAAA-MM` opcional, mês atual
-    // (no fuso do perfil) por padrão. Mesmo teto de profundidade do
-    // weeklyAdherence (30 dias grátis) — não abre uma segunda forma de
-    // ver mais histórico do que o plano permite; mês fora da janela
-    // permitida cai pro mês mais antigo que ainda cabe nela.
+    // (no fuso do perfil) por padrão. O teto de profundidade deixou de
+    // ser coisa de plano em 2026-09-25 (T1) — antes era o mesmo do
+    // weeklyAdherence e existia pra "não abrir uma segunda forma de ver
+    // mais histórico do que o plano permitia". Agora o clamp é só o piso
+    // técnico de `HISTORY_FLOOR_DAYS`: mês além disso cai no mês mais
+    // antigo que ainda cabe nele.
     public function dailyAdherence(Request $request, Profile $profile, CalculateDailyAdherence $calculateDaily): JsonResponse
     {
         Gate::authorize('view', $profile);
@@ -476,8 +674,14 @@ class DoseLogController extends Controller
             ? Carbon::parse($request->query('month').'-01', $profile->timezone)
             : $today->copy()->startOfMonth();
 
-        $maxDays = $request->user()->isPro() ? 3650 : 30;
-        $earliestAllowed = $today->copy()->subDays($maxDays)->startOfMonth();
+        // T1 (2026-09-25): o calendário de adesão é leitura do registro
+        // da própria pessoa. Antes o `isPro()` aqui servia só de clamp
+        // para o mês mais antigo que o plano permitia — grátis não
+        // rolava para trás de 30 dias. Rolar o próprio histórico para
+        // trás não é Premium, é não perder o próprio dado.
+        $earliestAllowed = $today->copy()
+            ->subDays(self::HISTORY_FLOOR_DAYS)
+            ->startOfMonth();
         if ($month->lt($earliestAllowed)) {
             $month = $earliestAllowed;
         }

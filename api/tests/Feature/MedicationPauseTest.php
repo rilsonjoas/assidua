@@ -193,7 +193,8 @@ class MedicationPauseTest extends TestCase
 
         $result = app(\App\Actions\CalculateDailyAdherence::class)->handle($profile->fresh(), Carbon::parse('2026-08-12', 'UTC'));
 
-        $this->assertSame(['taken' => 1, 'due' => 1, 'percentage' => 100], $result);
+        // `rescue` no contrato desde o P4/D13 (zero neste cenário).
+        $this->assertSame(['taken' => 1, 'due' => 1, 'percentage' => 100, 'rescue' => 0], $result);
     }
 
     // Já pausado ANTES do horário da dose vencer: essa ocorrência nunca

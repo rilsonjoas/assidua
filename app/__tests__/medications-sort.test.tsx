@@ -109,3 +109,56 @@ describe('MedicationsScreen — ordenar por (2026-09-07)', () => {
     expect(screen.queryByLabelText('Ordenar por: Alfabética')).toBeNull();
   });
 });
+
+// =============================================================
+// P4/§10.4 — o cartão de um remédio de resgate na lista.
+//
+// Sem o tratamento, o cartão de um PRN mostrava "0 horários" — a única
+// informação que a pessoa tinha, e ela sugeria cadastro quebrado. É
+// um detalhe de texto, mas é a primeira coisa que alguém vê do
+// recurso, e o texto dizia o oposto do que o remédio é.
+// =============================================================
+describe('MedicationsScreen — remédio de resgate (P4/§10.4)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    useMedicationsSortStore.setState({ sort: 'alphabetical' });
+  });
+
+  it('mostra o selo "Resgate" e "sem horário previsto" no cartão do PRN', async () => {
+    mockedMedications.getMedications.mockResolvedValue([
+      makeMedication({ id: 2, name: 'Dipirona', dosage: '500', is_prn: true }),
+    ]);
+
+    renderScreen();
+
+    expect(await screen.findByText('Resgate')).toBeTruthy();
+    // A linha é UM nó de texto que junta "sem horário previsto" com o
+    // estoque; não dá para casar o trecho isolado.
+    expect(screen.getByText(/sem horário previsto/)).toBeTruthy();
+  });
+
+  it('não mostra o selo de resgate no remédio comum', async () => {
+    mockedMedications.getMedications.mockResolvedValue([
+      makeMedication({ id: 1, name: 'Losartana' }),
+    ]);
+
+    renderScreen();
+
+    await screen.findByText('Losartana');
+    expect(screen.queryByText('Resgate')).toBeNull();
+  });
+
+  it('remédio pausado não recebe o selo de resgate junto', async () => {
+    // Pausado e resgate são coisas diferentes, e o badge de pausado já
+    // ocupa a linha: dois selos juntos só competem pela atenção.
+    mockedMedications.getMedications.mockResolvedValue([
+      makeMedication({ id: 2, name: 'Dipirona', is_prn: true, is_paused: true }),
+    ]);
+
+    renderScreen();
+
+    expect(await screen.findByText('Pausado')).toBeTruthy();
+    expect(screen.queryByText('Resgate')).toBeNull();
+  });
+});

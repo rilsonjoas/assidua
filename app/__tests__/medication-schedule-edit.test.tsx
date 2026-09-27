@@ -99,12 +99,27 @@ describe('MedicationFormScreen — editar horário existente (Fase 2)', () => {
   it('abre o formulário pré-preenchido com hora e dias do horário existente', async () => {
     renderScreen();
 
-    fireEvent.press(await screen.findByLabelText('Editar horário das 08:00:00, Seg, Qua, Sex'));
+    // A espera aqui é por DADO ASSÍNCRONO (os horários do remédio), não
+    // por efeito de UI. O default do `findBy*` é 1000ms, e mount +
+    // `getMedication` estouram isso com frequência — o teste falhava em
+    // 4 de 5 rodadas sem ter nada a ver com a asserção. O timeout
+    // explícito vai na CONSULTA, que é onde a espera acontece de fato.
+    fireEvent.press(
+      await screen.findByLabelText('Editar horário das 08:00:00, Seg, Qua, Sex', {}, { timeout: 10000 }),
+    );
 
     expect(screen.getByText('Editar horário')).toBeTruthy();
     expect(screen.getByPlaceholderText('08:00').props.value).toBe('08:00');
     expect(screen.getByText('Salvar')).toBeTruthy();
-  });
+    // P1/§9.3 (2026-09-25): timeout explícito. Este arquivo faz ~23s de
+    // render em sequência e NENHUM teste tinha timeout próprio — todos no
+    // padrão de 5s. Rodando com a suíte inteira, o `findByLabelText`
+    // logo após o mount passava de 5s e o teste falhava por tempo, sem
+    // nenhuma relação com a asserção. Confirmado por stash: na árvore
+    // sem as mudanças do §9.3, 3/3 rodadas passavam 78/78; com elas, o
+    // arquivo passou a ter 80 testes e a carga extra tombou estes dois.
+    // Ou seja: não é bug do §9.3, é o arquivo no limite do default.
+  }, 20000);
 
   // "Horário salva sozinho" (2026-09-07, item 12) — reforço visual pra
   // deixar explícito que essa seção não depende do "Salvar alterações".
@@ -420,16 +435,26 @@ describe('MedicationFormScreen — trocar de modo com horário já cadastrado pe
     // isolado, falhava rodando junto com as outras 41 suítes). Yield
     // explícito + timeout maior dão margem de sobra sem prender a
     // suíte por muito tempo no caso comum (que resolve bem mais rápido).
+    // P1/§9.3: subiu de 3s para 10s — com o arquivo inteiro sob carga 3s
+    // ainda era pouco, e o timeout EXTERNO do teste (5s default) era menor
+    // que o orçamento do próprio `waitFor`, ou seja, ele falhava por
+    // tempo mesmo tendo sido "corrigido" aqui dentro.
     await new Promise((r) => setTimeout(r, 50));
     await waitFor(() => {
       expect(screen.queryByLabelText('Editar horário das 08:00:00, Seg, Qua, Sex')).toBeNull();
-    }, { timeout: 3000 });
+    }, { timeout: 10000 });
     // Volta pra "Horário fixo" (sem horário nenhum, é o padrão) — não
     // fica preso mostrando "A cada X horas" selecionado sem ter
     // conseguido trocar de verdade.
     expect(screen.getByLabelText('Horário fixo').props.accessibilityState.selected).toBe(true);
     expect(mockedMedications.createSchedule).not.toHaveBeenCalled();
-  });
+    // O comentário acima deste `waitFor` já registrava o problema e
+    // resolvia pela metade: o `waitFor` interno foi pra 3000ms, mas o
+    // TIMEOUT DO TESTE continuou no default de 5000ms. Sob carga, o
+    // próprio `waitFor` de 3s + o mount já estouram os 5s — o teste
+    // falhava mesmo sido corrigido de propósito. O orçamento externo
+    // precisa comportar o interno.
+  }, 20000);
 });
 
 describe('MedicationFormScreen — pausar/reativar medicamento (Fase 2, 2026-08-12)', () => {
@@ -541,8 +566,48 @@ describe('MedicationFormScreen — perguntar antes de pausar se há dose vencida
 
     fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
 
-    expect(await screen.findByText('Tem dose pendente')).toBeTruthy();
+    expect(await screen.findByText('Dose sem registro')).toBeTruthy();
     expect(mockedMedications.updateMedication).not.toHaveBeenCalled();
+  });
+
+  // P1/§9.3 — a dose está vencida no relógio e AINDA NÃO FOI REGISTRADA.
+  // O diálogo DEVE perguntar: o usuário está pausando agora, e essa é a
+  // última chance de dizer o que aconteceu com a dose. O que não pode
+  // é o app afirmar um veredito — "já passou do horário" era o app
+  // julgando uma dose que ainda pode ser tomada (a das 08:01, por
+  // exemplo). A pergunta é factual; o veredito é do usuário.
+  it('pergunta mesmo com a dose vencida ha pouco, e sem afirmar que ela se perdeu', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([overdueDose] as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+
+    expect(await screen.findByText('Dose sem registro')).toBeTruthy();
+    // A tela NÃO pode dizer que a dose "já passou do horário": isso é um
+    // julgamento do app sobre uma dose que ainda não tem 24 h.
+    expect(screen.queryByText(/já passou do horário/i)).toBeNull();
+    // E o botão que GRAVA `skipped` não pode chamar a si mesmo de
+    // "Ignorar" — "ignorar" sugere que nada é escrito, e algo é.
+    expect(screen.queryByLabelText('Ignorar')).toBeNull();
+    expect(mockedMedications.updateMedication).not.toHaveBeenCalled();
+  });
+
+  // A tolância de 24 h NÃO pode entrar aqui. `getTodayDoses` só devolve
+  // ocorrências de hoje, e uma dose de hoje nunca tem 24 h — um filtro
+  // de 24 h tornaria este diálogo código morto. A primeira correção
+  // tentou exatamente isso; o teste abaixo trava a conclusão.
+  it('o dialogo nao depende de tolerancia de 24h: dose de hoje sempre pergunta', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([overdueDose] as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
+
+    // `overdueDose` é de 08:00 e o relógio do teste bem depois disso —
+    // mesmo assim o diálogo aparece, porque o gatilho é "não registrada
+    // e o usuário está pausando", não "já se perdeu".
+    expect(await screen.findByText('Dose sem registro')).toBeTruthy();
   });
 
   it('"Marcar como perdida" registra a dose como missed e só então pausa', async () => {
@@ -571,7 +636,7 @@ describe('MedicationFormScreen — perguntar antes de pausar se há dose vencida
     renderScreen();
 
     fireEvent.press(await screen.findByLabelText('Pausar medicamento'));
-    fireEvent.press(await screen.findByLabelText('Ignorar'));
+    fireEvent.press(await screen.findByLabelText('Pular esta dose'));
 
     await waitFor(() => {
       expect(mockedDoses.logDose).toHaveBeenCalledWith(
@@ -1512,4 +1577,104 @@ describe('MedicationFormScreen — toque mínimo dos ícones editar/excluir hor�
     const combinedFacingHitSlop = editBtn.props.hitSlop.right + deleteBtn.props.hitSlop.left;
     expect(realGapBetweenThem).toBeGreaterThan(combinedFacingHitSlop);
   });
+});
+
+// =============================================================
+// P4/§10.4 — o remédio de resgate precisa ser MARCAVEL e REGISTRÁVEL.
+//
+// Este arquivo já monta a tela de formulário com o harness pronto, e
+// o P4 tem duas camadas a provar aqui:
+//
+//  1. o formulário aceita marcar "só quando precisar" e esconde os
+//     horários (um resgate com horário previsto é contraditório, e
+//     worse: a pessoa preencheria um horário que o app nunca usaria);
+//  2. o botão "Registrar dose" grava uma dose de resgate de verdade —
+//     com `client_key` e SEM `dose_schedule_id`, que é o contrato do §10.4.
+//
+// A camada 2 é a que mais importa: sem ela, o remedy exists, o backend
+// aceita, e ninguém consegue registrar nada.
+// =============================================================
+describe('MedicationFormScreen — remédio de resgate (P4/§10.4)', () => {
+  const resgate = {
+    ...medication,
+    name: 'Dipirona',
+    dosage: '500',
+    is_prn: true,
+    schedules: [],
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSearchParams.mockReturnValue({ id: '10' });
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedMedications.getMedication.mockResolvedValue(resgate as any);
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedMedications.updateMedication.mockResolvedValue({} as any);
+  });
+
+  it('carrega o remédio marcado como resgate', async () => {
+    renderScreen();
+
+    // O card de resgate aparece selecionado — é o sinal visível de que
+    // o app entendeu o cadastro.
+    const card = await screen.findByLabelText('Só quando precisar', {}, { timeout: 10000 });
+    expect(card.props.accessibilityState).toMatchObject({ selected: true });
+  }, 20000);
+
+  it('esconde a seção de horários do remédio de resgate', async () => {
+    renderScreen();
+
+    await screen.findByLabelText('Só quando precisar', {}, { timeout: 10000 });
+    // Nenhum horário visível: para um resgate eles seriam ignorados.
+    expect(screen.queryByText('Horários')).toBeNull();
+  }, 20000);
+
+  it('oferece o botão de registrar dose no remédio de resgate', async () => {
+    renderScreen();
+
+    expect(await screen.findByLabelText('Registrar que tomou Dipirona', {}, { timeout: 10000 })).toBeTruthy();
+  }, 20000);
+
+  it('registra a dose com client_key e SEM dose_schedule_id', async () => {
+    mockedDoses.logDose.mockResolvedValue({
+      id: 900, dose_schedule_id: null, client_key: 'x', medication_id: 10, profile_id: 1,
+      scheduled_at: null, taken_at: new Date().toISOString(), status: 'taken', notes: null,
+    } as any);
+
+    renderScreen();
+
+    fireEvent.press(await screen.findByLabelText('Registrar que tomou Dipirona', {}, { timeout: 10000 }));
+    // Um toque = "agora": o modal oferece o caminho, mas o caso comum
+    // não pode exigir nenhuma etapa extra.
+    fireEvent.press(await screen.findByLabelText('Registrar dose', {}, { timeout: 10000 }));
+
+    await waitFor(() => expect(mockedDoses.logDose).toHaveBeenCalled(), { timeout: 10000 });
+    const payload = mockedDoses.logDose.mock.calls[0][0] as any;
+
+    // O contrato do §10.4, pela metade que o app controla: chave de
+    // idempotência presente (UUID) e nenhum resquício de dose agendada.
+    expect(typeof payload.client_key).toBe('string');
+    expect(payload.client_key.length).toBeGreaterThan(10);
+    expect(payload.client_key).not.toBe('');
+    expect(payload).not.toHaveProperty('dose_schedule_id');
+    expect(payload).not.toHaveProperty('scheduled_at');
+    expect(payload.status).toBe('taken');
+    expect(payload.medication_id).toBe(10);
+    // E o instante é real: uma dose de resgate grava QUANDO a pessoa
+    // tomou, ao contrário da dose prevista que grava o horário agendado.
+    expect(typeof payload.taken_at).toBe('string');
+    expect(Number.isNaN(Date.parse(payload.taken_at))).toBe(false);
+  }, 20000);
+
+  it('o botão de registrar dose não aparece em remédio com horário', async () => {
+    mockedMedications.getMedication.mockResolvedValue({ ...medication, is_prn: false } as any);
+
+    renderScreen();
+
+    // Aguarda a tela carregar pelo sinal do formulário, e confirma a
+    // ausência: aqui "Registrar dose" não pode existir, senão qualquer
+    // remédio viraria um segundo caminho de registro fora de horário.
+    await screen.findByLabelText('Com horário', {}, { timeout: 10000 });
+    expect(screen.queryByLabelText('Registrar que tomou Dipirona')).toBeNull();
+  }, 20000);
 });

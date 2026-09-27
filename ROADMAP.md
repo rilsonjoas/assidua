@@ -1,6 +1,1159 @@
-# Roadmap — Meus Remédios
+# Roadmap — Assídua
 
-## ⏸️ Projeto Pausado — Requisitos e Roteiro de Publicação na Google Play Store (L0)
+> Nome do app: **Assídua** desde 2026-08-22 (antes "Meus Remédios", que
+> ainda aparece em citações antigas e nomes de arquivo do histórico —
+> `api-remedios.narniano.com`, logos, etc. Não renomear a infraestrutura sem
+> motivo; ver `NAMING.md`). Este título estava desatualizado até 2026-09-25.
+
+## 📌 PAINEL DE PENDÊNCIAS E ORDEM DE IMPLEMENTAÇÃO (2026-09-25)
+
+> **Leia esta seção primeiro.** Ela é o índice de tudo que está pendente e a
+> ordem recomendada. O resto do ROADMAP é o histórico detalhado de cada item
+> — está completo e vale a fonte, mas está **organizado por data de achado,
+> não por prioridade**, e tem partes que envelheceram (ver §5).
+>
+> **Atualizado:** 2026-09-25 (3ª rodada — **P0 e P1 em execução**) · **Autor:** sessão de planejamento (T0–T6 + auditoria de backlog), com implementação pela sessão de código
+>
+> 🟢 **Onde a implementação está (2026-09-25, fim do dia):** **P0 ✅ ·
+> P1 ✅.** Os cinco itens de P1 foram fechados: **9.1** (o `orWhereDate` que
+> inflava `taken`) · **9.2** (relatório com previsto **e** real, no app) ·
+> **9.3** (os três limiares) · **9.5** (anel da Home, "Perdidas" do
+> Histórico) · **9.7** (erro de rede deixa de virar estado vazio, em 5 telas).
+> Backend **310 + 3 skipped** · mobile **429** · typecheck limpo.
+> **Nada commitado ainda.**
+>
+> ✅ **P2 fechada — os 3 critérios.** O **Histórico**, o **Export** (JSON **e CSV**) e
+> os **denominadores da Adesão** pararam de ler `dose_logs`. A dose prevista
+> que ninguém registra agora **aparece nos três**, com estado `unrecorded`. E o
+> app deixou de ter **dois valores de adesão** na mesma tela.
+>
+> ⚠️ **Correção de uma afirmação minha, e a lição:** escrevi "P2 fechada" quando
+> era 1 de 3, e corrigi na sequência. É a **segunda** vez hoje que marco fase
+> como concluída sem checar os critérios todos (a primeira foi o 9.2). O padrão:
+> eu marco pronto **o que testei**, não **o que prometi** — por isso a
+> verificação é item por item da coluna "Corrige", nunca por sensação.
+>
+> ✅ **P3 fechada — 6 de 6, E1 incluído.** O **% saiu da Home** (D5) e o
+> **"Atrasado" saiu do card** (D7) — o app parou de julgar o dia, e o limiar de
+> 30 min sobreviveu só para *perguntar* o horário. **A nota que a pessoa escreve
+> finalmente chega ao médico**: a API aceitava `notes` desde sempre, o backend
+> mandava `note` no payload e o template do PDF **jogava fora**. Campo no modal,
+> edição na linha do Histórico (rota dedicada, que só toca `notes`), exibição
+> nos dois, e a nota entra no rótulo acessível. **E1** — o app **pergunta** o que
+> houve com a dose de ontem, em vez de afirmar.
+>
+> Backend **310 + 3 skipped** · mobile **429** · typecheck limpo.
+> commitado.** Próximo: **P3** (vocabulário) e **P4** (PRN).
+>
+> ## ✅ P4 — PRN / dose de resgate (2026-09-27, fechada)
+>
+> **Fase de segurança**, e a mais arriscada do plano: um registro errado
+> aqui é um registro errado na saúde de alguém. Fechada ponta a ponta —
+> migration, contrato, fila offline, adesão, relatório do médico, tela e
+> documentação.
+>
+> **A ordem que o §10.4 exigiu foi respeitada:** chave de idempotência
+> **antes** da coluna anulável. `client_key` nasceu na migration `100000`
+> e a `dose_schedule_id` anulável só veio na `200000`.
+>
+> **O que o backend ganhou**
+> - `medications.is_prn` e `dose_logs.client_key`, com a FK de
+>   `dose_schedule_id` em `nullOnDelete` — remover um horário não pode
+>   apagar histórico de saúde.
+> - `POST /dose-logs` com contrato **XOR**: ou `dose_schedule_id` +
+>   `scheduled_at` (sem `client_key`), ou `client_key` (sem nenhum dos
+>   dois). O híbrido é rejeitado. Era o que duplicava dose.
+> - Reenvio idempotente pela `client_key`; guarda de IDOR no PRN
+>   (medicamento tem de ser do perfil); `taken_at` obrigatório; a dose de
+>   resgate **não** gera marco de sequência.
+> - **D13 na adesão:** a dose de resgate entra no **numerador** e nunca no
+>   **denominador** — não há meta a cumprir. Percentual limitado a 100%,
+>   com as contagens íntegras e o campo `rescue` explicando a diferença.
+> - **Terceiro caso do relatório** (§10.4): a dose de resgate aparece
+>   como `recorded`, com `scheduled_at: null`, `taken_at` real,
+>   `is_rescue` e `client_key` — e **não** entra na lista de perdidas.
+>
+> **O que o app ganhou**
+> - Fila offline com identidade **discriminada** (`DoseIdentity`): a
+>   dose prevista casa por `(schedule, horário)`, a de resgate por
+>   `client_key`. Estrutural, não por `if` — não existe mais lugar onde
+>   os dois lados sejam comparados direto, então o `null === null` não
+>   tem onde reaparecer. (Ele casava uma ação pendente com **todas** as
+>   doses de resgate do dia, e o histórico affirmava "tomado" em
+>   registro que ninguém tomou.)
+> - `client_key` gerada no cliente por `expo-crypto`, nunca
+>   `Math.random()`.
+> - **Formulário** com "Como este remédio é usado?" — com horário × só
+>   quando precisar. Um resgate **esconde** a seção de horários: eles seriam
+>   ignorados pelo app.
+> - Botão "Registrar dose" no detalhe do resgate: um toque = agora, e
+>   opcionalmente outro horário e observação.
+> - **Histórico** mostra a dose de resgate **que só existe na fila**,
+>   rotulada "aguardando internet". Sem isso, quem registrasse sem sinal
+>   veria o toast de "salvou" e depois abriria um histórico sem a dose.
+>
+> **Três furos reais encontrados e fechados no caminho** (nenhum deles
+> apareceria sem os testes):
+> 1. **`is_prn` não era aceito pela API.** A coluna existia e o resto
+>    inteiro da feature estava pronto — e a validação do `store`/`update`
+>    recusava o campo. O recurso era **inalcançável**: inteiro, testado,
+>    e impossível de usar. Agora tem teste.
+> 2. **`Invalid Date` no PDF do médico.** Com `scheduled_at: null`,
+>    `new Date(null)` é `Invalid Date` — impresso no documento que o
+>    médico recebe. O tipo era `string`, então o compilador não viu.
+> 3. **`rescue` não chegava ao relatório.** Tornar o campo obrigatório em
+>    `ReportData` fez o compilador acusar **dois** pontos de integração
+>    esquecidos — inclusive o `handlePrintReport`. É a mesma armadilha que
+>    o `doses` já tinha sofrido, documentada no próprio arquivo.
+>
+> **Verificação:** backend **336** testes / 868 assertions (2 skipped, P6),
+> **verde no SQLite E no PostgreSQL**; mobile **455** / 48 suítes; typecheck
+> limpo.
+>
+> ### 🔬 Verificação pré-produção (2026-09-27) — o que os testes não viam
+>
+> A suíte rodava em **SQLite**; produção é **PostgreSQL** (dev local é
+> MySQL via Sail). São três motores, e o SQLite é o mais permissivo
+> exatamente onde o P4 mora. Rodando no Postgres de verdade:
+>
+> | Achado | Gravidade | Situação |
+> | --- | --- | --- |
+> | `client_key` é `uuid` **nativo** no Postgres: 8 testes com `'aaaa-1111'` estouravam — a suíte **não provava o contrato** | alta | ✅ corrigido (fixtures com UUID v4 real) + `api/scripts/test-postgres.sh` |
+> | `HealthCheckTest` quebrava a conexão **sqlite** com nome fixo: verde no SQLite, **falso verde** sobre o health check no motor de produção | média | ✅ corrigido (quebra a conexão do driver em uso) |
+> | Virar resgate **não dormia** os horários: a Home gerava dose, o cron marcava **perdida**, adesão caía e a seção de horários ficava escondida | **alta** | ✅ corrigido (dormir na transição + guarda no `GenerateScheduleOccurrences`) + 4 testes |
+> | FK de `medication_id`/`profile_id` em `dose_logs` é **ON DELETE CASCADE**: excluir um remédio **apaga o histórico de doses** | **alta** | 🛑 **pendente, ver abaixo** |
+> | `config/sentry.php` era lista de **bloqueio** (`!== testing`): `APP_ENV=local` reportava no Sentry **de produção**. Dois "high priority" falsos às 15h de 27/09 | **alta** | ✅ lista de **permissão** (só `production`) + `SentryEnvironmentTest` (8 casos) |
+>
+> O primeiro e o terceiro só apareceram porque alguém rodou a coisa de
+> verdade em vez de confiar no verde. O quarto **é anterior ao P4** e não
+> piora com ele — por isso fica **fora** deste deploy (juntá-lo seria dois
+> migrations de risco na mesma publicação, mais difícil de diagnosticar e
+> de reverter), mas é perda de dado de saúde e não pode ficar esquecido.
+>
+> **✅ `eas update` funciona para o P4 (decisão do Rilson, 2026-09-27).**
+> O app não precisa de build novo, apesar do `expo-crypto` ser módulo
+> nativo. Conferido com o autolinking em vez de suposto: `expo-crypto`
+> **já estava** na árvore (via `expo-auth-session`, dependência direta)
+> e está no set autolinkado — o P4 só o declarou direto, sem trazer
+> módulo nativo novo. Diff de dependências: só `expo-crypto` (promovido).
+> `app.json` intocado. Então o build já instalado no aparelho tem o
+> módulo, e o OTA entrega só o bundle JS.
+>
+> Rede de segurança: `newPrnClientKey()` **lança** se `randomUUID()`
+> vier vazio, em vez de mandar a dose sem chave (o que viraria
+> duplicidade silenciosa em histórico de saúde). Se algo estiver errado
+> no aparelho, o erro é nomeado — não é dado corrompido em silêncio.
+>
+> ⚠️ Ordem obrigatória: **migration no backend antes do `eas update`**.
+> Sem as colunas `is_prn`/`client_key`, o app manda campos que o backend
+> não conhece. E o canal `preview` aponta para o **backend de produção**
+> (não existe staging), então o teste escreve no banco real — usar
+> perfil descartável, de nome obviamente de teste.
+>
+> **🛑 Pendência aberta — `ON DELETE CASCADE` em `dose_logs`:** excluir
+> um medicamento apaga definitivamente o registro do que a pessoa tomou.
+> Num app de saúde, "excluir remédio" deveria **arquivar**, não apagar.
+> Decisão do Rilson pendente: (a) `SET NULL` com `medication_id` nulável,
+> (b) desativar em vez de excluir, ou (c) manter e documentar. É migration
+> de risco e **não entra no deploy do P4**.
+>
+> **Fora do escopo desta fase, já decidido:** o **teto diário** do PRN
+> (E3, decisão de 2026-09-25) segue para fase própria, com avisos.
+>
+> 🛑 **Ponto de parada (2026-09-25, fim da sessão).** P0, P1, P2 e P3
+> fechadas. **Nada commitado** — 44 arquivos alterados, último commit é
+> `4386662`, de antes desta sessão. Ao retomar:
+>
+> 1. **Rodar as suítes antes de mexer** (o estado é verde, mas nada está
+>    commitado): `api` → `./vendor/bin/phpunit` (310 + 3 skipped);
+>    `app` → `npx tsc --noEmit` e `npx jest --maxWorkers=3` (429).
+> 2. **Próxima fase: P4 — PRN**, o item de segurança. Duas decisões já
+>    fechadas que valem ler antes de codar: **D13** (a dose de resgate entra
+>    no **numerador** e **não** no denominador previsto) e o aviso de
+>    **§10.4** — a coluna `dose_schedule_id` anulável parece uma linha e
+>    tem dois colapsos; a ordem correta é **chave de idempotência primeiro**.
+> 3. **Pendências fora do código:** (a) confirmar se já existe monitor do
+>    `schedule:run` no Kuma — `uptime.narniano.com`, os monitores vivem no
+>    volume e não estão no repo, então **não dá para afirmar daqui**;
+>    (b) publicar a política de privacidade (L4) só **com o aval do
+>    Rilson**, que foi pedido explicitamente.
+> 4. **Não confiar no ROADMAP sozinho.** Hoje ele está correto, mas ele já
+>    esteve errado **duas vezes** nesta sessão (9.2 e P2 marcados como
+>    prontos sem checar os critérios). A verificação é item por item da
+>    coluna "Corrige", nunca por sensação.
+
+> ⚠️ **Revisão de 2026-09-25, segunda rodada:** o Rilson decidiu **não
+> publicar na Play Store agora**. Isso **remove o Bloco 0 inteiro** (os
+> US$25) e desmonta o funil do teste fechado, que era como o teste manual
+> de acessibilidade ia acontecer de graça. Ver §1 e §7.
+
+### 0. 📌 Registro de decisões — 2026-09-25
+
+> **Um lugar só para não se perder.** Decisões que foram *fechadas* nesta
+> rodada, com o que cada uma **trava** e o que **libera**. Se uma linha
+> aqui disagree com o código, o código está errado — ou esta linha
+> precisa ser revisada, e isso é sinal, não incômodo.
+>
+> Decisões de produto do Rilson (D1–D10) e decisões técnicas tomadas com
+> aval dele (D11–D13).
+
+| # | Decisão | Estado | Trava | Consequência que ficou registrada |
+| --- | --- | --- | --- | --- |
+| **D1** | **Tabela do Pro** — histórico, export e avisos **sempre grátis**; Pro vende PDF, 90 dias, mais cuidadores, perfis ilimitados | ✅ fechada | P7 | Não paywallar cuidador é deliberado: é o que diferencia dos concorrentes, e "só sua filha te ajuda se pagar" hostiliza o público frágil |
+| **D2** | **Preço: R$ 30/ano ou R$ 90 vitalício** | ✅ fechada (Rilson) | P7 (código de preço) | ~1/8 do Zelo. Produto **não pode depender da receita para viver**. Vitalício **não pode incluir nada que dê trabalho** |
+| **D3** | **Publicação e teste** | ⏸️ na hora do Rilson | nada | Não trava engenharia. Marca consolidada |
+| **D4** | **Política de privacidade (L4)** | ⏸️ **gate de L1** — e o Rilson pediu ser avisado antes de publicar | L1 (cobrança) | **NÃO publicar a política sem avisar o Rilson antes.** Dado de saúde é sensível (LGPD art. 5º, II) |
+| **D5** | **Headline da Home = opção B** ("próxima dose" + "faltam N") | ✅ fechada | P3 | **O % sai da Home.** Porcentagem é *fato* em relatório e histórico, *juízo* na tela do dia. Nunca 0% no começo do dia, nunca em vermelho |
+| **D6** | **Aviso de teto: ao atingir** | ✅ fechada | P5 | A linguagem mais firme fica reservada para o estado seguinte. Aviso de segurança é **sempre grátis**, em qualquer plano (§7.2) |
+| **D7** | **Atraso: sem limiar no rótulo** | ✅ fechada | P3 | O app **não julga** "atrasado". O relatório mostra previsto e real e deixa o leitor concluir. Aprendido na pele: o §9.3 era exatamente esse erro |
+| **D8** | **"Registrar agora" e "tomou atrasado" = mesma tela** | ✅ fechada | P3, P4 | Momento da dose é quando a mão está ocupada: cada toque a mais é um registro perdido |
+| **D9** | **PDF mostra a contagem do teto** | ✅ fechada | P5 | É dado clínico, e o médico precisa ver se o paciente respeitou o limite que ele mesmo definiu |
+| **D10** | **Flaky do biometria: consertar a raiz** | ✅ fechada | nada (higiene) | Não é produto, é **confiança na suíte**. Um teste que falha sozinho treina a ignorar vermelho |
+| **D11** | **Janela da derivação segue o pedido** (`date_from`/`date_to`); **90 dias é só o fallback** quando o app não manda filtro | ✅ fechada | P2 | Janela **não é questão legal** — é custo de CPU. E a lei joga do outro lado: LGPD art. 18 dá ao titular acesso aos próprios dados, então **limitar artificialmente é o risco**, não alargar |
+| **D12** | **Cache da derivação: por dia, com contador `generation`** | ✅ fechada | P2 | Invalidação O(1): log grava → `forget` do dia; horário muda → sobe a geração. `updated_at` do perfil **não serve**, porque não muda quando um *horário* muda |
+| **D13** | **Semântica do PRN: entra no numerador, não no denominador previsto** | ✅ fechada (recomendação do Claude, aval do Rilson) | P4 | Dose de resgate **não baixa a adesão** de quem tomou o remédio certo na hora certa. Sem isso, o PRN pune o comportamento que o app deveria PREMIAR |
+| **D14** | **Ordem: P2 → P3 → P4** | ✅ fechada | — | P4 continua sendo **o item de segurança** e é o de maior risco de dano ao paciente se sair errado. Ir por último, com o derivador único embaixo dele, é mitigação — não adiamento |
+
+**Dúvidas ainda abertas na data deste registro:**
+
+- **D12-barra:** o `schedule:run` **está** no crontab do Hetzner
+  (`scripts/crontab`, versionado, a cada minuto). **Eu tinha dito o
+  contrário** e errei — o comentário em `bootstrap/app.php` descreve o
+  código, não a produção. O que falta é **log e heartbeat**: a linha
+  manda saída para `/dev/null`, e o `INCIDENTES.md` registra que um
+  `crontab.install` já perdeu linhas em silêncio. Se o "monitor do
+  scheduler" já existir no Kuma, não se mexe — **precisa ser confirmado
+  em `uptime.narniano.com`**, porque os monitores vivem no volume do
+  Kuma e não estão no repo.
+
+### 1. Status em uma linha
+
+**O projeto não está mais travado.** Publicação saiu do caminho curto
+(decisão do Rilson, 2026-09-25) — o bloqueio real é **dinheiro e a
+recrutação dos testadores**, e ambos são do domínio dele, não de
+engenharia. Consequência: os 9 blocos de trabalho já concluído **não estão
+mais urgentes** (ninguém está esperando por eles), e o trabalho de produto
+deixa de ser "o que dá pra fazer antes de publicar" e volta a ser "o que é
+certo fazer".
+
+O código continua **mais adiantado do que este roadmap afirma** — dois itens
+marcados como pendentes aqui já estão prontos (§5). Planejar a partir do
+código, não deste documento.
+
+### 2. O que está bloqueando, e por quem
+
+| # | Bloqueio | Trava | Dono |
+| --- | --- | --- | --- |
+| **B1** | **Dinheiro** — conta de desenvolvedor Google Play (US$25) | Publicação, teste fechado obrigatório, ASO, aquisição, compra sandbox | Rilson, quando quiser |
+| **B2** | **Testadores** — recrutar 12 pessoas pro teste fechado de 14 dias | Idem (é pré-requisito do teste fechado) | Rilson, **tem plano, para o futuro** |
+| **B3** | Revisão jurídica da política de privacidade (L4) | **É o gate de L1** — não cobrar antes | Rilson, **para o futuro** |
+
+> **A marca não é bloqueio.** A pausa de 2026-08-22 citava "checklist de
+> marca" (busca nas stores, domínio, handles) como motivo, mas o Rilson
+> confirmou em 2026-09-25 que a marca está **consolidada** e esse não é o
+> problema. O único resíduo é o texto antigo da pausa, que aponta pra um
+> motivo errado — corrigir na nota do vault, não aqui.
+
+> **B3 é gate, não item paralelo** — e continua valendo mesmo sem publicar
+> hoje: dado de saúde é sensível (LGPD art. 5º, II), e corrigir política de
+> privacidade/consentimento depois de cobrança ativa vira *breaking change*
+> numa base instalada. Revisar antes é mais barato. Ordem de monetização:
+> **L0 → L4 → L1 → L2 → L3 → L5**.
+
+### 3. Fila de publicação — o que já está pronto e não está no ar
+
+Cada linha abaixo está **✅ feita em código** e **⏸️ não publicada**. Um
+`eas update` limpa a maior parte. Enquanto não publicam, quem tem o app
+instalado está numa versão meses atrás — e nada disso dependia de código novo.
+
+| # | Item | Seção | Aguarda |
+| --- | --- | --- | --- |
+| P1 | 2 melhorias de UI/UX | `:201` | publicação |
+| P2 | Modo Privacidade em todas as abas | `:251` | publicação |
+| P3 | "Tomei antes da hora" | `:340` | publicação |
+| P4 | Rodada de transparência/UX | `:366` | publicação |
+| P5 | Plano de implementação consolidado | `:640` | publicação |
+| P6 | 🔴 Bug: notificação de remédio inexistente | `:1965` | **aprovação do Rilson** + publicação |
+| P7 | 🔴 Bug: card da Home mostra horário agendado | `:2006` | **aprovação do Rilson** + publicação |
+| P8 | UX: campo HH:MM → atalhos + picker nativo | `:2039` | **aprovação do Rilson** + publicação |
+| P9 | **T1** — histórico sem paywall de leitura | sessão 2026-09-25 | publicação |
+
+**T1 em uma linha:** o plano grátis perdia o acesso ao próprio histórico depois
+de 30 dias. Agora o registro é sempre legível e sempre exportável; o plano
+barra **criar recurso** (perfis, medicamentos, cuidador) e **formatar
+artefato** (resumo de consulta, PDF), nunca ler. Ver a regra em `CLAUDE.md` e
+o teste de regressão em `DoseLogHistoryTest`.
+
+> ⚠️ **Ao validar:** rodar a suíte **pelo Sail** (`./vendor/bin/sail artisan
+> test`), não pelo container avulso `laravelsail/php84-composer` — sem a
+> extensão GD o `MedicationPhotoTest` falha em 6 casos. Aviso de 2026-08-22,
+> ainda vale.
+
+### 4. Ordem recomendada de implementação
+
+> **Reescrito em 2026-09-25, 2ª rodada**, depois da decisão de não publicar
+> na Play agora. O Bloco 0 antigo (pagar os US$25) saiu inteiro. O que
+> **sobrevive** é o `eas update` — que **não precisa de conta no Play
+> Store**: ele só distribui bundle pro seu próprio aparelho. Então os 9
+> blocos prontos continuam sendo testáveis hoje, sem depender de nada.
+
+#### Bloco 1 — Levar o que está pronto pro seu próprio aparelho · ~1 dia
+
+| | |
+| --- | --- |
+| **O quê** | Aprovar P6/P7/P8, fechar o item de auditoria (`:336`), rodar a suíte pelo Sail, e `eas update --channel preview` com P1–P9 |
+| **Por quê** | `eas update` é OTA e **independe da Play Store** — não pede conta, não pede build novo, não passa por review. Os 9 blocos prontos saem do papel e vão pro aparelho, que é o único jeito de saber se funcionam juntos. |
+| **Cuidado** | Testar no aparelho real antes de mandar pro canal `preview`. `eas update` não-interativo exige `--environment preview` explícito (ver `CLAUDE.md`) — sem isso o bundle sai sem `EXPO_PUBLIC_API_URL` e o app tenta `localhost`. |
+| **Depois** | O build de produção fica pra quando for publicar de verdade |
+
+> ⚠️ **A suíte mobile tem 2 arquivos flaky** (2026-09-25, confirmados como
+> **pré-existentes**, não regressão): `biometric-lock-screen.test.tsx` e
+> `skeleton.test.tsx`. Ambos passam 4/4 (ou 6/6) rodados isolados e falham
+> sob a carga da suíte paralela, e **a lista de falhas rotaciona entre
+> rodadas** — assinatura de flakiness, não de bug. Nenhum dos dois importa
+> nada que o P1 tocou. O custo real não é a falha: é que **teste que falha
+> sozinho treina a ignorar vermelho**, e aí um problema vero passa batendo.
+> Decisão do Rilson: deixar documentado agora, consertar a raiz (fake timers)
+> só se um deles chegar a mascarar algo real. Ver §7.4.
+
+#### Bloco 2 — Higiene · ~2-4 h · sem dependência, sem risco
+
+| | |
+| --- | --- |
+| **O quê** | (a) Fechar os 2 itens obsoletos do §5; (b) refazer a tabela do Pro com os benefícios reais; (c) riscos de fonte grande: `photoCircle`, `themeBtn` (`:3611`); (d) isolar o teste flaky do biometria |
+| **Por quê** | Nada disso é arriscado e nada disso depende de nada externo. (b) é **correção de mentira na tela**: a tabela anunciava "Histórico: 30 dias" como benefício Pro depois que o T1 removesu o limite. |
+| **Nota** | (d) — `__tests__/biometric-lock-screen.test.tsx` passa 3/3 isolado mas falha sob carga da suíte completa. O próprio arquivo reconhece a sensibilidade a timing. Não é regressão do T1 (verificado por `git stash`). |
+
+#### Bloco 3 — Correções de produto · ~1-2 semanas · depois do Bloco 1
+
+**Ordem interna importa: E1 → E2 → E3.** Fazer E2 antes de E1 é retrabalho,
+porque E2 redesenha o headline do dashboard e E1 muda o status que aparece
+nele.
+
+| | Item | Por que nesta posição |
+| --- | --- | --- |
+| **E1** | "Perdido" → **"não confirmado"**, com "registrar agora" retroativo | É o único item da lista toda que pode **custar saúde**. O app afirma fato sobre a adesão de um paciente que talvez tenha cumprido e só não tocou; o cuidador vê "perdido" e a loss aversion vira acusação falsa. O registro retroativo é o que mais rende adesão real (paciente esquece de tocar, e punir isso perde dado). **✅ Decidido 2026-09-25:** o registro retroativo **conta** para a taxa de adesão — "para ser algo fidedigno". Ver §7. |
+| **E2** | Headline do dashboard = próxima ação, não razão | Razão desce de posição, vira tendência ("7 dos últimos 14 dias"), sem vermelho. **Nunca 0% no começo do dia** — dia em andamento não é 0%, é "em andamento" (Goal Gradient honesto). Precisa de passada visual. |
+| **E3** | **PRN / remédio sem horário** (`:34`) | A maior. **✅ Escopo ampliado 2026-09-25: o teto diário e os avisos entram.** Depende de E1 para não conflitar semântica de status. |
+
+#### Bloco 4 — Decisões de produto
+
+**Todas as quatro foram respondidas em 2026-09-25.** Ficam aqui o registro
+e o que cada resposta destrava:
+
+| # | Decisão | Resposta | Consequência |
+| --- | --- | --- | --- |
+| **D1** | Teto diário no PRN entra no escopo? | ✅ **Entra. Com avisos.** | E3 praticamente dobra de tamanho. O PRN deixa de ser "registrador" e vira "guarda-corpo" |
+| **D2** | Benefícios da tabela do Pro | ✅ Ver proposta fechada em §7.3 | Tela do Pro sai de 2 linhas fake para 3 diferenciais reais |
+| **D3** | Widget: read-only ou com ação? | ✅ **Read-only** | Sem write de volta na API. `expo-android-widgets` basta |
+| **D4** | Escopo de L2/L3 e **preço** | ✅ **Pesquisar concorrência primeiro; o Rilson decide o preço depois** | O roadmap já pedia isso. Registrado, sem data |
+
+#### Bloco 5 — Externo e tardio
+
+| | Item | Quando |
+| --- | --- | --- |
+| B1 | Conta Google Play (US$25) | Quando o Rilson quiser — não está no caminho curto |
+| B2 | Recrutar 12 testadores | Rilson **tem plano, para o futuro** |
+| B3 | Revisão jurídica de verdade | **Gate de L1.** Rilson: para o futuro, registrado |
+| E4 | Teste manual TalkBack/VoiceOver em aparelho físico | ⚠️ **Deixou de ser de graça.** Dependia do funil do teste fechado, que saiu do caminho. Agora é no seu próprio aparelho — ainda não automatizável |
+| E5 | Sair do VPS compartilhado | Só quando o uso justificar |
+| E6 | Entrevista de decisões de horário (`:461`) | Rodada de perguntas em andamento, nada implementado |
+| E7 | "Botão +" nas duas abas, demo/onboarding, ordenação de lista | Itens antigos do backlog de 2026-09-02, baixa prioridade frente a E1–E3 |
+
+### 5. ⚠️ Itens deste roadmap que o código JÁ resolveu
+
+Verificado em 2026-09-25 contra o código. **Podem ser fechados sem trabalho** —
+e enquanto não forem fechados, o planejamento pode tentar refazer algo pronto:
+
+| Item | Onde está marked pendente | Realidade verificada |
+| --- | --- | --- |
+| Push via servidor | L5 (`:4746`) | `api/app/Services/ExpoPushService.php` + `MarkDoseMissedAndNotifyCollaborators` — já implementado e usado |
+| Exportação / portabilidade de dados | L4 (`:4737`) | `GET /me/export` + `POST /me/export-link` (`DataExportController`), consumida em `history.tsx` e `profile.tsx` — já existe, e nunca foi paywall |
+
+### 6. A leitura honesta
+
+Publicação saiu do caminho curto, então **o projeto voltou a ser um problema
+de produto — o que é melhor.** O roadmap já dizia: *"a distância maior não
+é mais código — é produto (retenção, L2) e principalmente aquisição (L3)"*.
+Com E1–E3 feitos, o que sobra é o dinheiro da conta, a decisão de nicho e o
+preço. Nada disso é trabalho de engenharia.
+
+E o princípio que guia: **"é um app que tem que ter muita sensibilidade"**
+(Rilson, 2026-09-25). Isso não é slogan — é critério de projeto, e é o mesmo
+que já decidiu a não-ornamentação do app (ver
+`12 - Redes sociais/Identidade visual geral.md` §1C).
+
+### 7. 📋 Decisões fechadas em 2026-09-25
+
+Registro das respostas do Rilson nesta rodada. **Nada aqui foi implementado
+— é registro de decisão.**
+
+| # | Decisão | Resposta |
+| --- | --- | --- |
+| 1 | Publicar na Play Store agora? | **Não.** Sai do caminho curto; dinheiro e testadores são o bloqueio real |
+| 2 | A marca está em risco? | **Não — está consolidada.** O texto antigo da pausa aponta pra um motivo errado |
+| 3 | Testadores | Rilson **tem plano, para o futuro** |
+| 4 | Teto diário do PRN | **Entra no escopo, com avisos** |
+| 5 | Registro retroativo conta pra adesão? | **Sim** — "para ser algo fidedigno" |
+| 6 | PRN: conta no limite de 15? | **Sim** |
+| 6 | PRN: cuidador pode registrar? | **Sim** |
+| 6 | PRN: onde aparece? | **Remédios + Histórico** (design detalhado em §7.1) |
+| 7 | O que é o plano Pro | Proposta fechada em §7.3 — aguardando aval |
+| 8 | Widget Android | **Read-only** |
+| 9 | Revisão jurídica | **Para o futuro**, registrado |
+| 10 | Preço | **Pesquisar concorrência primeiro; Rilson decide depois** |
+| 11 | Link de volta na `Identidade visual geral` | **Feito** |
+| 12 | Bloco duplicado do `Transhumanismo.md` removido | **Confirmado — estava repetido mesmo** |
+| 13 | Teste flaky do biometria | ⏸️ Aguardando explicação (ver §7.4) |
+
+#### 7.1 Design do PRN — onde a dose é registrada
+
+Decidido: aparece em **Remédios + Histórico**, cuidador pode registrar, conta
+no limite de 15. O ponto de design que importa é **onde entra**, não onde
+aparece — porque no momento de tomar um remédio de resgate a pessoa está na
+cozinha, com uma mão só, e cada toque a mais é um registro perdido.
+
+**Recomendação (do Claude, aguardando aval do Rilson):**
+
+- **Ação primária no card do remédio em Remédios** — botão sempre visível
+  no card, um toque. Custo contido: só aparece pra remédio marcado como
+  PRN, então não pesa na lista de quem não tem nenhum. A alternativa
+  (entrar na tela do remédio) economiza peso visual e custa um registro
+  perdido por toque extra.
+- **O botão é visualmente distinto do par "Tomei / Pular"** — semântica
+  diferente. Agendada é "confirmo que fiz o que eu devia"; avulsa é
+  "registro algo a mais que aconteceu". Confluir os dois colocaria dose
+  avulsa no denominador de adesão, que é exatamente o bug a evitar.
+- **O acumulado do dia fica no mesmo card, ao lado do botão** — "Paracetamol
+  · 2 de 4 possíveis hoje". O aviso do teto pertence ao **momento da
+  ação**: aviso que aparece depois é inútil.
+- **O aviso não bloqueia.** "Você já tomou 3 g hoje; o limite habitual é
+  4 g." e deixa registrar. Bloquear é paternalista e medically errado em
+  caso de exceção — mas fica **registrado**, porque o registro é o produto.
+- **No Histórico, aparece inline mas visualmente distinto.** Precisa dar
+  para saber, de relance, que aquilo não era obrigação — senão quem lê
+  (o paciente revisando, o médico) entende errado. É o problema do
+  "registro que parece completo e significa outra coisa", de novo.
+- **⚠️ Dois números, não um.** A dose avulsa entra na contagem de "doses
+  registradas" e **não** na de "previstas". Se não separar, alguém lê "4
+  doses" e infere "4 de 4 = 100%".
+
+#### 7.2 Por que o aviso de teto **jamais** pode virar Pro
+
+Registrado aqui para ninguém propor depois: **aviso de segurança atrás de
+barreira de plano é o paywall mais indefensável que existe num app de
+saúde** — é cobrar pelo direito de ser avisado de uma overdose. O teto
+diário, o aviso de dose, o alerta de estoque e a contraindicação são
+**sempre gratuitos**, em qualquer plano, sempre. Se alguém propor o
+contrário, esta linha é o porquê.
+
+#### 7.3 Proposta fechada para a tabela do Pro
+
+A tabela ficou com 2 linhas depois do T1. Proposta que respeita a regra
+**"registro é gratuito, artefato e coordenação são Pro"**:
+
+| | Grátis | Pro |
+| --- | --- | --- |
+| Perfis de paciente | 4 | Ilimitado |
+| Medicamentos por perfil | 15 | Ilimitado |
+| Cuidador remoto | 1 cuidador | Ilimitado + permissões |
+| Resumo para consulta | 30 dias | 90 dias |
+| Relatório médico em PDF | — | Incluído |
+| **Histórico de doses** | **completo** | completo |
+| **Exportar dados** | **sempre** | sempre |
+| **Avisos de segurança** | **sempre** | sempre |
+
+A escolha de não paywallar o cuidador é deliberada: ele é **a** feature que
+diferencia o app da Medisafe/MyTherapy, e cobrar "só dá pra sua filha te
+ajudar se você pagar" é hostil justamente ao público mais frágil. Vende-se
+como **upgrade** (mais cuidadores, mais permissões), não como portão.
+
+#### 7.3.1 Pesquisa de concorrência — preços (2026-09-25)
+
+Pedida pelo Rilson como **insumo para ele decidir** (D2). Não é
+recomendação de preço: é o que os concorrentes cobram hoje, com a data e a
+fonte, para a decisão ficar dele.
+
+| App | Preço | O que o Premium destrava | Observação que importa |
+| --- | --- | --- | --- |
+| **Medisafe** (global) | **US$ 49,99/ano**; £29,99–39,99/ano; £4,99/mês | medicamentos ilimitados, **Medfriends ilimitados**, 20+ medições | **Fora dos EUA virou assinatura obrigatória** depois de 14 dias de teste. Gratuito ficou em **2 medicamentos**. Nota caiu pra **3,2★** — a-base reclama de recursos movidos pra trás do paywall. Cadastro obrigatório |
+| **MyTherapy** | **Gratuito, sem ads** | — | Financia por parcerias com pharma. E o comparativo diz: **"family members get no automatic alerts"** — ou seja, quem cuida de longe **não é avisado**. É a lacuna que o Assídua ataca |
+| **Zelo** (BR — o mais próximo do Assídua) | Grátis · **Individual R$ 239,90/ano** · **Zelo Pro R$ 399/ano** · Profissional "sob consulta" | Pro = **cuidadores autorizados e permissões**, estoque, registros | Mesmo posicionamento: organizar meds + cuidado compartilhado + cuidador autorizado. É **o comparativo mais útil que existe** |
+| **PillPing** (BR, iOS) | **R$ 12,90/mês · R$ 24,90/ano · R$ 59,90 vitalício** | backup iCloud, estoque | **Todos os dados ficam no aparelho**, nada vai pra servidor. Preço bem mais baixo — mas o escopo também |
+| **Mr. Pillster** | gratuito | múltiplos perfis, ciclos | Só Android, comunidade pequena |
+| (referência) apps de nutrição em família | €10–15/pessoa/mês; plano familiar €15–20/mês | — |não é o mesmo produto, serve de referência de preço |
+
+**O que os números dizem** (interpretação, não decisão):
+
+- A faixa de **cuidador compartilhado no Brasil gira em torno de R$ 240 a
+  R$ 400/ano** — o Zelo ocupa exatamente esse espaço, e é a única referência
+  com o mesmo proposition.
+- A **âncora gratuita também existe e é forte**: MyTherapy é grátis e sem
+  ads, e o PillPing cobra R$ 24,90/ano. Quem pagaria R$ 300/ano precisa
+  encontrar algo que os gratuitos não dão.
+- **O que os gratuitos não dão, e é exatamente onde o Assídua brilha:**
+  notificação real ao cuidador (MyTherapy não avisa), sem cadastro
+  obrigatório (Medisafe exige), dados no servidor com sync (PillPing é
+  local-only), e **o histórico completo grátis** — que a tabela do Pro
+  adotada em D1 já garante.
+- **Um dado de risco, não de preço:** a Medisafe caiu para 3,2★
+  exatamente por mover recursos para trás do paywall. É o erro que a
+  tabela do Pro **não** comete, e é o argumento mais forte a favor de
+  manter histórico, export e avisos sempre gratuitos.
+
+**✅ PREÇO DECIDIDO pelo Rilson (2026-09-25), plano Pro:**
+
+| | Preço |
+| --- | --- |
+| **Pro anual** | **R$ 30,00/ano** |
+| **Pro vitalício** | **R$ 90,00** (uma vez) |
+
+O múltiplo de 3× (vitalício = 3 anos) é a heurística padrão do mercado e
+está coerente. Registrar as consequências, sem relitigar a decisão:
+
+- **R$ 30/ano é ~1/8 do Zelo** (R$ 240–400/ano). É uma escolha de
+  posicionamento, não um erro: preço baixo compra volume e coerência com a
+  proposta ética. O custo disso é que **o produto não pode depender da
+  receita para viver** — nada de funcionalidade que o usuário precise pagar pra não
+  perder dado.
+- **Faturação líquida:** com a taxa das lojas (~15% em assinatura auto-
+  renovável), R$ 30/ano rendem ~R$ 25,50. Em vitalício, o corte é maior
+  (~30% após o primeiro ano), então R$ 90 → ~R$ 63.
+- **Vitalício é commitment de suporte**: o usuário que pagou uma vez não
+  gera receita recorrente, mas continua gerando custo de atendimento. Por
+  isso o vitalício **não pode incluir nada que dê trabalho** (ex.: suporte
+  prioritário).
+- **Regra das lojas:** as duas (Google Play e Apple) proíbem que a oferta
+  vitalícia seja apresentada como se fosse a opção "melhor" quando não é.
+  3× cumpre a prática comum, mas a tela de compra precisa mostrar as duas
+  opções com honestidade.
+
+**Ainda não escrito no código, de propósito:** o RevenueCat está
+configurado, mas `CACHE`/preço/entitlement só entra quando a decisão for
+para o P7. Nenhuma string de preço deve ser hardcoded antes disso.
+
+
+
+#### 7.4 Teste flaky do biometria — o que é
+
+`app/__tests__/biometric-lock-screen.test.tsx`. Passa **3/3 rodando
+isolado**, falha **quando a suíte inteira roda em paralelo** (Jest divide a
+CPU entre workers). Não é regressão do T1 — confirmado por `git stash`: a
+árvore limpa também dá 48/48. O próprio arquivo tem comentário reconhecendo
+a sensibilidade a timing e já sobe o `timeout` de um `waitFor` para 5000 ms.
+
+- **Risco de deixar:** não é o código do produto, é **confiança na suíte**.
+  Um teste que falha sozinho treina você a ignorar vermelho, e aí um
+  problema real passa batendo.
+- **Opções:** (a) deixar e documentar como conhecido-flaky · (b) rodar esse
+  arquivo com `--runInBand` · (c) consertar a raiz usando *fake timers* do
+  Jest, para o tempo deixar de ser real — é o conserto certo e mexe em
+  código de componente.
+- **Recomendação:** (a) agora, (c) se algum dia ele mascarar algo real.
+  Flaky documentado é tolerável; flaky não documentado não é.
+
+### 8. 📐 Fechado em 2026-09-25 (2ª rodada) — modelo de dose, teto e relatório
+
+#### 8.1 O modelo: três casos, não um
+
+O `status` (`taken|skipped|missed`) é **um só campo** e ele não dá conta da
+diferença que o Rilson apontou: "tomou no horário", "tomou atrasado" e
+"tomou fora de qualquer horário previsto" são três fatos, e para quem lê o
+relatório são três coisas diferentes.
+
+A boa notícia: **os dados já existem.** `taken_at` e `scheduled_at` são
+gravados juntos. O que falta é (a) o terceiro caso, que depende do
+`dose_schedule_id` ficar anulável, e (b) **a camada de relatório, que hoje
+é cega para metade disso** (ver §8.2).
+
+| Caso | `dose_schedule_id` | `scheduled_at` | `taken_at` | No relatório |
+| --- | --- | --- | --- | --- |
+| **No horário** | não-nulo | 08:00 | 08:04 | "08:00 — tomado no horário" |
+| **Atrasado** | não-nulo | 08:00 | 11:20 | "08:00 → **tomado às 11:20 (3h20 depois)**" |
+| **Avulsa / sem horário previsto** | **nulo** | **nulo** | 15:40 | "15:40 — **tomado fora de qualquer horário previsto**" |
+| **Pulado de propósito** | não-nulo | 08:00 | — | "08:00 — pulado" (já existe, já não conta como perdida) |
+| **Nunca registrado** | não-nulo | 08:00 | — | "08:00 — **sem registro**" (nunca virou "perdido" — ver E1) |
+
+**Duas consequências de o terceiro caso não ter `scheduled_at`:**
+
+- **✅ Confirmado pelo Rilson: dose sem horário previsto não tem estado
+  "perdida".** Não há o que perder — não havia previsão. Isso fecha o
+  vocabulário: `missed` só existe para dose **agendada** e não registrada.
+  E significa que **dose avulsa nunca gera "perdido" nem "não confirmado"**
+  (E1), o que impede a colisão de semântica entre E1 e E3.
+- **A dose avulsa não precisa de status novo.** `status` continua sendo
+  `taken|skipped|missed`; a distinção é `dose_schedule_id IS NULL`. Menos
+  uma dimensão no schema, menos um caso de bug.
+
+#### 8.2 🔍 Achado: "atrasado" **só existe no celular**
+
+Vale registrar porque é o achado mais concreto dessa rodada:
+
+- **No app**, "Atrasado" é um estado da tela Hoje. E é **100% calculado no
+  cliente** a partir de `scheduled_at` — está escrito assim no
+  `DoseLog.php:21`: *"o app mostra 'Atrasado' sozinho, 100% calculado no
+  cliente a partir de `scheduled_at` — nenhum dos dois lugares abaixo
+  precisa saber desse estado intermediário."*
+- **No relatório e no PDF, "atrasado" não existe.** `GenerateConsultationSummary`
+  não tem nenhuma menção. Nem `reportPdf.ts`, nem `reportHtml.ts`.
+
+Ou seja: o médico que recebe o relatório **não recebe a informação de
+punctualidade**, que é provavelmente o motivo de o paciente estar levando
+aquele relatório. E o app **já tem o dado** — a decisão tomada em
+2026-09-11 (tolerância de 24 h antes de marcar "perdido") prova que ele
+sempre esteve no banco.
+
+**Quanto custa fechar isso:** é ~70% camada de relatório
+(`GenerateConsultationSummary` + template de PDF/HTML), não captura nova.
+Só o caso avulsa depende do schema (E3a).
+
+#### 8.3 ⚠️ A armadilha: "atrasado" e "sem registro" não podem virar a mesma linha
+
+Para quem lê, "não tomei" e "tomei 3 horas depois" parecem o mesmo problema.
+Na tela do celular são estados diferentes (um tem botão, o outro é um
+cartão de aviso). **Se o relatório os colapsar num único "não tomado",
+ele reconstrói exatamente a falha que o E1 existe para consertar** — e
+faz isso na frente do médico.
+
+Por isso a §8.1 insiste em cinco linhas distintas, e o relatório tem que
+dizer qual é qual com palavras, não com ícone ou cor.
+
+#### 8.4 Teto diário — decisão fechada
+
+> **Decisão do Rilson (2026-09-25):** o teto é **sempre opcional** e
+> **digitado pelo usuário**. Não há tabela clínica embutida — o app não
+> inventa dado de segurança que não tem. O card mostra **quantas vezes
+> tomou hoje**. Ao **atingir ou passar** o teto, ele **e os cuidadores**
+> são avisados.
+
+Consequências que isso resolve e abre:
+
+- **Resolvido:** o app não carrega um banco de dados clínico, e não há
+  risco de um número errado. A responsabilidade fica com quem prescreveu.
+- **Resolvido:** "não sei meu teto" — basta não preencher. O card mostra a
+  contagem do dia de qualquer forma, que é a informação útil mesmo sem
+  teto.
+- **Aberto:** notificação de teto é **avisos de segurança**, e pela §7.2
+  isso **nunca pode virar paywall**, em nenhum plano.
+- **Aberto:** "atingir ou passar" — avisar no exato ou acima? Avisar ao
+  atingir já é aviso; passar é o estado que merece a linguagem mais firme
+  ("você passou do teto que você mesmo definiu"). Detalhe de copy, não de
+  arquitetura.
+
+#### 8.5 E2 — headline do dashboard: três opções
+
+O problema: hoje a tela Hoje tem **razão** (% de adesão) como destaque. Razão
+é avaliativa — ela julga antes de o dia terminar. E dia em andamento não é 0%,
+é "em andamento" (Goal Gradient honesto: contar o que é real).
+
+| | Opção A — **Próxima ação** | Opção B — **Ação + restante** | Opção C — **Dia narrativo** |
+| --- | --- | --- | --- |
+| Headline | "Próxima dose · 08:00 · Losartana" | idem | "Bom dia" + próxima ação |
+| Abaixo | nada | "3 de 5 · faltam 2" | "Tudo certo até agora" / "Falta a dose das 20:00" |
+| Número na tela | nenhum | contagem, não porcentagem | nenhum |
+| Falha sugerida | nenhuma | nenhuma — "faltam 2" aponta pra frente | nenhuma |
+| Quem enxerga bem | o paciente | **o paciente e o cuidador** | só o paciente |
+| Custo | o mais simples | um elemento a mais | denso, difícil de varrer |
+
+**Recomendação: B.** Motivo: `falta 2` é Goal Gradient honesto — olha pra
+frente, não julga. E a contagem preserva o "de relance" que o **caso do
+cuidador** precisa (quem cuida de 5 pessoas não lê tela em prosa). A C é a
+mais quente, mas perde a densidade que o cuidador gerencia precisa.
+
+**Regra que vale nas três:** o **% só aparece em relatório e histórico**,
+onde é *fato*, não *juízo*. **Nunca 0% no começo do dia**, e **nunca em
+vermelho**.
+
+#### 8.6 Dúvidas que sobraram
+
+| # | Dúvida | Trava |
+| --- | --- | --- |
+| **Q1** | A tela do **cuidador** recebe o mesmo desenho do headline, ou é diferente? O cuidador gerencia 1 ou mais pacientes e varre a tela rápido — a densidade que ele precisa é a oposta da que o paciente prefere | E2 |
+| **Q2** | O **atraso** tem limiar? "Tomou 5 min depois" é atraso ou é pontualidade? Ou o relatório mostra o horário real e deixa o leitor concluir? | §8.2 |
+| **Q3** | **"Registrar agora" retroativo** (E1) e **"tomou atrasado"** (§8.2) são **a mesma tela** — mesmo horário agendado, um com botão e outro em atraso. O desenho do E1 tem que servir aos dois | E1 + §8.2 |
+| **Q4** | O **PDF** mostra a contagem do dia pro teto, ou só o histórico de doses? | E3b |
+
+### 9. 🔬 Auditoria de consistência de dados (2026-09-25, antes de codar)
+
+Pedida pelo Rilson antes de implementar E1/E2/E3. Objetivo: achar ponto cego
+e inconsistência **antes** de mexer, para o dado que vai sustentar o
+relatório do médico ser confiável. Achados verificados contra o código —
+todos com arquivo:linha.
+
+#### 9.1 🔴 Corretude — o relatório mente para remédio de intervalo
+
+`GenerateConsultationSummary.php:63-69` busca o log assim:
+
+```php
+$log = $schedule->doseLogs()
+    ->where(fn ($q) => $scheduleAt
+        ->where('scheduled_at', $scheduledAt->format('Y-m-d H:i:s'))
+        ->orWhere('scheduled_at', $scheduledAt->copy()->utc()->format('Y-m-d H:i:s'))
+        ->orWhereDate('scheduled_at', $scheduledAt->toDateString()))
+    ->first();          // ← sem orderBy
+```
+
+O `orWhereDate` casa **qualquer** log daquele schedule naquele dia, e o
+`first()` sem `orderBy` pega o primeiro que vier. Para medicamento com
+`interval_hours` (ex.: a cada 8 h → 3 ocorrências/dia), perguntar pela
+ocorrência das 15:00 pode casar o log das 07:00 e contar como tomada — e as
+ocorrências de 15:00 e 23:00 **nunca entram em `missed`**. Resultado: o
+relatório **infla `taken` e oculta perdas reais** no mesmo documento que o
+dono vê na tela Hoje (que casa `scheduled_at` exato —
+`DoseLogController.php:98-101`, `CheckMissedDoses.php:70-72`).
+
+**Nenhum teste cobre isso** — os testes de intervalo não passam pelo resumo
+de consulta. É o defeito mais grave da lista: é um artefato de saúde que
+pode afirmar adesão que não existe.
+
+#### 9.2 🔴 O relatório não sabe quando a dose foi tomada
+
+Confirmado: `taken_at` **não é lido** em `GenerateConsultationSummary.php`
+(nem em `reportHtml.ts`, nem em `reportPdf.ts`). As únicas ocorrências de
+`taken_at` no backend são escrita (`MarkDoseMissed...:30` grava `null`),
+serialização (`DoseLogController.php:184,248`) e validação (`:276`). O
+dado **está no banco e é gravado desde sempre** — o relatório é que é cego.
+Este é o item (c) que o Rilson pediu, confirmado como gap real.
+
+**✅ Resolvido em duas etapas, e a segunda era a que importava.** O
+`GenerateConsultationSummary` passou a ler `taken_at` e a expor `doses[]`
+com previsto **e** real, `state` factual e `reason`. Só que o
+`handlePrintReport` não repassava nada disso — o relatório continuava
+sendo o antigo no app, e os testes passavam porque chamavam a lib
+diretamente. O que faltava era o **cabo**, e ele só apareceu quando
+`doses` virou **obrigatório** no tipo. Detalhamento na linha do P1 na §10.
+
+#### 9.3 🔴 Três limiares de "vencida" convivendo no mesmo app
+
+| Limiar | Onde | O que decide |
+| --- | --- | --- |
+| **0 min** | `app/app/medication/[id].tsx:468-473` | Ao pausar: "tem N dose que já passou do horário" e oferece **"Marcar como perdida"** |
+| **30 min** | `app/app/(tabs)/index.tsx:81` | "Atrasado" na Home, e abre o modal de "outro horário" |
+| **24 h** | `api/app/Models/DoseLog.php:21` | Vira `status='missed'` no banco |
+
+**A falha concreta:** às 08:01, pausar um remédio com dose das 08:00 abre o
+diálogo de "marcar como perdida" — enquanto a Home, **no mesmo minuto**,
+mostra aquela dose como "Pendente" (ainda nem chegou a "Atrasado", que
+exige 30 min). **O app se contradiz sobre a mesma dose, na mesma hora, em
+duas telas.**
+
+**✅ Resolvido — e a conclusão deste item estava errada, o que importa
+registrar.** A primeira correção foi fazer o servidor decidir: campo
+aditivo `missed_tolerance_exceeded` em `formatDose`, com o cliente
+usando `=== true`. **Não funciona**, por uma razão que só aparece quando
+se olha o endpoint: `getTodayDoses` devolve **só ocorrências de hoje**, e
+uma dose de hoje tem no máximo ~24 h de idade — **nunca** atravessa a
+tolerância de 24 h do servidor. Um filtro de 24 h aqui tornaria o diálogo
+**código morto** e, como `missed` só é escrito pelo app por esse diálogo,
+a escrita manual sumiria. Tentativa revertida por completo, campo e tipo
+incluídos, para não deixar contrato órfão.
+
+O que era mentira **não era o gatilho, era o texto.** O gatilho de zero
+está **certo**: a pergunta legítima é "essa dose não foi registrada e você
+está pausando agora" — e isso é uma **pergunta**, não um veredito. Uma dose
+das 08:00 vista às 08:01 ainda pode ser tomada; o app não tem autoridade
+para já chamá-la de perdida. A linha "o 0-min não tem justificativa"
+acima está **errada** e foi deixada de propósito como registro do
+raciocínio que a auditoria primeiro teve.
+
+O que se corrigiu, em pt/en/es: **"já passou do horário"** (o app
+julgando uma dose que ainda pode ser tomada) → **"ainda não foi
+registrada"**; e **"Ignorar"**, que na verdade **grava** um `skipped` →
+**"Pular esta dose"**. Os 30 min da Home e as 24 h do servidor seguem
+intactos porque medem coisas diferentes e legítimas: 30 min é "vale a pena
+perguntar o horário?" (decisão de UX) e 24 h é "o app já pode julgar"
+(regra de dado).
+
+#### 9.4 🔴 Bloqueador do teto diário: a dosagem é texto livre
+
+`medications.dosage` é **string** (`2026_06_28_000003:15`, nullable desde
+`2026_08_14`), e `unit` também (`:16`). `formatDosageUnit`
+(`app/services/medications.ts:11-13`) só concatena — **não é parseável**.
+
+Como o teto é "quantas vezes tomou hoje" (decisão §8.4), ele **não depende
+da dosagem** e sai sem coluna nova. Mas qualquer evolução futura ("quanto
+mg tomada hoje", "quanto falta pro teto em mg") vai precisar de coluna
+numérica + normalização de unidade. **Registrado como dívida conhecida, não
+como bloqueio agora.**
+
+#### 9.5 🟡 Contagens que mentem, em três lugares
+
+**A lei já existe, e é o backend.** `GenerateConsultationSummary:106-117` é a
+implementação de referência e gova o resto do app:
+
+- **denominador = ocorrência já vencida.** `if ($scheduledAt->gt(now())) continue;`
+  com o comentário *"ainda não chegou a hora, não conta como devido"*.
+- **`percentage = totalTaken / totalDue`**, e `totalTaken` só conta `recorded`.
+- **`skipped` fica fora de `missed`** — *"decisão informada não é falha"* —
+  **mas continua dentro de `totalDue`**, ou seja, derruba a adesão sem ser
+  listada como perda. Isso é deliberado e é a semântica a replicar.
+
+| Onde | O que é | Evidência |
+| --- | --- | --- |
+| **Home** | O anel usa `takenCount / doses.length`, e `doses` são as ocorrências de **hoje** — incluindo as que **ainda não chegaram**. Às 07:00, com 3 doses no dia e nenhuma tomada, mostra **0% em vermelho** antes de existir uma dose devida. `index.tsx:610` e `:675` | o anel nasce em 0% vermelho em toda manhã |
+| **Histórico** | **"Perdidas" = `totalCount - takenCount`** (`history.tsx:313`) — que é `skipped + missed`. O relatório do médico **exclui `skipped` de propósito**, então as duas telas discordam sobre a mesma dose | pula de propósito vira "perdida" na sua frente |
+| **Histórico** | `totalCount` vem de `logs`, que são os **registros** (não as ocorrências), e `getDoseHistory` manda `page: 1` fixo (`services/doses.ts:154`). Ou seja: o "% de adesão" é sobre os **50 registros mais recentes**, e dose **sem registro nenhum nem entra** na conta. Não há `onEndReached` no app | "adesão 60%" dos últimos 50, lido como 60% do histórico |
+| **Relatório** | Quando `missed.length === 0`, imprimia *"Todas as doses agendadas foram tomadas"* — **inclusive com `due === 0`** | ✅ **corrigido em 9.2** (`all_taken` = `null` quando `due === 0`) |
+
+**✅ Resolvido (2026-09-25), e a divisão de escopo se manteve.**
+
+- **9.5a (Home)** — o denominador passou a ser a dose **já vencida**,
+  aplicando a mesma regra do backend. E onde nada venceu, o cabeçalho
+  mostra a **próxima dose** em vez de "0%": às 07:00, "0% em vermelho"
+  é um número verdadeiro e enganoso ao mesmo tempo.
+- **9.5b (Perdidas)** — deixou de ser `total - taken` (que contava
+  `skipped`) e passou a contar só o `status = missed` real.
+- **9.5c (% do adherence)** — **provisoriamente resolvido, não de fato.**
+  O denominador certo é estrutural e vai para a **P2**. O que o P1 fez foi
+  **parar de mentir em silêncio**: o paginador do Laravel já devolve
+  `total`, então quando o histórico é maior que a página carregada, a
+  tela diz "nos 50 registros exibidos de 312". O número agora é
+  interpretável; a métrica ainda é provisória.
+
+**Ganho de acessibilidade que veio junto (não estava no plano):** os três
+itens do card de resumo anunciavam valor e rótulo como nós soltos — o
+leitor de tela dizia "1", "2", "60%", "Tomadas", "Perdidas", "Adesão", e
+quem não vê não tinha como saber que o "1" era o valor de "Perdidas".
+Agora cada item é um nó só, com rótulo combinado. O mesmo tipo de bug
+apareceu na Home (§9.5a): o texto "Próxima dose" nasceu escondido da
+árvore de acessibilidade, copiando o `Text` do progresso — e naquele
+estado **não existe anel** para anunciar a mesma coisa, então quem usa
+leitor de tela não ouvia nada durante a manhã. Pego pelo teste.
+
+#### 9.6 🟡 `dose_logs.notes` é coluna morta — e é a que mais dói
+
+A coluna existe, é validada (`DoseLogController.php:278`) e devolvida
+(`:186`). **O cliente nunca envia valor** — o único uso é
+`notes: null` no undo (`index.tsx:584`). **E nenhuma tela mostra.**
+
+Ou seja: **o app não tem como registrar por que uma dose foi pulada.** E
+"pulado de propósito" é justamente o caso em que o médico mais precisa de
+contexto — a diferença entre "não tomei porque esqueci" e "não tomei porque
+o médico mandou suspender" muda a conduta. Uma coluna pronta, validada,
+ignorada por dois lados.
+
+#### 9.7 🟡 Falha de rede produz estado vazio que induz ação destrutiva
+
+`index.tsx:261` — `api.get('/profiles').then(...)` **sem `.catch`**.
+Falhou → `profiles` fica `[]` → a Home mostra **"Nenhum perfil criado / Crie
+um perfil de paciente para começar"**. Ou seja: **falha de rede vira
+convite para criar perfil duplicado.**
+
+`isError` não aparece em **nenhum** lugar do app (conferido por `rg -c
+isError` nos cinco arquivos: **0** em todos). O mesmo padrão está em
+`history.tsx:392`, `medications.tsx:103`, `stock.tsx:133`,
+`collaborators.tsx:83` — todos mostram "vazio" onde deveriam mostrar "erro".
+O `OfflineBanner` cobre só conectividade, não 403/500.
+
+**Decisão de escopo (2026-09-25).** O `OfflineBanner` **não** resolve isto
+e não deve ser esticado pra isso: ele responde "não tem internet", e o
+problema aqui inclui **403 e 500**, que acontecem **com internet**. A correção
+é tratar `isError`/`error` da própria query, que é onde a informação está.
+
+**Ordem de implementação.** A Home primeiro, porque é a única em que a
+falha **convida a uma ação destrutiva** (criar perfil duplicado) e os 2
+testes do P0 já especificam o comportamento. Depois as outras quatro, que
+mostram "vazio" sem convidar a nada — ainda assim mentem do mesmo jeito, e
+`collaborators` é o caso mais grave delas porque "nenhum cuidador
+cadastrado" é um convite a convidar alguém.
+
+**✅ Resolvido nas cinco telas.** Nasceu o componente
+`app/components/LoadErrorState.tsx` (título, texto, "Tentar de novo"),
+usado em `index.tsx` (Home), `(tabs)/history.tsx`, `(tabs)/medications.tsx`,
+`(tabs)/stock.tsx` e `collaborators.tsx`. Todas passaram a tratar `isError`
+da própria query. No caso da Home o `catch` **não** zera o store: zerar
+jogaria fora dado bom por causa de uma falha de rede, e o estado de erro é
+que decide o que aparece.
+
+Os **2 testes que o P0 deixou `skipped` desde o começo foram ativados e
+passam** — mobile não tem mais nenhum teste skipped.
+
+**O comportamento garantido pelos testes** (`home.test.tsx:1093` e
+`:1103`, ativados):
+
+- `/profiles` falha → a tela diz que **não conseguiu carregar**, e
+  **não** oferece "crie um perfil".
+- `/profiles` responde `[]` → aí sim é estado vazio legítimo, e continua
+  dizendo "Nenhum perfil criado".
+
+A distinção que importa: **"não tem perfil" e "não sei se tem perfil" não
+podem virar a mesma tela.** Uma convida a criar (e o usuário pode criar
+duplicata); a outra não pode.
+
+#### 9.8 🟡 Não existe tela de cuidador
+
+**O cuidador usa as mesmas telas do dono.** A diferença é um banner
+(`home.caregiverBanner`), o FAB "+" ocultado (`index.tsx:967`) e umas
+ações bloqueadas. Não há dashboard, não há lista de pacientes, não há
+agregação. `app/app/collaborators.tsx` **não é a tela do cuidador** — é a
+tela de *gestão de acessos*, que só o dono abre.
+
+A troca de perfil é uma lista plana de chips em 3 lugares
+(`index.tsx:707-733`, `ProfileContextBar`, `profile.tsx:327-378`),
+alimentada por `GET /profiles`, que concatena próprios + compartilhados e
+carimba `is_owner` **em memória** (`ProfileController.php:19-23`) — `is_owner`
+**não é coluna**, e o cliente depende dele em 3 telas. Nenhum teste cobre
+`is_owner: false` — ⚠️ **a auditoria inicial disse que não havia teste e
+estava errada**: `ProfileTest.php:26-43`
+(`test_lista_inclui_perfis_compartilhados_marcados_como_nao_dono`) cobre os
+dois casos. Corrigido 2026-09-25.
+
+Isso responde à pergunta do Rilson na §10.
+
+#### 9.9 O que NÃO tem teste (e deveria antes do E1/E2/E3)
+
+1. **Os 3 casos de pontualidade no relatório** — nenhum teste, cliente ou servidor.
+2. **`GenerateConsultationSummary` com `interval_hours`** — por isso o 9.1 é invisível à suíte.
+3. **Ocorrência sem log (`pending`), `missed`, `due === 0`, `percentage === null`, remédio pausado no período** no resumo de consulta.
+4. **Erro de rede** — `mockRejectedValue` não aparece em `home.test.tsx` nem `history.test.tsx`.
+5. **O card de resumo do Histórico** (`history.tsx:280-299`) — a maior contagem enganosa do app, sem nenhum teste.
+6. ~~**`GET /profiles` devolvendo compartilhados com `is_owner: false`**~~ — **COBERTO** em `ProfileTest.php:26-43`. Item **removido** do backlog de testes: a auditoria inicial o apontou como gap e estava errada.
+7. **`POST /dose-logs` rejeitando payload sem `dose_schedule_id`** — nada trava o contrato atual (importante para o E3).
+8. **Autorização do cuidador para o resumo de consulta** — hoje ele **pode** gerar e compartilhar o PDF do paciente (`DoseLogController.php:443` é `Gate::authorize('view')`); o gate Pro do PDF é **só no cliente** (`history.tsx:99,223`). O teste cobre dono e invasor (`ConsultationSummaryTest.php:45,73,85,98,127`) — **cuidador nunca é testado**, nem a negativa de corrigir dose (§10.6/X5).
+
+#### 9.10 🔴 Cuidador pode CRIAR e APAGAR registro — e não existe autoria
+
+Achado que surgiu ao aplicar a decisão **X5** (cuidador **não** corrige
+dose registrada). Não é um ajuste de permissão: é uma coluna que não
+existe.
+
+**O que acontece hoje:**
+
+| Ação | Policy | Evidência |
+| --- | --- | --- |
+| Criar dose | `isAccessibleBy($user)` — dono **ou** colaborador | `DoseLogPolicy.php:18-21` |
+| Apagar dose (undo) | `isAccessibleBy($user)` — dono **ou** colaborador | `DoseLogPolicy.php:23-26` |
+| Teste que **garante** o undo pelo colaborador | | `ProfileCollaboratorAuthorizationTest.php:86-101` |
+
+**Ou seja: um cuidador pode tanto escrever quanto apagar dose — e o
+`DoseLog` não sabe quem fez.** `dose_logs` **não tem `recorded_by_user_id`**
+(§4.2 item 5); a única atribuição a usuário em toda a tabela é
+`reacted_by_user_id`, que é reação, não autoria. `recorded_at` também não
+existe.
+
+**Por que isso importa mais do que parece.** O motivo que o Rilson deu para
+X5 foi *"isso poderia suzir dados e a gente tem que ter cuidado no cuidador
+não ser mal intencionado"*. Olhando o código, o cenário é concreto: um
+cuidador pode **apagar** os registros de não adesão do paciente e **criar**
+registros de adesão que não aconteceram. O histórico do corpo de alguém fica
+sem rastro de quem mexeu nele — e o histórico é o produto.
+
+**O que a decisão X5 exige (e é mais do que "negar uma rota"):**
+
+1. **Coluna `recorded_by_user_id`** em `dose_logs` + backfill (os atuais são
+   do próprio dono do perfil, por inferência).
+2. **Regra correta, que não é "cuidador nunca apaga":**
+   **você desfaz o que você registrou.** Cuidador que registrou pode
+   desfazer a própria dose; **ninguém** desfaz a dose do outro. Sem essa
+   distinção, o app fica com uma armadilha — cuidador erra o registro e não
+   tem como corrigir.
+3. **`DoseLogPolicy` deixa de ser uma linha** (`isAccessibleBy`) e passa a
+   comparar autor.
+4. **O teste `test_colaborador_desfaz_dose_marcada_pelo_dono`
+   (`ProfileCollaboratorAuthorizationTest.php:86`) precisa virar 403.** É
+   comportamento atual, testado e deliberado — X5 **muda** ele, não só
+   restringe algo que nunca existiu. Vale registrar que é uma mudança de
+   regra, não correção de bug.
+5. **O relatório e o export passam a mostrar quem registrou** — o que é
+   coerente com o pedido de "todo mundo preocupado com a saúde precisa da
+   informação máxima" (§8.4/Q4).
+
+**Alinhado com X1:** se "sem registro" continua sendo ausência e não linha
+(§10.5/X1), então `recorded_by_user_id` só existe em linhas — o que é
+suficiente, porque ausência não tem autor por definição.
+
+#### 9.11 ✅ RESOLVIDO — paridade de poder com atribuição completa
+
+**Decisão do Rilson, 2026-09-25** (substitui a X5 original):
+
+> *"Tem como dar ao cuidador mais controle, mas que **todas** as coisas
+> que sejam registradas pelo colaborador fique registrado que foi o
+> cuidador que fez, e que isso fique claro tanto para o usuário, como
+> para o cuidador, como para os relatórios?"*
+
+**Sim.** E é melhor que as duas alternativas: melhor que **negar** poder
+(que deixa o cuidador sem como corrigir o próprio erro — armadilha apontada
+em §9.10) e melhor que **permitir sem rastrear** (que é o cenário de
+"sujar dados" que motivou a questão).
+
+**A regra, de uma linha:**
+
+> **Mesmo poder que o dono sobre o registro de dose — e tudo que o
+> cuidador toca fica assinado.**
+
+Sem matriz, sem exceção para decorar. A assimetria deixa de ser de
+*permissão* e passa a ser de *rastreabilidade*.
+
+**O que isso exige (e é mais do que uma coluna):**
+
+1. **`dose_logs.recorded_by_user_id`** + backfill (os atuais são do dono do
+   perfil, por inferência). É a autoria da criação.
+2. **Auditoria de alteração — porque delete é o problema real.** Hoje o undo
+   é **hard delete** (`DoseLogController.php:413`): apagar a linha **apaga a
+   evidência**, inclusive quem apagou. Para "tudo que ele toca fica
+   registrado", delete precisa deixar rastro. Duas formas:
+   - **`deleted_at` (soft delete)** — mais simples, mantém a linha e
+     permite restaurar. Mas guarda só o estado final, não a sequência.
+   - **Tabela append-only de eventos** (`dose_log_events`: dose, ator,
+     ação, valor antes, valor depois, quando) — **é a recomendada**:
+     responde *"quem mudou o quê, de quando para quando"* **e sobrevive
+     ao delete** — que é justamente o problema, porque o undo de hoje
+     (`DoseLogController.php:413`) é hard delete e não deixa rastro nenhum.
+   - Recomendo as duas: soft delete para restaurar, event log para o rastro.
+3. **Escrita em todos os caminhos de mutação** — `store`, `update`, `destroy`.
+   O `store` hoje grava `status`/`taken_at` e precisa gravar também o autor.
+4. **Superfície de exibição — três lugares, e o paciente é o principal:**
+   - **Na dose, no app do paciente** — marca visível de que o registro é do
+     cuidador, junto com o horário real. Uma dose registrada pelo cuidador
+     às 21:00 é informação ("alguém teve ajuda"), não culpa.
+   - **Para o próprio cuidador** — a mesma marca. A simetria é o ponto:
+     ele sabe que o paciente vê. É o que substitui a licença moral.
+   - **No relatório e no export** — quem registrou, por dose, junto dos dois
+     horários. Coerente com o pedido do Rilson de "todo mundo preocupado
+     com a saúde precisa do máximo de informação" (§8.4/Q4).
+5. **Testes** — os dois de §9.10 mudam de forma: em vez de "cuidador não
+   desfaz a dose do dono", passam a ser "cuidador pode, **e fica
+   assinado**" + "o evento de alteração existe".
+
+**O que NÃO muda:** a separação de poder sobre **medicamento, horário e
+gestão de acessos** (§10.6). Aí a questão é *quem administra o plano de
+tratamento*, que é decisão do dono — não é fato do corpo, não é registro.
+Mixar os dois é o que tornaria a regra ininteligível.
+
+**Respostas do Rilson — 2026-09-25 (fechado, sem pendência):**
+
+| # | Pergunta | Resposta | Efeito no desenho |
+| --- | --- | --- | --- |
+| — | Apagar: soft delete ou event log? | **Soft delete, por favor** | `deleted_at` em `dose_logs` + `dose_log_events` append-only, os dois. O soft delete permite restaurar; o event log guarda a sequência, que o soft delete sozinho perde |
+| — | A autoria vem do cliente ou do backend? | **Backend mesmo** | `recorded_by_user_id` gravado pelo servidor, **nunca** lido do payload — senão qualquer cuidador escreveria o nome do dono e a auditoria não valeria nada |
+| — | "`notes` é coluna morta" | **Tudo isso** | `notes` entra como parte do P1: o motivo do pulo passa a ser registrável e aparece no relatório |
+| **Q5** | O paciente pode remover a marca do cuidador? | **Não** | Se ele pode, a auditoria é decorativa. O que ele pode é pedir correção ao cuidador — e o evento fica |
+| **Q6** | O log de eventos aparece na UI ou só no relatório? | **Nos dois** | UI em detalhe da dose; relatório em bloco por dose |
+| **Q7** | Corrigir registro antigo re-notifica? | **Não** | Notificação é para "agora". Re-notificar retroativo vira spam, e spam treina a pessoa a ignorar notificação — que é o oposto do objetivo |
+
+### 10. 🗺️ Plano de correção da consistência de dados (2026-09-25)
+
+Substitui a ordem do §4 para os itens de dados. **Ler antes de começar a
+codar qualquer coisa de dose.** Detalhamento dos achados na §9.
+
+#### 10.1 O diagnóstico que organiza tudo
+
+O app **não tem uma resposta única para "qual é o estado desta dose".** São
+cinco consumidores, e cada um deduz por um caminho diferente:
+
+| Consumidor | Como deduz o estado | Fonte |
+| --- | --- | --- |
+| **Hoje** | enumera as ocorrências do dia + logs | ✅ **por ocorrência** |
+| **Relatório** | enumera schedule × período | ✅ **por ocorrência** |
+| **Histórico** | consulta só as linhas **gravadas** | ❌ por registro |
+| **Adesão** | conta logs, denominador inclui **futuras** | ❌ por registro |
+| **Export** | despeja linhas cruas | ⚠️ sem estado |
+
+**Hoje e Relatório estão arquiteturalmente certos** (percorrem as
+ocorrências). **Histórico e Adesão estão errados por omissão** — só enxergam
+o que já foi gravado.
+
+Consequência prática: **no Histórico, uma dose nunca registrada não existe.**
+Não é bug de texto, é estrutural — e por isso "Perdidas = total − tomadas"
+(`history.tsx:288`) não tem como funcionar: o denominador é só o que tem
+linha. Pior, o `missed` **só vira linha depois do cron** de 24 h — então o
+número de perdidas do Histórico depende de o cron ter rodado.
+
+#### 10.2 A espinha da correção
+
+> **Tornar a derivação por ocorrência a única fonte da verdade, e os cinco
+> consumidores passam a lê-la.**
+
+Não é reescrita: é **estender um padrão que já existe** (Hoje e Relatório)
+para os dois que estão errados. Ordem de por occurrence já está pronta; falta
+usá-la no Histórico e no Export, e corrigir os denominadores da Adesão.
+
+#### 10.3 Fases
+
+Cada fase tem um "**se parar aqui**" — o que fica verdade e o que continua
+falso. A ideia é poder parar em qualquer fase e ter um produto honesto.
+
+| Fase | O quê | Corrige | Se parar aqui |
+| --- | --- | --- | --- |
+| **P0** | Escrever os testes que não existem (§9.9) | — | Nada corrigido, mas **toda correção seguinte é verificável** |
+| ↳ **P1 ✅ 2026-09-25** | **Os cinco itens fechados: 9.1 · 9.2 · 9.3 · 9.5 · 9.7.** **9.1** — o `orWhereDate` saiu; os logs do período são carregados **uma vez** e indexados por `scheduled_at` exato (o bug era um N+1 de dias × remédios × ocorrências, então a correção mata os dois). **9.2** — o resumo expõe `doses[]` com previsto **e** real, `state` factual (`recorded`/`skipped`/`unrecorded`/`marked_missed`), `reason` e `all_taken` (`null` quando `due === 0`). **A correção de uma afirmação anterior deste arquivo:** 9.2 foi marcado como resolvido quando **não era** — o `handlePrintReport` não repassava `doses`/`period_start`/`period_end`/`all_taken`, então o app emitia o relatório antigo; os testes da lib passavam porque chamavam a função direto. `doses` passou a ser **obrigatório** no tipo, o compilador passou a impedir a regressão, e `?? []` no runtime evita derrubar o relatório contra um backend implantado mais antigo. **Bug de privacidade junto:** `doses` traz `medication_name` e só `missed` era mascarado — o nome do remédio vazava no relatório em modo privado. **9.3** — resolvido **por eliminação**: a primeira tentativa (fazer o servidor decidir, com `missed_tolerance_exceeded`) **tornaria o diálogo de pausa código morto**, porque `getTodayDoses` só devolve o dia de hoje e uma dose de hoje nunca tem 24 h. Revertida. O que mentia era o **texto**, não o gatilho: "já passou do horário" (julgando dose que ainda pode ser tomada) e "Ignorar" (que grava `skipped`). Copy corrigida em pt/en/es. **9.5** — anel da Home com denominador = dose vencida e estado neutro "próxima dose"; "Perdidas" do Histórico sem contar `skipped`; % do Histórico passou a dizer "nos 50 registros exibidos de 312" em vez de mentir em silêncio (a correção de raiz é P2). **9.7** — `LoadErrorState` em 5 telas; os 2 testes de rede do P0, `skipped` desde o começo, foram ativados e passam. **Higiene:** 3 arquivos de teste falhavam por **tempo**, não lógica (`findBy*`/`waitFor` com default de 1000 ms esperando dado assíncrono) — 2 corrigidos. **+ 20 testes novos ativos.** Backend **287 + 3 skipped** · mobile **404 + 0 skipped** · typecheck limpo | **O app não mente mais — e desta vez os testes cobrem o caminho do usuário, não só a lib.** Números de adesão ainda são provisórios até a P2 |
+| ↳ **P0 ✅ 2026-09-25** | **7 testes escritos, skipped com a razão** — 4 no `ConsultationSummaryTest` (horário previsto vs real · ocorrências de intervalo · sem registro vs marcada como perdida · nada previsto), 1 no `DoseLogStoreTest` (contrato do `dose_schedule_id`), 2 no `ProfileCollaboratorAuthorizationTest` (autoria, §9.10), 2 no mobile `home.test.tsx` (erro de rede ≠ estado vazio). Backend **280 passando + 7 skipped**; mobile **389 + 2 skipped**, typecheck limpo. **O bug do `orWhereDate` foi provado:** sem o skip, o teste falha com `due = 3` mas `taken = 3` quando só 1 foi registrada | — |
+| **P1** | O dado para de mentir | 9.1, 9.2, 9.3, 9.5, 9.7 | Relatório e Histórico param de afirmar coisa errada. **Ganho de segurança de verdade, sozinho** |
+| **P2 ✅ 2026-09-25** | **Uma derivação só — os 3 critérios feitos.** O Histórico, o **Export** e os **denominadores da Adesão** pararam de ler `dose_logs`. Antes, uma dose prevista que ninguém registrava **não existia** em nenhum dos três, e o app tinha **dois valores de adesão** na mesma tela (o anel já contava só o vencido desde o 9.5a; o calendário contava tudo). Peças: (a) `DeriveDoseOccurrences` — fonte única, 4 estados, logs indexados por `Y-m-d H:i:s` exato; (b) **cache por dia** (D12) com contador `occurrence_generation` — **o cache guarda só a ocorrência, nunca o estado**, então gravar um log não invalida nada, e há teste provando que dose já registrada aparece `recorded` **sem** `Cache::forget`; (c) `derived_window` no Histórico e `window` no export — **a janela é dita, não assumida**; (d) janela segue o pedido (D11), 90 dias de fallback, piso `HISTORY_FLOOR_DAYS`; (e) `CalculateDailyAdherence` filtra ocorrência **futura** (decisão do Rilson: dia em andamento não é 0%, é "em aberto" — e o calendário ganhou o rótulo "ainda não chegou", separado de "sem dado"); (f) **o CSV também** — o formato que a pessoa abre na planilha, que continuaria mentindo se só o JSON mudasse; (g) no app, `derivedState()` com mapeamento explícito e `unrecorded` em **cinza**, fora das "Perdidas". **+16 testes.** A prova do furo (`"actual size 0"`) **passa** | **Cinco consumidores, uma verdade.** A dose prevista sem registro aparece em todo lugar, e o app não tem mais dois números de adesão |
+| **P3 ✅ 6 de 6 — 2026-09-25** | **Vocabulário: o app fala o que o dado diz — e pergunta o que não sabe.** **D5** — o **% saiu da Home** (juízo sobre dia em andamento); no lugar, **próxima dose + "faltam N"**, e "faltam N" conta tudo que falta porque é goal gradient. **D7** — o **"Atrasado" saiu do card**: 30 min é número que o app mesmo escolheu, e o relatório do médico não tem julgamento nenhum. O limiar **sobreviveu** com outro propósito: é o que decide se vale a pena **perguntar** o horário. **D8** — já era verdade desde 2026-09-11 ("Tomei" e "Outro horário" já abriam o mesmo modal). **`notes` finalmente alcançáveis, de ponta a ponta** — a API aceitava desde sempre, o backend mandava `note` no payload e **o template do PDF jogava fora**; o app não oferecia campo nenhum. Agora: campo no modal de "outro horário" (decisão do Rilson: onde o dedo já está), **rota dedicada** `PATCH /dose-logs/{id}/note` para editar depois, exibição no Histórico e no relatório, e a nota entra no **rótulo acessível** — é a única pista de uma reação adversa, e é quem usa leitor de tela que mais precisa. **A rota é dedicada por integridade, não estilo:** o `store` é `updateOrCreate`, então reenviar a dose para mexer num campo de texto reescreveria `taken_at`/`status` e poderia disparar o marco de streak de novo; há teste travando que `taken_at` e `status` não são tocados. **Acessibilidade:** a linha do Histórico é um nó único, então o botão de editar é exposto como `accessibilityAction` da linha — alcançável por leitor de tela, e há teste cobrindo esse caminho. **E1 fechado: o app PERGUNTA o que houve ontem** (`PendingDosesPrompt`) — registrar sozinho o que a pessoa fez é o app afirmando fato sobre o corpo dela, o mesmo mecanismo do "perdido" automático que o §9.3 tirou da tela; e ela provavelmente **tomou** e esqueceu de anotar, então fechar o buraco sem perguntar viraria "dose perdida" no registro médico. "Agora não" **não marca nada** — a dose continua `unrecorded` e a pergunta volta, porque a tolerância de 24 h ainda está aberta. Bug pego no caminho: o botão "Pulei" registrava como **`taken`**, porque a mutation tinha `status` fixo. **+23 testes.** Mobile **429** · backend **310 + 3 skipped** · typecheck limpo | **O app fala a mesma coisa que o dado diz — e quem escreve o registro consegue corrigir depois** |
+| **P4** | PRN / dose avulsa | E3a: chave de idempotência **antes** da coluna nullable; depois dose avulsa; estoque; relatório | Doses de resgate registradas. **O item de segurança** |
+| **P5** | Teto diário | E3b: contagem do dia + aviso (usuário + cuidadores) + no relatório | O aviso de teto existe em qualquer plano (§7.2) |
+| **P6** | Quem cuida | Tela de cuidador, PDF travado no servidor, `is_owner`, **auditoria de autoria (§9.11) + paridade de poder no registro de dose** | Cuidador tem visão própria, mesmo poder, e **todo registro tem autoria** |
+| **P7** | Superfície comercial | Tabela do Pro (§7.3), widget read-only | — |
+
+#### 10.4 ⚠️ O pré-requisito que ninguém viu
+
+Tornar `dose_logs.dose_schedule_id` **anulável** (§8.1) parece uma linha de
+migration. **Não é.** Dois colapsos:
+
+1. **`DoseLogController.php:318-324`** indexa `updateOrCreate` por
+   `['dose_schedule_id','scheduled_at']`. Com ambos nulos, **todas as doses
+   avulsas caem na mesma chave `(NULL, NULL)` — uma linha só para todas.**
+2. **`offlineQueue.ts`** e o overlay do `index.tsx` casam a fila offline pela
+   mesma chave. Sem chave, o offline não sabe o que sincronizar.
+
+**Então: P4 tem duas metades e a ordem importa.** Primeiro uma chave de
+idempotência para dose avulsa (idempotency key própria, ou `id` do log como
+âncora), **só depois** a coluna fica anulável. Fazer ao contrário quebra a
+dose avulsa em silêncio — que é a pior forma de quebrar.
+
+#### 10.5 Decisões que aparecem **durante** o plano
+
+Não para responder agora — para responder no momento em que a fase chega:
+
+| # | Surge em | Pergunta | Recomendação |
+| --- | --- | --- | --- |
+| **X1** | P2 | "Sem registro" vira **linha no banco** ou continua sendo ausência? | **Continua ausência.** Virar linha é mais simples de consultar, mas polui o histórico com automático e perde o significado de "ninguém falou nada". Derivar é mais honesto — e é o que Hoje e Relatório já fazem |
+| **X2** | P2 | O estado é calculado no **servidor** e o cliente só consome, ou o cliente continua calculando? | **Servidor.** Enquanto o cliente calcular, o limiar vai divergir de novo — foi exatamente o que produziu os 0/30/24 h |
+| **X3** | P3 | "Atrasado" tem **limiar** na tela, ou o app diz só "tomou às 11:20"? | **Só o horário real.** Você já decidiu isso para o relatório; manter igual na tela evita duas verdades |
+| **X4** | P4 | Dose avulsa pode ser **retroativa** (registrar "tomei ontem às 22h")? | **Sim** — por coerência com a sua decisão de retroativo contar. E é o caso comum: a pessoa lembrou depois |
+| **X5** | P6 | ~~O cuidador pode corrigir uma dose?~~ | ✅ **RESOLVIDO 2026-09-25 — paridade total com atribuição.** O Rilson propôs: dar **mais** controle ao cuidador, mas *tudo* que ele registrar fica marcado como dele, visível para o paciente, para ele e para o relatório. Ver §9.11. **Substitui** a pergunta original de "negar ou permitir" por uma regra única: **mesmo poder, atribuição em tudo.** |
+
+#### 10.6 X5 — como parou de ser uma matriz de permissões
+
+A versão anterior desta seção era uma tabela "cuidador pode / não pode",
+com uma linha para "corrigir dose: não". **Isso foi descartado.** A regra
+que substitui é de uma linha só e não tem exceção para decorar:
+
+> **O cuidador tem o mesmo poder que o dono sobre o registro de dose — e
+> tudo que ele toca fica assinado.**
+
+Ver §9.11 para o desenho. A tabela de permissões continua válida **apenas
+para o que não é registro de dose** (medicamento, horário, gestão de
+acessos), onde a separação dono/cuidador é sobre *administração do plano de
+tratamento*, não sobre *fatos do corpo*.
+
+### Legenda de status (usada no documento inteiro)
+
+| | |
+| --- | --- |
+| ✅ | Feito, testado |
+| ⏸️ | Feito mas **não publicado** |
+| 📝 | Anotado, não implementado |
+| ❌ | Bloqueado por dependência externa |
+| 🔴 / 🟡 / 🟢 | Severidade do problema |
+
+---
+
+## 📋 Roteiro de Publicação na Google Play Store (L0) — ⏸️ ADIADO por decisão de 2026-09-25
+
+> ⚠️ **Não está no caminho curto.** O Rilson decidiu em 2026-09-25 **não
+> publicar agora**. O bloqueio real é dinheiro e a recrutação dos testadores
+> — **não a marca** (a pausa de 2026-08-22 citava "checklist de marca" como
+> motivo, e estava errado: a marca está consolidada). O conteúdo desta
+> seção **continua válido e não foi apagado** — é o roteiro para quando a
+> publicação entrar.
+>
+> O que **não** depende da Play Store e pode ser feito agora: `eas update`
+> pro seu próprio aparelho (OTA, sem conta, sem review) — é o Bloco 1 do
+> painel.
+
+> O projeto **Assídua** encontra-se em desenvolvimento. O custo para publicar um aplicativo na Google Play Store é uma taxa única de **US$ 25** para registrar a conta no Google Play Console (sem anuidade nem cobrança por app enviado).
 
 > O projeto **Assídua** encontra-se em desenvolvimento e **pausado para publicação** aguardando a execução do pipeline de lançamento na Google Play Store. O custo para publicar um aplicativo na Google Play Store é uma taxa única de **US$ 25** para registrar a conta no Google Play Console (sem anuidade ou cobrança por app enviado).
 
@@ -30,6 +1183,173 @@
    - A revisão manual do Google costuma levar entre alguns dias e uma semana. Assim que aprovado, o aplicativo fica disponível na loja.
    - *(Nota de monetização: Caso haja venda de itens in-app ou assinaturas Pro via RevenueCat/Google Play Billing, o Google retém uma taxa de serviço de 15% sobre o primeiro US$ 1 milhão de receita anual e 30% no excedente).*
 
+
+## 💊 Remédio sem horário: como registrar que você tomou? (2026-09-25) — 📝 anotado, ❌ não implementado
+
+> Pergunta do Rilson: *"E no Assídua, se eu quiser tomar um remédio sem
+> ter horário marcado, como registro isso?"*
+>
+> **Resposta curta: hoje não dá.** E o pior é que o app já trata "remédio
+> sem horário" como estado legítimo e bem comunicado — o que torna o buraco
+> mais evidente, não menos.
+
+### O que já funciona (e está bem resolvido)
+
+O item 1 do backlog (resolvido 2026-09-07) já permite cadastrar remédio com
+**zero** horários. E o app é explícito sobre isso, com texto reescrito nos 3
+idiomas: *"Sem horário — esse remédio só aparece no seu estoque, sem gerar
+lembrete. Adicione um horário quando quiser começar a receber avisos."*
+O estado é intencional, comunicado e não é beco sem saída.
+
+### Onde empaca
+
+| # | Achado | Consequência |
+| --- | --- | --- |
+| 1 | `dose_logs.dose_schedule_id` é `constrained()` — **não anulável** (`2026_06_28_000005`) | Não existe caminho no banco para uma dose sem horário. Não é bug de UI, é restrição de schema. |
+| 2 | O decremento de estoque mora em `DoseLog.php:60` (`stock()->decrement(...)`) | Med sem horário → **nunca** gera dose log → estoque **nunca** decrementa → alerta de "estoque acabando" **nunca dispara**. |
+| 3 | Histórico e relatório (`DataExportController`) são construídos a partir de dose logs | O registro que o paciente mostra ao médico é **silenciosamente incompleto**. |
+| 4 | `daysRemaining` (`Medication.php:90-103`) já tem guarda `dosesPerDay <= 0 → null` | ✅ Sem bug. Mas o efeito é que a tela de estoque não consegue dizer "acabam em N dias" para remédio sem horário — consequence a planejar, não a corrigir. |
+
+### Por que isso é segurança, não feature
+
+**PRN (*prn* = *pro re nata*, "se necessário") é categoria clínica real** e
+comum em paciente crônico: paracetamol/ibuprofeno para dor, antialérgico,
+inalerador de resgate (asma/DPOC), antiemético, "meio comprimido se
+piorar", "se a glicose passar de X".
+
+O valor do app é **"o registro do que eu tomei"**. Se o PRN não pode ser
+registrado, esse registro fica incompleto **de um jeito que o paciente não
+sabe que está incompleto** — e histórico incompleto é pior que histórico
+nenhum, porque parece confiável.
+
+O cenário concreto: o inalador de resgate é o que evita a ida ao pronto
+socorro. A pessoa o usa 3× na semana. O app diz "adesão 100%" — porque o
+inalador **não tem meta, então nem entra no denominador** — e nunca registra
+que foram 12 usos no mês. O médico recebe um histórico que parece estar
+perfeito e está errado. E a pessoa pode ficar sem inalador, porque o alerta de
+estoque nunca disparou.
+
+### Três formas de resolver (e por que duas foram descartadas)
+
+- **A) Flag de uso eventual no próprio remédio** — `medications.is_prn` ou
+  `schedule_mode: fixed | prn`. `dose_schedule_id` vira anulável e a dose
+  avulsa é criada com `taken_at = now`, `dose_schedule_id = null`.
+  **É a recomendada**: o estado "sem horário" já é cifrado por uma escolha
+  explícita do usuário (o texto de hoje já diz isso), então a flag é a
+  extensão natural — e a medicação continua sendo a mesma coisa.
+- **B) Criar um schedule sem `time`** — descartada. Polui a tela Hoje com doses
+  que não têm hora, quebra a lógica de notificação e o conceito de
+  "próxima dose". Pior modelo.
+- **C) Registrar contra o schedule mais próximo** — descartada por
+  incorreção: marcaria como "tomado" uma dose agendada que não foi tomada.
+  Corrompe o registro que é justamente o produto.
+
+### Sub-decisões para planear (nenhuma implementada)
+
+1. **Schema**: `dose_schedule_id` anulável + a flag em `medications`.
+   Migration + rollback, e o que fazer com dose logs já existentes (nenhum,
+   porque nunca puderam existir).
+2. **Adesão %**: PRN **não** entra no denominador (não há meta a cumprir).
+   Mas **tem que aparecer no relatório** — senão o "100%" volta a ser
+   enganoso, que é o problema original.
+3. **Estoque**: tem que decrementar igual à dose agendada, senão o item 2 da
+   tabela acima continua.
+4. **⚠️ Teto diário — a parte de maior valor e maior risco.** Remédio PRN
+   tem dose máxima por dia (paracetamol, por exemplo, ~4 g/dia em adulto).
+   O app deveria mostrar o **acumulado do dia** e **avisar ao se aproximar do
+   teto**. É aqui que o app sai de "registrador" e vira "guarda-corpo", e é
+   o argumento mais forte para implementar a feature. **Decidir se isso
+   entra no escopo ou se é fase 2** — muda o tamanho da feature por 2×.
+5. **Limite de 15 medicamentos**: PRN conta? (sugestão: sim, é um
+   medicamento como outro).
+6. **Cuidador pode registrar dose PRN?** (sugestão: **sim** — quem dá o
+   inalador de resgate costuma ser o cuidador, não o paciente). Decidir se
+   entra no mesmo invite/autorização do Fase 1.5 ou precisa de autorização
+   separada.
+7. **Tela Hoje**: PRN não pertence numa lista de "próxima dose". Seção
+   separada ("Também tomei hoje" / botão "+"), ou somem da Hoje e ficam
+   só em Remédios + Histórico. Decidir.
+8. **Export e relatório**: tem que aparecer. Sem isso o problema 3 fica.
+9. **i18n pt/en/es** nos textos novos, como sempre.
+10. **Testes**: 255 hoje no mobile. Cobrir: criar PRN, registrar dose avulsa,
+    decremento de estoque, PRN fora do denominador de adesão, PRN no export,
+    e cuidador registrando.
+
+### Critério de aceite
+
+Consigo tomar um remédio de uso eventual, registrar que tomei (com o horário
+real, inclusive retroativo), ver isso no histórico e no relatório, ver o
+estoque baixar, e o app **não** me dizer que falhei uma meta que eu não
+tenho. E nenhum número na tela pode sugerir que o meu registro está completo
+quando não está.
+
+
+> Dúvidas e inconsistências reais de uso levantadas pelo usuário:
+> 1. *"O que acontece quando passo dias sem entrar no Assídua? Simplesmente aqueles dias ficam com 'Não tomado'?"*
+> 2. *"Coloquei que tinha 0 dipirona e o app não falou 'Em falta'. Tem como deixar isso mais claro para o usuário na aba de histórico?"*
+> 3. *"Eu tenho 14 dorflex, mas aparece na aba e Estoque acabando em Remédios, ué."*
+> 
+> Abaixo está o diagnóstico técnico no código atual, as respostas para cada ponto, as inconsistências mapeadas na auditoria e as propostas de solução.
+
+---
+
+### 1. O que acontece ao passar dias sem entrar no Assídua?
+* **Comportamento atual no código:**
+  * O backend possui o comando agendado `CheckMissedDoses` (`doses:check-missed`) rodando a cada 15 min no servidor.
+  * Doses agendadas com mais de 24 horas de atraso (`DoseLog::MISSED_TOLERANCE_HOURS = 24`) são automaticamente salvas na tabela `dose_logs` com status `missed` ("Não tomado").
+  * Na aba **Histórico**, todas essas doses aparecem com o ícone vermelho de `close-circle` e o rótulo **"Não tomado"**.
+  * A taxa de adesão semanal e geral despenca, tratando a ausência de registro como se o paciente tivesse recusado/esquecido o tratamento deliberadamente.
+  * **Problema:** Se o usuário estava tomando os remédios na vida real e só ficou sem abrir o app (ex: viagem, correria), ele é "punido" no histórico sem chance de registrar retroativamente ("Tomei sim"), e o histórico não diferencia "não registrado" de "deliberadamente não tomado". Além disso, a tela de Histórico é 100% somente-leitura (não clicável).
+
+---
+
+### 2. "Coloquei que tinha 0 dipirona e o app não falou 'Em falta'"
+* **Comportamento atual no código:**
+  * O cálculo de alerta de estoque baixo (`isLow`) em `Medication.php` e nas telas `medications.tsx` e `stock.tsx` depende estritamente de `days_remaining` (`daysRemaining !== null && daysRemaining <= 7`).
+  * `days_remaining` é calculado dividindo `current_quantity / dosesPerDay()`.
+  * **Causa 1 (Remédio SOS / Sem horários fixos):** Se a Dipirona for cadastrada para uso esporádico (sem horários agendados), `dosesPerDay()` retorna `0` e `days_remaining` fica `null`. Como `days_remaining === null`, `isLow` dá `false` e o badge **"Em falta" nunca é renderizado**, mostrando apenas um texto neutro de `0 comprimidos`.
+  * **Causa 2 (Estoque nunca informado):** Pela função `isStockNeverSet`, se `current_quantity === 0` e `last_updated_at === null`, o app considera "Não informado" em vez de "Em falta".
+  * **Causa 3 (Aba Histórico):** A aba Histórico não possui nenhum indicador visual ou contexto de estoque (não informa se uma dose foi tomada enquanto o estoque estava zerado ou se o remédio acabou).
+
+---
+
+### 3. "Eu tenho 14 dorflex, mas aparece 'Estoque acabando' em Remédios"
+* **Comportamento atual no código:**
+  * O alerta de estoque baixo é disparado com base no **tempo restante de tratamento em dias**, e NÃO na quantidade bruta de comprimidos:
+    $$\text{days\_remaining} = \lfloor \text{current\_quantity} / \text{doses\_por\_dia} \rfloor \le 7 \text{ dias}$$
+  * Se o Dorflex estiver configurado para 2 doses ao dia (ex: 12 em 12h) $\rightarrow 14 / 2 = 7$ dias restantes $\rightarrow$ **Alerta ativado** ($\le 7$).
+  * Se estiver configurado para 3 doses ao dia (ex: 8 em 8h) $\rightarrow 14 / 3 = 4$ dias restantes $\rightarrow$ **Alerta ativado** ($\le 7$).
+  * **Problema de UX:** Para o paciente, 14 comprimidos soa como um volume alto ("tenho uma cartela cheia!"), gerando a sensação de que o app calculou errado. Falta clareza explicativa no card (ex: explicitar *"14 comprimidos acabam em 4 dias no seu ritmo de 3 doses/dia"*).
+
+---
+
+### 4. 🔍 Outras Inconsistências Mapeadas na Auditoria do Sistema
+
+1. **Campo `min_alert_quantity` abandonado no banco de dados:**
+   * A migration `2026_06_28_000006_create_stock_items_table.php` e a API possuem a coluna `min_alert_quantity`, mas ela é **100% ignorada** no front-end e na lógica de alerta. Um alerta por quantidade mínima absoluta resolveria diretamente medicamentos SOS (como analgésicos).
+2. **Histórico 100% estático (Read-Only):**
+   * Uma vez que uma dose vira `missed` (pelo cron ou ao passar 24h), o usuário não consegue tocar nela no Histórico para corrigir ("Tomei às 14:00" ou "Pulei por recomendação médica").
+3. **Estoque físico vs Estoque virtual dessincronizados:**
+   * O decremento de estoque só acontece quando o botão "Tomei" é pressionado na tela Hoje. Se o usuário tomou o remédio mas não abriu o app a tempo (e a dose virou `missed`), o estoque no app **não decrementa**, ficando com mais unidades no app do que na caixa física do remédio.
+4. **Janela estreita do comando `CheckMissedDoses`:**
+   * O comando agendado só busca ocorrências de ontem (`today - 1`) e hoje. Se o cron falhar por mais de 48h ou houver um hiato de servidor, as doses anteriores a 2 dias atrás nunca são marcadas no banco e desaparecem do Histórico (já que o histórico lista apenas logs persistidos).
+5. **Falta de status "Não registrado" (Sem resposta) vs "Não tomado":**
+   * Tratar ausência de interação com o app de forma idêntica a uma recusa/omissão de medicação distorce relatórios médicos e resumos de consulta exportados.
+
+---
+
+### 🛠️ Propostas de Melhoria para o Backlog
+
+* [ ] **Regra de Estoque Zero Direta:** Se `current_quantity === 0` (e `last_updated_at !== null`), exibir sempre **"Em falta"** em vermelho/destaque, independentemente de ter horários agendados ou `days_remaining`.
+* [ ] **Alerta de Estoque Contextualizado e Ajustável:**
+  * No card de Remédios/Estoque: exibir explicitamente o motivo (ex: *"14 unid. acabam em 5 dias (3 doses/dia)"*).
+  * Permitir configurar a antecedência de dias (ou quantidade mínima de segurança `min_alert_quantity` para remédios SOS).
+* [ ] **Edição / Conciliação Retroativa no Histórico:**
+  * Permitir tocar em itens de status "Não tomado" no Histórico para registrar tomada retroativa com ajuste automático de estoque.
+  * Dialog/Banner de retorno: se o usuário ficou 3+ dias sem abrir o app, exibir card amigável: *"Você esteve fora por X dias. Deseja confirmar as doses tomadas desse período?"*.
+* [ ] **Estoque visível e contextual no Histórico:** Adicionar indicador no resumo do histórico quando houver remédios em falta durante o período filtrado.
+
+---
 
 ## 🔔👤 Mais 2 melhorias de UI/UX propostas e aprovadas (2026-09-11) — ✅ implementado, ⏸️ NÃO publicado
 
@@ -4567,19 +5887,23 @@ investir em aquisição, senão o usuário novo entra e sai sem voltar.
 - [x] Termos de uso — item desatualizado (2026-08-22): página já
       existe (`api/resources/views/terms.blade.php`, 121 linhas, rota
       `/termos` real), não é só a política de privacidade
-- [ ] **Exportação de dados de verdade** (portabilidade, LGPD art. 18
-      VI) — hoje só existe "revisar na tela Histórico"; a política
-      agora é honesta sobre isso, mas o direito de portabilidade real
-      ainda depende de pedir por e-mail. Vale antecipar antes de L0 se
-      o volume de usuário justificar, mesmo sendo Fase 4 no roadmap de
-      produto
+- [x] **Exportação de dados de verdade** (portabilidade, LGPD art. 18
+      VI) — ✅ **FECHADO 2026-09-25**: já existia e não era paywall.
+      `GET /me/export` + `POST /me/export-link` em
+      `DataExportController` (com URL assinada e expiração, rota fora do
+      escopo de plano), consumida em `history.tsx` e `profile.tsx`. O item
+      estava desatualizado desde antes da revisão de 2026-08-22. Ver §5
+      do painel.
 
 ### L5 — Infra em escala (só quando o uso justificar, não adiantar)
 
-- [ ] **Notificação push via servidor**, não só local — antecipado pra
+- [x] **Notificação push via servidor**, não só local — antecipado pra
       Fase 1.5 (Etapa 4) como pré-requisito do alerta de cuidador, não
-      mais só "quando escalar". O que resta aqui depois disso é só
-      generalizar pra outros usos além do alerta de dose perdida
+      mais só "quando escalar". ✅ **FECHADO 2026-09-25**: já existe e está
+      em uso — `api/app/Services/ExpoPushService.php`, acionado por
+      `MarkDoseMissedAndNotifyCollaborators` e `SendWeeklyAdherenceSummary`.
+      O que sobrou aqui é só generalizar pra outros usos além do alerta
+      de dose perdida, o que continua valendo. Ver §5 do painel.
 - [ ] Sair do VPS único compartilhado com os outros projetos pessoais,
       se o uso realmente justificar — não é preocupação de agora
 

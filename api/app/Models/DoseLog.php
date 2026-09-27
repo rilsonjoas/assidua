@@ -22,6 +22,10 @@ class DoseLog extends Model
 
     protected $fillable = [
         'dose_schedule_id',
+        // P4: chave de idempotência da dose AVULSA. Nula para dose
+        // agendada, que se identifica por (dose_schedule_id,
+        // scheduled_at) — ver §10.4.
+        'client_key',
         'medication_id',
         'profile_id',
         'scheduled_at',
@@ -115,9 +119,15 @@ class DoseLog extends Model
     // o atributo cru do model (ver DoseLogHistoryTest, DoseLogStoreTest,
     // DoseLogTodayTest e DataExportTest — todos com perfil fora de UTC de
     // propósito, pra expor o bug se voltar).
-    public function scheduledAtInTimezone(string $timezone): Carbon
+    // P4 (2026-09-25): passa a ser **nullable**. A dose avulsa (PRN) não
+    // tem horário previsto — `scheduled_at` é nulo, e quem chama precisa
+    // lidar com isso. Antes o retorno era `Carbon` não-nulo e o
+    // `?->` no controller era só precaução; agora é o contrato.
+    public function scheduledAtInTimezone(string $timezone): ?Carbon
     {
-        return Carbon::createFromFormat('Y-m-d H:i:s', $this->getRawOriginal('scheduled_at'), $timezone);
+        $raw = $this->getRawOriginal('scheduled_at');
+
+        return $raw === null ? null : Carbon::createFromFormat('Y-m-d H:i:s', $raw, $timezone);
     }
 
     public function takenAtInTimezone(string $timezone): ?Carbon

@@ -20,6 +20,7 @@ import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
 import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
+import { LoadErrorState } from '../../components/LoadErrorState';
 import { AppText as Text } from '../../components/AppText';
 
 // "Ordenar por" (2026-09-07, item 11) — v1 traz só as duas baratas
@@ -43,7 +44,7 @@ export default function MedicationsScreen() {
   const sort = useMedicationsSortStore((s) => s.sort);
   const setSort = useMedicationsSortStore((s) => s.setSort);
 
-  const { data: rawMedications = [], isLoading } = useQuery({
+  const { data: rawMedications = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['medications', activeProfile?.id],
     queryFn: () => getMedications(activeProfile!.id),
     enabled: !!activeProfile,
@@ -90,7 +91,12 @@ export default function MedicationsScreen() {
           })}
         </View>
       )}
-      {isLoading ? (
+      {/* 9.7 — falha de rede não é "você não tem remédios". Antes, um
+          reject na query deixava a lista vazia e caía no estado vazio com
+          o convite "Adicionar remédio" — a mesma armadilha da Home. */}
+      {isError ? (
+        <LoadErrorState onRetry={() => refetch()} message={t('medications.loadErrorText')} />
+      ) : isLoading ? (
         <SkeletonList lines={3} />
       ) : (
         <FlatList
@@ -159,10 +165,28 @@ export default function MedicationsScreen() {
                         <Text style={styles.pausedBadgeText}>{t('medications.pausedBadge')}</Text>
                       </View>
                     )}
+                    {/* P4/§10.4 — sem isto o cartão de um resgate
+                        aparecia como "0 horários", que parece remendo de
+                        cadastro. O badge diz o que ele é: não tem
+                        horário porque é para tomar quando precisar. */}
+                    {item.is_prn && !item.is_paused && (
+                      <View style={styles.prnBadge}>
+                        <MaterialCommunityIcons name="medical-bag" size={11} color="#ea580c" />
+                        <Text style={styles.prnBadgeText}>{t('prn.badge')}</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.dosage}>{formatDosageUnit(item.dosage, item.unit)}</Text>
                   <Text style={styles.schedules}>
-                    {t('medications.scheduleCount', { count: item.schedules.length })} · {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? t('medications.defaultUnit')} {t('medications.stockCount')}
+                    {/*
+                      P4: para o resgate, "0 horários" era a linha
+                      inteira — e é a única informação que a pessoa tem
+                      na lista. "sem horário previsto" diz a verdade e
+                      evita a leitura de cadastro quebrado.
+                    */}
+                    {item.is_prn ? t('prn.noSchedule') : t('medications.scheduleCount', { count: item.schedules.length })}
+                    {' · '}
+                    {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? t('medications.defaultUnit')} {t('medications.stockCount')}
                   </Text>
                   {isLow && (
                     <View style={styles.alertRow}>
@@ -230,6 +254,18 @@ function makeStyles(c: ThemeColors) {
     // minHeight 48 (WCAG AAA, achado revisando toque mínimo 2026-09-05).
     emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8, minHeight: 48, justifyContent: 'center' },
     emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
+    prnBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: '#fff7ed',
+      borderWidth: 1,
+      borderColor: '#fed7aa',
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    prnBadgeText: { color: '#c2410c', fontSize: 11, fontWeight: '700' },
     card: {
       backgroundColor: c.surface, borderRadius: 16,
       flexDirection: 'row', alignItems: 'center', padding: 16,

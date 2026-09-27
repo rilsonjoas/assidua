@@ -21,8 +21,26 @@ class HealthCheckTest extends TestCase
     public function test_up_reporta_falha_quando_banco_esta_inacessivel(): void
     {
         config(['app.debug' => false]); // produção real roda assim; com debug=true a exceção sobe crua em vez de virar 500
-        config(['database.connections.sqlite.database' => '/caminho/que/nao/existe/banco.sqlite']);
-        DB::purge('sqlite');
+
+        // Achado real (2026-09-27, ao rodar a suíte no PostgreSQL pela
+        // primeira vez): este teste quebrava a conexão **sqlite** com
+        // nome fixo, então passava no SQLite e falhava no Postgres — o
+        // health check respondia 200 porque o banco estava de pé. A
+        // suíte que roda é a que diria que o banco está inacessível sem
+        // nunca desligar o banco de ninguém.
+        //
+        // Agora quebra a conexão do driver QUE ESTÁ EM USO: arquivo
+        // inexistente no SQLite, porta fechada nos servidores. Porta 1
+        // recusada na hora, sem espera.
+        $conn = config('database.default');
+        $config = config("database.connections.{$conn}");
+
+        config(["database.connections.{$conn}" => match (config("database.connections.{$conn}.driver")) {
+            'sqlite' => [...$config, 'database' => '/caminho/que/nao/existe/banco.sqlite'],
+            'pgsql', 'mysql', 'mariadb' => [...$config, 'host' => '127.0.0.1', 'port' => 1],
+            default => [...$config, 'database' => '/caminho/que/nao/existe/banco.sqlite'],
+        }]);
+        DB::purge($conn);
 
         $response = $this->getJson('/up');
 

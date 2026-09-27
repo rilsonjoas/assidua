@@ -50,6 +50,14 @@ class MedicationController extends Controller
             // dos remédios é uso contínuo. Max 3650 (10 anos) é só um
             // teto generoso, não um limite real esperado.
             'treatment_duration_days' => 'nullable|integer|min:1|max:3650',
+            // P4 (§10.4) — "remédio de resgate". Sem esta linha o
+            // recurso era INALCANÇÁVEL: a coluna existia, a migration
+            // existia, a dose de resgate tinha todo o resto do caminho
+            // pronto — e nenhuma tela ou cliente conseguia marcar um
+            // remédio como PRN, porque o campo era recusado na
+            // validação. Default false mantém inalterado todo cadastro
+            // existente.
+            'is_prn' => 'sometimes|boolean',
         ]);
 
         $medication = $profile->medications()->create($data);
@@ -84,6 +92,9 @@ class MedicationController extends Controller
             'notes' => 'nullable|string',
             'is_active' => 'sometimes|boolean',
             'is_paused' => 'sometimes|boolean',
+            // P4 (§10.4) — mesma justificativa do `store` acima: sem
+            // isto, nem criar nem editar o remédio de resgate.
+            'is_prn' => 'sometimes|boolean',
             'treatment_duration_days' => 'sometimes|nullable|integer|min:1|max:3650',
         ]);
 
@@ -100,7 +111,39 @@ class MedicationController extends Controller
             $data['paused_at'] = $data['is_paused'] ? now() : null;
         }
 
+        // P4 (§10.4) — virar resgate DESPERTA os horários, em vez de só
+        // marcar a_bandeira.
+        //
+        // Achado real, verificado rodando o fluxo inteiro: Losartana com
+        // 8h todo dia, marcada como "só quando precisar" — e a tela Hoje
+        // CONTINUAVA gerando a dose das 8h, o cron de 15 em 15min
+        // marcava essa dose como PERDIDA (derrubando a adesão de quem
+        // fez tudo certo), e a tela de cadastro escondia justamente a
+        // seção de onde se corrigiria. Pior: a dose apareceria como
+        // "previsão" e a pessoa a registraria pelo caminho de dose
+        // AGENDADA, entraria no relatório como ocorrência comum e
+        // nunca receberia o tratamento de resgate.
+        //
+        // Desativar (`is_active = false`) e não apagar: o histórico das
+        // doses já registradas continua apontando para o horário, e
+        // apagar deixaria dose logada órfã.
+        //
+        // Só na TRANSIÇÃO — reenviar `is_prn` já verdadeiro não deve
+        // reescrever os horários.
+        $virouResgate = array_key_exists('is_prn', $data)
+            && (bool) $data['is_prn'] !== (bool) $medication->is_prn;
+
+        if (array_key_exists('is_paused', $data) && $data['is_paused'] !== $medication->is_paused) {
+            $data['paused_at'] = $data['is_paused'] ? now() : null;
+        }
+
         $medication->update($data);
+
+        // Ver o comentário de `$virouResgate` acima: o que faz o
+        // remedy virar resgate é também o que DORME os horários.
+        if ($virouResgate) {
+            $medication->schedules()->update(['is_active' => false]);
+        }
 
         return response()->json($medication->load(['schedules', 'stock']));
     }

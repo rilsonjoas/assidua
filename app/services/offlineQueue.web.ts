@@ -12,10 +12,10 @@
 //     retorna erro de rede) em vez de silenciar — degradação honesta.
 // IndexedDB fica como possibilidade futura se uso real justificar.
 
-import type { LogActionPayload, UndoActionPayload, PendingAction } from './offlineQueue';
+import type { LogActionPayload, UndoActionPayload, PendingAction, DoseIdentity } from './offlineQueue';
 
 // Reexporta os tipos pra quem os importa deste módulo via caminho web.
-export type { LogActionPayload, UndoActionPayload, PendingAction };
+export type { LogActionPayload, UndoActionPayload, PendingAction, DoseIdentity };
 
 export async function enqueueLog(payload: LogActionPayload): Promise<void> {
   void payload;
@@ -25,15 +25,17 @@ export async function enqueueUndo(payload: UndoActionPayload): Promise<void> {
   void payload;
 }
 
-export async function cancelPendingLog(doseScheduleId: number, scheduledAt: string): Promise<boolean> {
-  void doseScheduleId;
-  void scheduledAt;
+// P4: a assinatura acompanha a de `offlineQueue.ts` (identidade
+// discriminado em vez de dois positionais). Na web a fila é sempre
+// vazia, então tudo aqui é `false` — mas a assinatura precisa bater,
+// senão o bundle web não compila e ninguém perceberia até publicar.
+export async function cancelPendingLog(identity: DoseIdentity): Promise<boolean> {
+  void identity;
   return false;
 }
 
-export async function hasPendingLog(doseScheduleId: number, scheduledAt: string): Promise<boolean> {
-  void doseScheduleId;
-  void scheduledAt;
+export async function hasPendingLog(identity: DoseIdentity): Promise<boolean> {
+  void identity;
   return false;
 }
 
@@ -51,8 +53,9 @@ export async function pendingCount(): Promise<number> {
 
 export async function applyPendingOverlay<T extends {
   id: number | string;
-  dose_schedule_id: number;
-  scheduled_at: string;
+  dose_schedule_id: number | null;
+  scheduled_at: string | null;
+  client_key?: string | null;
   status: string;
 }>(doses: T[]): Promise<T[]> {
   return doses;

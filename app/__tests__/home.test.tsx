@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { format, subDays } from 'date-fns';
 import HomeScreen from '../app/(tabs)/index';
 import { useProfileStore } from '../store/profileStore';
 import * as dosesService from '../services/doses';
@@ -10,7 +11,26 @@ import * as notificationsService from '../services/notifications';
 import { api } from '../services/api';
 import * as Haptics from 'expo-haptics';
 
-jest.mock('../services/doses');
+// `derivedState` é **função pura**, não chamada de rede: o auto-mock a
+// transformava em `jest.fn()` devolvendo `undefined`, e o filtro de
+// `unrecorded` do E1 nunca achava nada. Por isso o `requireActual` aqui —
+// e as funções de rede são mockadas **explicitamente**, uma a uma, porque
+// espalhar o módulo inteiro devolveria as de rede para a implementação
+// real e o teste passaria a falar com a API de verdade.
+jest.mock('../services/doses', () => ({
+  ...(jest.requireActual('../services/doses') as object),
+  getTodayDoses: jest.fn(),
+  getDoseHistory: jest.fn(),
+  getAdherenceStreak: jest.fn(),
+  logDose: jest.fn(),
+  undoDose: jest.fn(),
+  reactToDose: jest.fn(),
+  updateDoseNote: jest.fn(),
+  rescheduleTodayOccurrences: jest.fn(),
+  getWeeklyAdherence: jest.fn(),
+  getDailyAdherence: jest.fn(),
+  getConsultationSummary: jest.fn(),
+}));
 jest.mock('../services/medications', () => ({
   ...(jest.requireActual('../services/medications') as object),
   recalculateScheduleToday: jest.fn(),
@@ -107,6 +127,15 @@ describe('HomeScreen — marcar dose como tomada', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   it('lista a dose pendente de hoje e marca como tomada ao tocar em "Tomei"', async () => {
@@ -180,6 +209,15 @@ describe('HomeScreen — corrigir dose (desfazer)', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   it('desmarca uma dose "Tomado" ao tocar no badge, feito por engano', async () => {
@@ -211,6 +249,15 @@ describe('HomeScreen — refill alert inteligente', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   it('mostra banner de estoque acabando quando days_remaining está no limiar', async () => {
@@ -251,6 +298,15 @@ describe('HomeScreen — status automático "Não tomado"', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   // Renomeado (2026-09-11, item 14/15, revisado no mesmo dia — achado
@@ -326,7 +382,7 @@ describe('HomeScreen — status automático "Não tomado"', () => {
 // (`missed` de verdade, >24h) — precisa de um `describe` próprio porque
 // depende de congelar o relógio numa janela bem específica em relação a
 // `scheduled_at`.
-describe('HomeScreen — "Atrasado" (30min-24h, calculado no cliente)', () => {
+describe('HomeScreen — dose vencida de pouco NÃO é rotulada (D7); o prompt de horário continua', () => {
   const delayedDose = {
     id: 43,
     dose_schedule_id: 5,
@@ -353,18 +409,108 @@ describe('HomeScreen — "Atrasado" (30min-24h, calculado no cliente)', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   afterEach(() => {
     jest.useRealTimers();
   });
 
-  it('mostra "Atrasado" (não "Não tomado") pra dose ainda pending 30min+ atrasada', async () => {
+  // ── P3 / decisão D5 (2026-09-25): o headline da Home ──
+  //
+  // O cabeçalho tinha o **% de adesão** em destaque. Porcentagem é
+  // avaliativa — ela julga antes de o dia terminar. A regra que vale: o %
+  // só aparece em relatório e histórico, onde é *fato*; na tela do dia,
+  // nunca. E o "0 de 3" que ficava no lugar era a mesma mentira do "0%"
+  // que o 9.5a já tinha tirado do anel, só que em forma de fração.
+
+  it('NAO mostra percentual no cabecalho; mostra a proxima dose', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      { ...delayedDose, scheduled_at: new Date(Date.now() + 3 * 3600_000).toISOString() },
+    ]);
+
+    renderHome();
+
+    // Nenhum "%" no cabeçalho.
+    expect(screen.queryByText(/\d+%\s*de\s*\d+/)).toBeNull();
+    // A próxima dose aparece. O texto é visual-only (a lista de cards
+    // abaixo já a anuncia, na ordem), então a busca precisa incluir os
+    // nós ocultos — e isso está anotado de propósito, porque a
+    // distinção entre "escondido por redundância" e "escondido por
+    // engano" é o que o 9.5a aprendeu.
+    // `includeHiddenElements` é 2º argumento (queryOptions), não o 3º
+    // (waitForOptions) — errei isso uma vez nesta sessão.
+    expect(
+      await screen.findByText(/Próxima:/, { includeHiddenElements: true }, { timeout: 10000 }),
+    ).toBeTruthy();
+  });
+
+  it('mostra "faltam N" em vez de porcentagem', async () => {
+    const daqui = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      { ...delayedDose, scheduled_at: daqui(2) },
+      { ...delayedDose, id: 44, dose_schedule_id: 6, scheduled_at: daqui(5) },
+    ]);
+
+    renderHome();
+
+    // "faltam 2" é goal gradient honesto: olha pra frente, não julga.
+    expect(await screen.findByText('faltam 2')).toBeTruthy();
+  });
+
+  it('nao mostra 0% quando nada venceu ainda', async () => {
+    const daqui = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    mockedDoses.getTodayDoses.mockResolvedValue([{ ...delayedDose, scheduled_at: daqui(3) }]);
+
+    renderHome();
+
+    // Nem "0%", nem "faltam 0", nem "0 de 1". O dia está em aberto.
+    expect(screen.queryByText(/0%/)).toBeNull();
+    expect(screen.queryByText('faltam 0')).toBeNull();
+  });
+
+  it('quando tudo o que venceu foi tomado, diz "Tudo certo até agora"', async () => {
+    const passado = new Date(Date.now() - 3600_000).toISOString();
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      { ...delayedDose, scheduled_at: passado, status: 'taken' as const, taken_at: passado },
+    ]);
+
+    renderHome();
+
+    expect(await screen.findByText('Tudo certo até agora')).toBeTruthy();
+  });
+
+  // P3 / decisão D7 (2026-09-25) — o app **não rotula mais "Atrasado"**.
+  //
+  // O que o app affirmava era um número que ele mesmo escolheu (30 min),
+  // e o mesmo dia no relatório do médico não tinha julgamento nenhum — o
+  // relatório mostra previsto e real e deixa o leitor concluir. A
+  // partir daqui, o card mostra o horário e nada mais: a pessoa vê
+  // 08:00 e sabe que são 08:45, sem o app precisar afirmar que ela
+  // "atrasou".
+  it('NAO rotula "Atrasado" numa dose vencida de pouco — mostra o horario', async () => {
     mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
 
     renderHome();
 
-    expect(await screen.findByText('Atrasado')).toBeTruthy();
+    // O horário previsto continua visível e é o que fala — em hora
+    // LOCAL, que é como o card renderiza (`scheduled_at` é UTC e o
+    // formato depende do fuso de quem roda a suíte).
+    const localTime = `${String(delayedDoseScheduledLocal.getHours()).padStart(2, '0')}:${String(
+      delayedDoseScheduledLocal.getMinutes(),
+    ).padStart(2, '0')}`;
+    expect(await screen.findByText(localTime)).toBeTruthy();
+    expect(screen.queryByText('Atrasado')).toBeNull();
+    // E também não vira "Não tomado": esse é veredito do backend, e só
+    // depois da tolerância de 24 h.
     expect(screen.queryByText('Não tomado')).toBeNull();
   });
 
@@ -373,6 +519,181 @@ describe('HomeScreen — "Atrasado" (30min-24h, calculado no cliente)', () => {
   // O diálogo separado (Sim/Não) virou redundante com o próprio modal
   // "Outro horário", que ganhou "No horário previsto" fixado no topo —
   // mesmas 2 escolhas de antes, 1 tela a menos.
+  // ══ E1 (2026-09-25): o app PERGUNTA o que houve ontem ══
+  //
+  // O critério da revisão de interface ética: o app não pode afirmar fato
+  // sobre o corpo da pessoa. Registrar sozinho o que ela fez ontem é
+  // exatamente o mecanismo do "perdido" automático que o §9.3 tirou da
+  // tela. E provavelmente ela TOMOU e esqueceu de anotar — fechar o
+  // buraco sem perguntar transformaria um esquecimento de digitação em
+  // "dose perdida" no registro médico.
+
+  const doseOntem = (sobre: Partial<Record<string, unknown>> = {}) => ({
+    id: `pending_90_${Math.random()}`,
+    dose_schedule_id: 90,
+    medication_id: 10,
+    profile_id: 1,
+    scheduled_at: subDays(new Date(), 1).toISOString(),
+    taken_at: null,
+    status: 'unrecorded' as const,
+    state: 'unrecorded' as const,
+    notes: null,
+    medication: { id: 10, name: 'Losartana', dosage: '50', unit: 'mg', color: '#6366f1', days_remaining: 30 },
+    dose_schedule: { id: 90, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
+    ...sobre,
+  });
+
+  it('pergunta sobre a dose de ontem que ficou sem registro', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [doseOntem()] } as any);
+
+    renderHome();
+
+    expect(await screen.findByText('Ficou alguma coisa de ontem?')).toBeTruthy();
+  });
+
+  it('NAO pergunta se a dose de ontem ja foi registrada', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getDoseHistory.mockResolvedValue({
+      data: [doseOntem({ status: 'taken', state: 'recorded' })],
+    } as any);
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(mockedDoses.getDoseHistory).toHaveBeenCalled();
+    });
+    expect(screen.queryByText('Ficou alguma coisa de ontem?')).toBeNull();
+  });
+
+  it('"Tomei" registra com o horario AGENDADO de ontem, nao "agora"', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [doseOntem()] } as any);
+    mockedDoses.logDose.mockResolvedValue({ status: 'taken' } as any);
+
+    renderHome();
+
+    fireEvent.press(await screen.findByLabelText('Marcar que tomou Losartana'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalled();
+    });
+    const payload = mockedDoses.logDose.mock.calls[0][0] as Record<string, any>;
+    // A dose aconteceu ONTEM. Registrar "tomada às 15h de hoje" seria
+    // inventar o horário.
+    expect(new Date(payload.taken_at).getDate()).toBe(new Date(payload.scheduled_at).getDate());
+  });
+
+  it('"Pulei" registra como skipped, e a dose sai da lista', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [doseOntem()] } as any);
+    mockedDoses.logDose.mockResolvedValue({ status: 'skipped' } as any);
+
+    renderHome();
+
+    fireEvent.press(await screen.findByLabelText('Marcar que pulou Losartana'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'skipped' }),
+      );
+    });
+  });
+
+  it('"Agora não" NAO marca nada (não é descarte: a pergunta volta)', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [doseOntem()] } as any);
+
+    renderHome();
+
+    fireEvent.press(await screen.findByLabelText('Agora não'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Ficou alguma coisa de ontem?')).toBeNull();
+    });
+    // O ponto inteiro: "agora não" não decide nada pelo usuário.
+    expect(mockedDoses.logDose).not.toHaveBeenCalled();
+  });
+
+  // ── P3: a nota (decisão do Rilson: "o modal, onde o dedo já está") ──
+
+  it('o modal de "outro horário" tem campo de nota, com label visível e opcional', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
+
+    renderHome();
+    fireEvent.press(await screen.findByText('Tomei'));
+
+    // Label **visível**, não placeholder: a skill de qualidade de
+    // interface é explícita — placeholder como label some quando a pessoa
+    // digita e leva o contexto junto.
+    expect(await screen.findByText('Alguma coisa a anotar? (opcional)')).toBeTruthy();
+    // E tem `accessibilityLabel` próprio, porque o rótulo visível não é
+    // lido por leitor de tela.
+    expect(screen.getByLabelText('Anotação sobre esta dose, opcional')).toBeTruthy();
+  });
+
+  it('a nota viaja com o registro pelos TRÊS caminhos de confirmação', async () => {
+    // Escolher horário e escrever relato são coisas independentes: quem
+    // escreve e toca "Agora" não pode ver a nota evaporar.
+    for (const [botao, esperado] of [
+      ['Agora', true],
+    ] as const) {
+      jest.clearAllMocks();
+      mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
+      mockedDoses.logDose.mockResolvedValue({ ...delayedDose, status: 'taken' } as any);
+
+      renderHome();
+      fireEvent.press(await screen.findByText('Tomei'));
+      fireEvent.changeText(
+        await screen.findByLabelText('Anotação sobre esta dose, opcional'),
+        'Senti um pouco de tontura',
+      );
+      fireEvent.press(await screen.findByLabelText(botao));
+
+      await waitFor(() => {
+        expect(mockedDoses.logDose).toHaveBeenCalledWith(
+          expect.objectContaining({ notes: 'Senti um pouco de tontura' }),
+        );
+      });
+      expect(esperado).toBe(true);
+    }
+  });
+
+  it('nota vazia NÃO vira string no payload (campo opcional de verdade)', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
+    mockedDoses.logDose.mockResolvedValue({ ...delayedDose, status: 'taken' } as any);
+
+    renderHome();
+    fireEvent.press(await screen.findByText('Tomei'));
+    fireEvent.press(await screen.findByLabelText('Agora'));
+
+    await waitFor(() => {
+      expect(mockedDoses.logDose).toHaveBeenCalled();
+    });
+    // Só espaços também conta como vazio: ninguém escreveu nada.
+    const payload = mockedDoses.logDose.mock.calls[0][0] as unknown as Record<string, unknown>;
+    expect(payload.notes).toBeUndefined();
+  });
+
+  it('reabrir o modal LIMPA a nota anterior (a nota pertence à dose, não à tela)', async () => {
+    mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
+    mockedDoses.logDose.mockResolvedValue({ ...delayedDose, status: 'taken' } as any);
+
+    renderHome();
+    fireEvent.press(await screen.findByText('Tomei'));
+    fireEvent.changeText(
+      await screen.findByLabelText('Anotação sobre esta dose, opcional'),
+      'nota da primeira vez',
+    );
+    fireEvent.press(await screen.findByLabelText('Cancelar'));
+
+    // Reabre: o texto não pode sobreviver, senão o app estaria
+    // inventando um relato que ninguém escreveu agora.
+    fireEvent.press(await screen.findByText('Tomei'));
+    const campo = await screen.findByLabelText('Anotação sobre esta dose, opcional');
+    expect(campo.props.value).toBe('');
+  });
+
   it('"Tomei" numa dose Atrasada abre o modal "Outro horário" direto, com "No horário previsto" fixado', async () => {
     mockedDoses.getTodayDoses.mockResolvedValue([delayedDose]);
 
@@ -446,6 +767,15 @@ describe('HomeScreen — "Tomei" numa dose muito adiantada (30min+ antes do hor�
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   afterEach(() => {
@@ -522,6 +852,15 @@ describe('HomeScreen — streak de adesão (Fase 2, 2026-08-11)', () => {
   it('não mostra o badge quando current_streak é 0', async () => {
     mockedDoses.getTodayDoses.mockResolvedValue([]);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
 
     renderHome();
 
@@ -569,6 +908,15 @@ describe('HomeScreen — botão "Adicionar" abre o cadastro direto (2026-08-14)'
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedDoses.getTodayDoses.mockResolvedValue([]);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   it('sem dose nenhuma hoje, o botão "Adicionar medicamento" linka pro cadastro (/medication/new)', async () => {
@@ -587,6 +935,15 @@ describe('HomeScreen — "+" também na Home, não só em Remédios (2026-09-02)
     useProfileStore.setState({ profiles: [profile], activeProfile: profile });
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
   });
 
   it('com dose(s) na lista, mostra o FAB "+" linkando pro cadastro', async () => {
@@ -638,6 +995,15 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     mockedApi.get.mockResolvedValue({ data: [profile] });
     mockedApi.put.mockResolvedValue({ data: {} } as any);
     mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
     jest.spyOn(Haptics, 'notificationAsync').mockResolvedValue();
     mockedNotifications.rescheduleTodayOccurrences.mockResolvedValue(undefined);
     // "Pra sempre" (2026-09-11, item 12/13) — mesmo motivo do
@@ -1060,5 +1426,159 @@ describe('HomeScreen — dose fora do horário (2026-09-08)', () => {
     // Horário fixo não tem endpoint de recálculo "só hoje" (backend
     // rejeita) — editar o permanente é tudo que "pra sempre" faz aqui.
     expect(mockedMedications.recalculateScheduleToday).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// P0 (2026-09-25, ROADMAP §9.7) — falha de rede não pode virar estado vazio.
+//
+// `index.tsx:255-271` faz `api.get('/profiles').then(...)` SEM `.catch`.
+// Se a chamada falha, `profiles` fica `[]` e a Home renderiza
+// "Nenhum perfil criado / Crie um perfil de paciente para começar" —
+// ou seja, **falha de rede vira convite para criar perfil duplicado**.
+// O mesmo padrão está em `history.tsx:392`, `medications.tsx:103`,
+// `stock.tsx:133`, `collaborators.tsx:83`; `isError` aparece ZERO vezes
+// no app inteiro.
+//
+// Marcado como `it.skip` de propósito: a suíte fica verde, a asserção
+// está escrita e revisada antes de qualquer linha de produção mudar.
+// ============================================================================
+// 9.5a (2026-09-25) — o anel usava `taken / doses.length`, e `doses`
+// são todas as ocorrências de hoje, inclusive as que AINDA NÃO CHEGARAM.
+// Às 07:00, com 3 doses no dia e nenhuma tomada, a Home abria o dia com
+// 0% em vermelho: um veredito sobre um dia que ainda nem começou. A lei
+// é a do backend (`GenerateConsultationSummary:106-108` — "ainda não
+// chegou a hora, não conta como devido"), que o Histórico e o relatório
+// já seguiam.
+describe('HomeScreen — anel de adesão só conta dose vencida (9.5a)', () => {
+  const med = { id: 10, name: 'Losartana', dosage: '50', unit: 'mg', color: '#6366f1', days_remaining: 30 };
+  const doseEm = (iso: string) => ({
+    id: `pending_${iso}`,
+    dose_schedule_id: 5,
+    medication_id: 10,
+    profile_id: 1,
+    scheduled_at: iso,
+    taken_at: null,
+    status: 'pending' as const,
+    notes: null,
+    medication: med,
+    dose_schedule: { id: 5, medication_id: 10, time: '08:00', days_of_week: null, interval_hours: null, is_active: true },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    mockedApi.get.mockResolvedValue({ data: [profile] } as never);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 } as any);
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('logo cedo, com doses so mais tarde, NAO mostra 0% — mostra a proxima dose', async () => {
+    // Sem `useFakeTimers` aqui de propósito: com o relógio congelado o
+    // `findBy*` deste arquivo depende de os timers avançarem, e o teste
+    // vira um jogo de `advanceTimersByTime`. Como o que importa é só
+    // "nenhuma dose venceu", as ocorrências são montadas em HORAS A
+    // PARTIR DE AGORA` — que é o mesmo truque da fixture `overdueDose`
+    // do topo do arquivo.
+    const daqui = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      doseEm(daqui(3)),
+      doseEm(daqui(7)),
+      doseEm(daqui(15)),
+    ] as any);
+
+    renderHome();
+
+    // Nenhuma dose vencida: o anel não pode existir, porque 0/3 = 0% é
+    // um número verdadeiro-e-enganoso ao mesmo tempo.
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    // E o usuário precisa de uma informação, não de silêncio. A espera
+    // é por dado assíncrono (as doses), e o default de 1000ms do
+    // `findBy*` não dá conta neste arquivo.
+    //
+    // Sem `includeHiddenElements`: este texto NÃO pode estar oculto da
+    // árvore de acessibilidade (não há anel para announce isto), e foi
+    // exatamente esse detalhe que o teste pegou.
+    expect(await screen.findByText(/próxima dose/i, undefined, { timeout: 10000 })).toBeTruthy();
+  });
+
+  it('as 12:00, a dose das 10:00 conta no denominador e a das 22:00 nao', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T12:00:00.000Z'));
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      doseEm('2026-08-08T10:00:00.000Z'),
+      doseEm('2026-08-08T22:00:00.000Z'),
+    ] as any);
+
+    renderHome();
+
+    const anel = await screen.findByRole('progressbar');
+    // Denominador 1 (só a das 10:00 venceu), não 2.
+    expect(anel.props.accessibilityValue).toMatchObject({ now: 0, max: 100 });
+    expect(anel.props.accessibilityLabel).toContain('0 de 1');
+  });
+
+  it('dose ja registrada conta no denominador mesmo antes do horario', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-08T07:00:00.000Z'));
+    mockedDoses.getTodayDoses.mockResolvedValue([
+      { ...doseEm('2026-08-08T06:00:00.000Z'), status: 'taken' as const, taken_at: '2026-08-08T06:00:00.000Z' },
+      doseEm('2026-08-08T22:00:00.000Z'),
+    ] as any);
+
+    renderHome();
+
+    const anel = await screen.findByRole('progressbar');
+    // A das 06:00 já aconteceu e foi tomada: 1 de 1. A das 22:00 não
+    // entra. Sem ela no denominador, o dia abriria em 100% — o outro
+    // extremo do mesmo bug.
+    expect(anel.props.accessibilityValue).toMatchObject({ now: 100 });
+    expect(anel.props.accessibilityLabel).toContain('1 de 1');
+  });
+});
+
+describe('HomeScreen — erro de rede não vira estado vazio (9.7)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useProfileStore.setState({ profiles: [profile], activeProfile: profile });
+    (mockedApi.get as jest.Mock).mockImplementation(((url: string) => {
+      if (url === '/profiles') return Promise.reject(new Error('Network Error'));
+      return Promise.resolve({ data: [] });
+    }) as never);
+    mockedApi.put.mockResolvedValue({ data: {} } as any);
+    mockedDoses.getAdherenceStreak.mockResolvedValue({ current_streak: 0, best_streak: 0 });
+    // Default explícito: **nada pendente de ontem** (E1).
+    //
+    // `jest.clearAllMocks()` limpa as CHAMADAS mas preserva a
+    // implementação — então o `mockResolvedValue` de um teste de E1
+    // vazava para os seguintes, e o botão "Tomei" do prompt aparecia
+    // junto do "Tomei" do card ("Found multiple elements"). Vazamento de
+    // estado entre testes é a pior classe de bug em suíte.
+    mockedDoses.getDoseHistory.mockReset();
+    mockedDoses.getDoseHistory.mockResolvedValue({ data: [] } as any);
+    mockedDoses.getTodayDoses.mockResolvedValue([]);
+  });
+
+  it('mostra estado de erro quando /profiles falha, e NÃO oferece criar perfil', async () => {
+    renderHome();
+
+    // O dado não chegou: a tela não pode fingir que não existe
+    // perfil, porque o convite a criar um é o que causa duplicata.
+    expect(await screen.findByText(/não (conseguimos|foi possível)/i)).toBeTruthy();
+    expect(screen.queryByText('Nenhum perfil criado')).toBeNull();
+    expect(screen.queryByText(/Crie um perfil/i)).toBeNull();
+  });
+
+  it('diferencia erro de rede de estado vazio de verdade', async () => {
+    useProfileStore.setState({ profiles: [], activeProfile: null });
+    (mockedApi.get as jest.Mock).mockResolvedValue({ data: [] } as never);
+
+    renderHome();
+
+    // Aqui a resposta chegou e veio vazia — ESTE é o estado vazio
+    // legítimo, e ele tem que continuar dizendo "crie um perfil".
+    expect(await screen.findByText('Nenhum perfil criado')).toBeTruthy();
   });
 });
