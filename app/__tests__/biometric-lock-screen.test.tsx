@@ -69,7 +69,7 @@ describe('BiometricLockScreen', () => {
 
     render(<BiometricLockScreen />);
 
-    expect(await screen.findByTestId('biometric-lock-overlay')).toBeTruthy();
+    expect(await screen.findByTestId('biometric-lock-overlay', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(mockedBiometrics.authenticateWithBiometrics).toHaveBeenCalledTimes(1));
   });
 
@@ -97,14 +97,17 @@ describe('BiometricLockScreen', () => {
 
     render(<BiometricLockScreen />);
 
-    await waitFor(() => expect(mockedBiometrics.authenticateWithBiometrics).toHaveBeenCalledTimes(1));
-    expect(await screen.findByLabelText('Tentar de novo')).toBeTruthy();
+    await waitFor(() => expect(mockedBiometrics.authenticateWithBiometrics).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect(await screen.findByLabelText('Tentar de novo', {}, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByTestId('biometric-lock-overlay')).toBeTruthy(); // continua travado
 
     mockedBiometrics.authenticateWithBiometrics.mockResolvedValueOnce(true);
     fireEvent.press(screen.getByLabelText('Tentar de novo'));
 
-    await waitFor(() => expect(mockedBiometrics.authenticateWithBiometrics).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByTestId('biometric-lock-overlay')).toBeNull());
+    await waitFor(() => expect(mockedBiometrics.authenticateWithBiometrics).toHaveBeenCalledTimes(2), { timeout: 5000 });
+    // Mesma categoria de flakiness do teste acima: espera pelo efeito
+    // assíncrono de desbloqueiro, que precisa de folga quando a suíte
+    // inteira roda. O default do `waitFor` é 1000ms.
+    await waitFor(() => expect(screen.queryByTestId('biometric-lock-overlay')).toBeNull(), { timeout: 5000 });
   });
 });

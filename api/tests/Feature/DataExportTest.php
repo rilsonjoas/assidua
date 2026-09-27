@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\DoseLog;
 use App\Models\Medication;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -14,6 +16,15 @@ use Tests\TestCase;
 class DataExportTest extends TestCase
 {
     use RefreshDatabase;
+
+    // Os testes de P2 congelam o relógio para provar a fronteira da
+    // janela. Sem este `tearDown`, o tempo vaza para os outros arquivos
+    // do processo e o sintoma aparece longe da causa.
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
 
     public function test_gerar_link_exige_autenticacao(): void
     {
@@ -207,5 +218,125 @@ class DataExportTest extends TestCase
         $this->assertStringNotContainsString(';=1+1', $content);
         $this->assertStringContainsString("'=1+1", $content);
         $this->assertStringContainsString("'+CMD", $content);
+    }
+
+    // ══ P2/§10.2: o export tinha a MESMA falha que o Histórico tinha ══
+    //
+    // Ele lia `profiles.medications.doseLogs` — só o que JÁ TEM registro.
+    // Uma dose prevista que ninguém registrou simplesmente **não existia
+    // no arquivo**. E este é justamente o documento que a pessoa baixa
+    // para conferir o próprio histórico, ou levar ao médico: um export
+    // que omite o que faltou exporta a omissão como se fosse o todo.
+
+    public function test_export_inclui_dose_prevista_sem_registro(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Meu Perfil', 'color' => '#000000', 'avatar_emoji' => 'account', 'timezone' => 'UTC',
+        ]);
+        $medication = $profile->medications()->create(['name' => 'Losartana', 'is_active' => true]);
+        $medication->schedules()->create([
+            'time' => '08:00:00', 'days_of_week' => null, 'is_active' => true,
+        ]);
+        // Nenhum DoseLog. A dose das 08:00 venceu e ninguém registrou.
+
+        $url = $this->actingAs($user)->postJson('/api/me/export-link')->json('url');
+        $payload = $this->getJson($url)->json();
+
+        $occ = $payload['owned_profiles'][0]['medications'][0]['occurrences'];
+
+        // 90 dias x 1 horário diário = 91 ocorrências. O que interessa é
+        // que a de HOJE (08:00, vencida, sem registro) está lá como
+        // `unrecorded` — e não que o total seja 1.
+        $this->assertCount(91, $occ);
+        $hoje = collect($occ)->first(
+            fn ($o) => str_starts_with($o['scheduled_at'], '2026-07-15')
+        );
+        $this->assertNotNull($hoje, 'A dose de hoje tem de estar no export.');
+        $this->assertSame('unrecorded', $hoje['state'], 'Sem registro é um estado, não ausência.');
+        $this->assertNull($hoje['taken_at']);
+    }
+
+    public function test_export_diz_a_janela_que_ele_cobriu(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Meu Perfil', 'color' => '#000000', 'avatar_emoji' => 'account', 'timezone' => 'UTC',
+        ]);
+
+        $url = $this->actingAs($user)->postJson('/api/me/export-link')->json('url');
+        $payload = $this->getJson($url)->json();
+
+        // Num documento de portabilidade (LGPD art. 18, V), quem abre o
+        // JSON precisa distinguir "não aconteceu" de "está fora da
+        // janela". Sem a `window`, a omissão é indistinguível do todo.
+        $this->assertSame(90, $payload['window']['days']);
+        // 2026-07-15 menos 90 dias.
+        $this->assertSame(
+            Carbon::parse('2026-07-15', 'UTC')->subDays(90)->toDateString(),
+            $payload['window']['from'],
+        );
+        $this->assertSame('2026-07-15', $payload['window']['to']);
+    }
+
+    public function test_export_mantem_dose_logs_para_nao_quebrar_quem_consome(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Meu Perfil', 'color' => '#000000', 'avatar_emoji' => 'account', 'timezone' => 'UTC',
+        ]);
+        $medication = $profile->medications()->create(['name' => 'Losartana', 'is_active' => true]);
+        $schedule = $medication->schedules()->create([
+            'time' => '08:00:00', 'days_of_week' => null, 'is_active' => true,
+        ]);
+        DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => '2026-07-15 08:00:00',
+            'taken_at' => '2026-07-15 08:05:00',
+            'status' => 'taken',
+        ]);
+
+        $url = $this->actingAs($user)->postJson('/api/me/export-link')->json('url');
+        $payload = $this->getJson($url)->json();
+        $med = $payload['owned_profiles'][0]['medications'][0];
+
+        // `occurrences` é o novo; `dose_logs` continua, para não quebrar
+        // quem já consome o arquivo.
+        $this->assertSame('recorded', $med['occurrences'][0]['state']);
+        $this->assertCount(1, $med['dose_logs']);
+    }
+
+    // O CSV é o formato que a pessoa ABRE na planilha para conferir o
+    // próprio histórico. Se só o JSON ganhasse ocorrência, o export
+    // continuaria mentindo no formato mais usado — que é o mesmo modo
+    // de falha, num arquivo diferente.
+    public function test_csv_inclui_dose_sem_registro_como_sem_registro(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
+        $user = User::factory()->create();
+        $profile = $user->profiles()->create([
+            'name' => 'Meu Perfil', 'color' => '#000000', 'avatar_emoji' => 'account', 'timezone' => 'UTC',
+        ]);
+        $medication = $profile->medications()->create(['name' => 'Losartana', 'is_active' => true]);
+        $medication->schedules()->create([
+            'time' => '08:00:00', 'days_of_week' => null, 'is_active' => true,
+        ]);
+
+        $url = $this->actingAs($user)->postJson('/api/me/export-link', ['format' => 'csv'])->json('url');
+        $csv = (string) $this->get($url)->getContent();
+
+        // A linha de HOJE tem de existir e dizer "Sem registro" — não
+        // "Não tomado" (que é veredito) e não sumir.
+        $this->assertStringContainsString('Sem registro', $csv);
+        $this->assertStringNotContainsString('Marcada como perdida', $csv, 'Nada foi marcado como perdido: ninguém registrou nada.');
     }
 }

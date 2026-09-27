@@ -34,19 +34,32 @@ describe('ProScreen', () => {
     mockedPurchases.getCurrentOffering.mockResolvedValue(null);
   });
 
-  it('usuário grátis vê os limites reais e o aviso de "em breve" quando não há oferta', async () => {
+  // T1 (2026-09-25): este teste ANTES afirmava que a tela mostrava
+  // "30 dias" e "4 semanas" no plano grátis, e "10 anos"/"8 semanas" no
+  // Pro. Isso parou de ser verdade quando o histórico deixou de ser
+  // paywall de leitura. A tabela agora anuncia SÓ o que de fato
+  // diferencia os planos — e o teste abaixo é a trava contra a tabela
+  // voltar a mentir.
+  it('usuário grátis vê só os limites que ainda são reais, e nenhum que foi removido', async () => {
     useAuthStore.setState({ user: freeUser as any });
 
     render(<ProScreen />);
     await waitFor(() => screen.getByLabelText('Assinatura do plano Pro em breve'));
 
+    // O que ainda é verdade: limites de CRIAÇÃO de recurso.
     expect(screen.getByText('4')).toBeTruthy(); // perfis grátis
     expect(screen.getByText('15')).toBeTruthy(); // medicamentos grátis
-    expect(screen.getByText('30 dias')).toBeTruthy();
-    expect(screen.getByText('4 semanas')).toBeTruthy();
     expect(screen.getAllByText('Ilimitado').length).toBe(2); // perfis + medicamentos Pro
-    expect(screen.getByText('10 anos')).toBeTruthy();
-    expect(screen.getByText('8 semanas')).toBeTruthy();
+
+    // O que NÃO pode mais aparecer: histórico e gráfico não são Pro.
+    // Se alguém reintroduzir essas linhas, a tela volta a vender um
+    // limite que o backend não aplica.
+    expect(screen.queryByText('30 dias')).toBeNull();
+    expect(screen.queryByText('4 semanas')).toBeNull();
+    expect(screen.queryByText('10 anos')).toBeNull();
+    expect(screen.queryByText('8 semanas')).toBeNull();
+    expect(screen.queryByText('Histórico de doses')).toBeNull();
+    expect(screen.queryByText('Gráfico de adesão')).toBeNull();
   });
 
   it('usuário Pro não vê o aviso de "em breve" nem tenta buscar oferta, vê agradecimento', async () => {

@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profiles/{profile}/consultation-summary', [DoseLogController::class, 'consultationSummary']);
     Route::post('/dose-logs', [DoseLogController::class, 'store']);
     Route::delete('/dose-logs/{doseLog}', [DoseLogController::class, 'destroy']);
+    Route::patch('/dose-logs/{doseLog}/note', [DoseLogController::class, 'updateNote']);
     Route::post('/dose-logs/{doseLog}/react', [DoseLogController::class, 'react']);
 
     Route::get('/medications/{medication}/stock', [StockController::class, 'show']);

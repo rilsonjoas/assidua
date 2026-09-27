@@ -85,26 +85,59 @@ class DailyAdherenceCalendarTest extends TestCase
         $this->assertSame('2026-09-01', $days[0]['date']);
         $this->assertSame(100, $days[0]['percentage']);
         $this->assertSame('2026-09-02', $days[1]['date']);
-        $this->assertSame(0, $days[1]['percentage']);
+
+        // P2 (2026-09-25): `now()` é meia-noite de 02/09, então a dose das
+        // 08:00 de hoje **ainda não venceu** — e o denominador é 0, o que
+        // dá `percentage: null`, não `0`. Esta é a decisão do Rilson: o
+        // dia em andamento não está "em 0%", está em aberto. Era
+        // exatamente o número que brigava com o anel da Home.
+        $this->assertNull($days[1]['percentage']);
+
+        // E o 0% de verdade continua existindo: dia PASSADO, dose vencida,
+        // ninguém registrou. Isso é reprovação real, não falta de dado.
+        Carbon::setTestNow(Carbon::parse('2026-09-03 12:00:00', 'UTC'));
+        $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/daily-adherence?month=2026-09");
+        $dia2 = collect($response->json())->firstWhere('date', '2026-09-02');
+        $this->assertSame(0, $dia2['percentage'], 'Dia passado sem registro é 0% de verdade.');
     }
 
-    public function test_usuario_gratis_pedindo_mes_alem_de_30_dias_cai_pro_mes_mais_antigo_permitido(): void
+    // T1 (2026-09-25): antes isto se chamava "usuário grátis pedindo mês
+    // além de 30 dias cai pro mês mais antigo permitido" — o clamp era
+    // paywall de leitura. Rolar o próprio histórico para trás não é
+    // Premium. O clamp que sobrou é só o piso técnico de
+    // `HISTORY_FLOOR_DAYS`. Ver o controller.
+    public function test_usuario_gratis_rola_o_calendario_para_o_proprio_historico(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-09-15', 'UTC'));
 
         $user = User::factory()->create(['subscription_tier' => 'free']);
         $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
 
-        // Pede janeiro (bem além dos 30 dias grátis) — clampa pro mês
-        // mais antigo que ainda cabe na janela de 30 dias.
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/daily-adherence?month=2026-01");
 
         $days = $response->json();
         $response->assertOk();
-        $this->assertNotSame('2026-01-01', $days[0]['date']);
-        // Janela de 30 dias a partir de 15/09 volta pro dia 16/08 —
-        // início do mês correspondente é agosto, não janeiro.
-        $this->assertSame('2026-08-01', $days[0]['date']);
+        $this->assertSame('2026-01-01', $days[0]['date']);
+    }
+
+    // O free e o pro têm que enxergar o mesmo calendário. Se este teste
+    // falhar, o paywall de leitura voltou de algum jeito.
+    public function test_free_e_pro_enxergam_o_mesmo_calendario(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-15', 'UTC'));
+
+        $firstDate = [];
+        foreach ([['subscription_tier' => 'free'], ['subscription_tier' => 'pro', 'subscription_expires_at' => now()->addMonth()]] as $attrs) {
+            $user = User::factory()->create($attrs);
+            $profile = Profile::factory()->create(['user_id' => $user->id, 'timezone' => 'UTC']);
+
+            $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/daily-adherence?month=2026-01");
+
+            $response->assertOk();
+            $firstDate[] = $response->json('0.date');
+        }
+
+        $this->assertSame($firstDate[0], $firstDate[1]);
     }
 
     public function test_usuario_pro_pode_pedir_mes_bem_antigo(): void

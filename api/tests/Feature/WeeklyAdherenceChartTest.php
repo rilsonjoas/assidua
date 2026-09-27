@@ -24,7 +24,11 @@ class WeeklyAdherenceChartTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_usuario_gratis_ve_4_semanas(): void
+    // T1 (2026-09-25): antes o free via 4 semanas e o Pro 8. A diferença
+    // era densidade de apresentação, não acesso a dado — o gráfico lê a
+    // mesma tabela do histórico, que agora é inteira e pública pro dono.
+    // Free e Pro enxergam as mesmas 8 semanas.
+    public function test_usuario_gratis_ve_8_semanas(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-08-16', 'UTC'));
 
@@ -35,7 +39,7 @@ class WeeklyAdherenceChartTest extends TestCase
 
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/weekly-adherence");
 
-        $response->assertOk()->assertJsonCount(4);
+        $response->assertOk()->assertJsonCount(8);
     }
 
     public function test_usuario_pro_ve_8_semanas(): void
@@ -64,8 +68,13 @@ class WeeklyAdherenceChartTest extends TestCase
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/weekly-adherence");
 
         $weeks = $response->json();
-        $this->assertSame('2026-08-16', $weeks[3]['week_end']); // última = hoje
-        $this->assertTrue($weeks[0]['week_end'] < $weeks[3]['week_end']);
+        // Índice da última semana calculado, não fixo: antes eram 4
+        // semanas (free) e o `[3]` fixo resolvia; desde T1 (2026-09-25)
+        // são 8 para todo mundo, e o fixo passaria a apontar para uma
+        // semana intermediária em silêncio.
+        $last = count($weeks) - 1;
+        $this->assertSame('2026-08-16', $weeks[$last]['week_end']); // última = hoje
+        $this->assertTrue($weeks[0]['week_end'] < $weeks[$last]['week_end']);
     }
 
     public function test_percentual_por_semana_reflete_doses_de_verdade(): void
@@ -92,7 +101,8 @@ class WeeklyAdherenceChartTest extends TestCase
         $response = $this->actingAs($user)->getJson("/api/profiles/{$profile->id}/weekly-adherence");
 
         $weeks = $response->json();
-        $this->assertSame(100, $weeks[3]['percentage']); // semana mais recente
+        $last = count($weeks) - 1; // ver comentário em test_semanas_vem_em_ordem_...
+        $this->assertSame(100, $weeks[$last]['percentage']); // semana mais recente
         $this->assertSame(0, $weeks[0]['percentage']); // semanas sem log nenhum
     }
 

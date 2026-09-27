@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Image,
+  TextInput,
 } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +22,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName, togglePrivacyWithHint } from '../../lib/privacy';
-import { getTodayDoses, getAdherenceStreak, logDose, undoDose, reactToDose, DoseLog } from '../../services/doses';
+import { getTodayDoses, getDoseHistory, getAdherenceStreak, logDose, undoDose, reactToDose, derivedState, scheduledInstantOf, DoseLog } from '../../services/doses';
 import { LOW_STOCK_DAYS_THRESHOLD, formatDosageUnit, recalculateScheduleToday, updateSchedule } from '../../services/medications';
 import { api } from '../../services/api';
 import { syncOwnedProfileTimezones } from '../../services/device';
@@ -29,8 +30,9 @@ import { rescheduleTodayOccurrences, scheduleScheduleNotifications } from '../..
 export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { AdherenceRing } from '../../components/AdherenceRing';
+import { PendingDosesPrompt } from '../../components/PendingDosesPrompt';
 import { isNetworkError } from '../../services/sync';
-import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay } from '../../services/offlineQueue';
+import { enqueueLog, enqueueUndo, cancelPendingLog, applyPendingOverlay, identityOfDose } from '../../services/offlineQueue';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
@@ -138,15 +140,26 @@ export default function HomeScreen() {
   const [customTime, setCustomTime] = useState<Date>(new Date());
   const [showTimePicker, setShowTimePicker] = useState(false);
 
+  // P3: a nota vive no estado do modal, e o modal é o **único** lugar
+  // onde ela é escrita (decisão do Rilson sobre a proposta de UI: "o
+  // modal, onde o dedo já está"). Some quando o modal fecha, porque a
+  // nota pertence à dose que está sendo registrada, não à tela.
+  const [customTimeNote, setCustomTimeNote] = useState('');
+
   function openCustomTimeModal(dose: DoseLog) {
     setCustomTime(new Date());
     setShowTimePicker(false);
+    // P3: reabrir limpa a nota. Ela pertence à dose sendo registrada;
+    // deixar o texto de uma dose anterior sobreviver seria o app
+    // inventando um relato que ninguém escreveu agora.
+    setCustomTimeNote('');
     setCustomTimeDose(dose);
   }
 
   function closeCustomTimeModal() {
     setCustomTimeDose(null);
     setShowTimePicker(false);
+    setCustomTimeNote('');
   }
 
   // Atalhos ("Agora", "Há 15 min"...) — instante real, calculado direto
@@ -157,8 +170,13 @@ export default function HomeScreen() {
     if (!customTimeDose) return;
     const takenAt = new Date(Date.now() - minutesAgo * 60000);
     const dose = customTimeDose;
+    // P3: os **três** caminhos de confirmação carregam a nota. O campo é
+    // opcional, mas quem escreveu não deveria perdê-la por ter escolhido
+    // "Agora" em vez do picker — escolher horário e escrever relato são
+    // coisas independentes.
+    const note = customTimeNote;
     closeCustomTimeModal();
-    markDose.mutate({ dose, takenAt });
+    markDose.mutate({ dose, takenAt, ...(note.trim() ? { note } : {}) });
   }
 
   function openSpecificTimePicker() {
@@ -184,11 +202,13 @@ export default function HomeScreen() {
     // O picker nativo (mode="time") devolve hora/minuto só de HOJE, tem
     // o mesmo problema que o texto livre tinha — a ancoragem continua
     // necessária mesmo trocando o componente de entrada.
-    const takenAt = parseISO(customTimeDose.scheduled_at);
+    const takenAt = scheduledInstantOf(customTimeDose);
     takenAt.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
     const dose = customTimeDose;
+    // Lido **antes** do `close`, que zera o estado da nota.
+    const note = customTimeNote;
     closeCustomTimeModal();
-    markDose.mutate({ dose, takenAt });
+    markDose.mutate({ dose, takenAt, ...(note.trim() ? { note } : {}) });
   }
 
   // "Tomei numa dose Atrasada" (2026-09-11, item 25/27, revisado no
@@ -205,7 +225,11 @@ export default function HomeScreen() {
     // Early ou Atrasado — mesmo modal pros dois (2026-09-11): a única
     // diferença real é o SINAL da diferença de horário, não o fluxo. Ver
     // `isEarly` acima pro porquê disso ter faltado antes.
-    if (dose.status === 'pending' && (isDelayed(dose.scheduled_at, nowTick) || isEarly(dose.scheduled_at, nowTick))) {
+    // P4: o guarda `dose.scheduled_at &&` também é o estreitamento de
+    // tipo, mas o motivo é o mesmo dos dois lados — uma dose sem
+    // horário previsto não está "adiantada" nem "atrasada", porque
+    // não existe horário contra o qual comparar.
+    if (dose.status === 'pending' && dose.scheduled_at && (isDelayed(dose.scheduled_at, nowTick) || isEarly(dose.scheduled_at, nowTick))) {
       openCustomTimeModal(dose);
       return;
     }
@@ -220,8 +244,9 @@ export default function HomeScreen() {
   function confirmCustomTimeOnSchedule() {
     if (!customTimeDose) return;
     const dose = customTimeDose;
+    const note = customTimeNote;
     closeCustomTimeModal();
-    markDose.mutate({ dose });
+    markDose.mutate({ dose, ...(note.trim() ? { note } : {}) });
   }
 
   // "Outro horário" numa dose já "Perdida" de verdade (item 2/9) — só
@@ -252,10 +277,24 @@ export default function HomeScreen() {
     openCustomTimeModal(dose);
   }
 
-  useEffect(() => {
-    api.get('/profiles').then(({ data }) => {
-      setProfiles(data);
-      // Autocorrige quem já tinha perfil antes do fuso existir (ver
+  // 9.7 (2026-09-25) — esta busca era `api.get('/profiles').then(...)`
+  // **sem `.catch`**. Falhou, `profiles` ficava `[]`, e a tela caía no
+  // estado vazio "Nenhum perfil criado / Crie um perfil" — que é um
+  // **convite para criar perfil duplicado** justamente quando a rede
+  // falhou. A diferença que importa: "não tem perfil" e "não sei se tem
+  // perfil" não podem ser a mesma tela. Uma convida a criar; a outra não.
+  //
+  // Não dá para resolver isso com o `OfflineBanner`: ele cobre ausência
+  // de internet, e aqui também falha 403/500 — que acontecem **com**
+  // internet. O estado de erro tem que vir da própria requisição.
+  const [profilesLoad, setProfilesLoad] = useState<'loading' | 'error' | 'ok'>('loading');
+  const loadProfiles = useCallback(() => {
+    setProfilesLoad('loading');
+    api.get('/profiles')
+      .then(({ data }) => {
+        setProfiles(data);
+        setProfilesLoad('ok');
+        // Autocorrige quem já tinha perfil antes do fuso existir (ver
       // services/device.ts). Deixou de ser 100% silencioso (2026-09-11,
       // entrevista de decisões de horário, item 1/6) — princípio do
       // Rilson: "transparência total". O marcador PERMANENTE já fica
@@ -267,14 +306,69 @@ export default function HomeScreen() {
           showToast(t('home.timezoneChangedToast', { timezone: change.newTimezone }));
         }
       });
-    });
+      })
+      .catch((err) => {
+        // Não setamos `[]` aqui de propósito: deixar o store como está
+        // preserva o que já estava em cache, e o estado de erro abaixo é
+        // que decide o que a tela mostra. Zerar o store seria jogar fora
+        // dado bom por causa de uma falha de rede.
+        console.error('[loadProfiles]', err);
+        setProfilesLoad('error');
+      });
   }, []);
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
 
   // "Ao vivo" (2026-09-11, item 23/26) — Pendente→Atrasado (30min) é
   // 100% calculado aqui, sem rede nenhuma; um timer de 1min já deixa
   // isso instantâneo pro olho humano, sem custo de bateria/dados real.
   // Atrasado→Perdido (24h) é um status de verdade do backend — só o
   // `refetchInterval` da query abaixo consegue pegar esse flip.
+  // ══ E1 (2026-09-25) — "ficou alguma coisa de ontem?" ══
+  //
+  // O app **pergunta** o que a pessoa fez com a dose de ontem que ficou
+  // sem registro, e não afirma. Registrar sozinho o que ela fez é o
+  // app inventando fato sobre o corpo dela — o mesmo mecanismo do
+  // "perdido" automático que o §9.3 tirou da tela.
+  //
+  // Só existe uma janela útil: a tolerância do backend é de 24 h, então
+  // dose mais velha que isso já virou `missed` pelo cron e **não** é
+  // mais `unrecorded`. Por isso a janela é de ontem apenas — não é
+  // arbitrário, é o tamanho real do buraco.
+  const [pendingPromptOpen, setPendingPromptOpen] = useState(false);
+  const [pendingDismissed, setPendingDismissed] = useState(false);
+
+  const ontem = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return format(d, 'yyyy-MM-dd');
+  }, []);
+
+  const ontemQuery = useQuery({
+    queryKey: ['ontem-ocorrencias', activeProfile?.id, ontem],
+    queryFn: async () => {
+      const resp = await getDoseHistory(activeProfile!.id, { date_from: ontem, date_to: ontem });
+      return resp.data ?? [];
+    },
+    enabled: !!activeProfile,
+    // Só corre uma vez por sessão de app aberto. "Agora não" significa
+    // "agora não" — e não "desiste de perguntar pra sempre".
+    staleTime: Infinity,
+  });
+
+  const dosesSemRegistro = useMemo(
+    () => (ontemQuery.data ?? []).filter((d) => derivedState(d) === 'unrecorded'),
+    [ontemQuery.data],
+  );
+
+  // Aparece sozinho na primeira vez que há o que perguntar.
+  useEffect(() => {
+    if (pendingDismissed) return;
+    if (dosesSemRegistro.length > 0) setPendingPromptOpen(true);
+  }, [dosesSemRegistro.length, pendingDismissed]);
+
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 60000);
@@ -343,20 +437,39 @@ export default function HomeScreen() {
     // 10h). `takenAt` opcional mantém o caso comum idêntico a antes (1
     // toque, sem seletor nenhum) — só passa um valor quando vem do
     // fluxo "Foi em outro horário" (ver openCustomTimeModal).
-    mutationFn: async ({ dose, takenAt }: { dose: DoseLog; takenAt?: Date }) => {
+    mutationFn: async ({ dose, takenAt, note, status }: { dose: DoseLog; takenAt?: Date; note?: string; status?: 'skipped' }) => {
+      // P4: este é o caminho da dose PREVISTA ("Tomei", "Pulei", E1,
+      // "foi em outro horário"). Se chegar uma de resgate, é bug de
+      // chamador, e falhar aqui com nome é melhor que mandar
+      // `dose_schedule_id: null` e deixar o servidor recusar com um
+      // 422 genérico — ou, pior, gravar alguma coisa pela metade.
+      if (dose.dose_schedule_id === null || !dose.scheduled_at) {
+        throw new Error('markDose recebeu dose de resgate — o fluxo de PRN é o do §10.4');
+      }
+
       const payload = {
         dose_schedule_id: dose.dose_schedule_id,
         medication_id: dose.medication_id,
         profile_id: dose.profile_id,
         scheduled_at: dose.scheduled_at,
+        // P3 (2026-09-25) — a nota. A API sempre aceitou `notes` e o app
+        // nunca ofereceu: o dado podia ser gravado, mas não existia
+        // caminho pra gravar. Agora vai junto do registro, e só quando
+        // tem texto — campo vazio não vira string.
+        ...(note?.trim() ? { notes: note.trim() } : {}),
         // Decisão de produto do Rilson (2026-09-11): "Tomei" (toque
         // simples) grava o horário AGENDADO como taken_at, não o
         // instante do toque — tocar às 00:01 pra uma dose das 00:00 não
         // deveria aparecer como "tomado às 00:01" no Histórico. Só
         // "Outro horário" (takenAt explícito, vindo do modal) registra
         // um horário genuinamente diferente do agendado.
-        taken_at: (takenAt ?? parseISO(dose.scheduled_at)).toISOString(),
-        status: 'taken' as const,
+        taken_at: (takenAt ?? scheduledInstantOf(dose)).toISOString(),
+        // P3/E1: o "Pulei" do prompt de ontem precisa gravar `skipped`,
+        // e não `taken`. Antes esta linha era fixa em `taken` — o botão
+        // "Pulei" registrava a dose como **tomada**, que é o oposto do
+        // que a pessoa respondeu. Só o E1 usa `status`; o "Tomei" comum
+        // continua idêntico ao de antes.
+        status: status ?? ('taken' as const),
       };
       try {
         return { ...(await logDose(payload)), _pendingSync: false };
@@ -402,7 +515,7 @@ export default function HomeScreen() {
       // de decisões de horário, item 3/19) horário fixo também oferece,
       // só que o "ajuste" possível pra ele é diferente (ver offerRecalculateToday).
       if (takenAt) {
-        const diffMinutes = Math.abs(takenAt.getTime() - parseISO(dose.scheduled_at).getTime()) / 60000;
+        const diffMinutes = Math.abs(takenAt.getTime() - scheduledInstantOf(dose).getTime()) / 60000;
         if (diffMinutes >= DELAYED_THRESHOLD_MINUTES) {
           offerRecalculateToday(dose, takenAt);
         }
@@ -416,6 +529,13 @@ export default function HomeScreen() {
   // sempre" (nunca decide sozinho — princípio do Rilson: "transparência
   // total, agência total"), e vale pra horário fixo também.
   function offerRecalculateToday(dose: DoseLog, anchor: Date) {
+    // P4: "Ajustar horário" é sobre mudar o horário PLANEJADO do
+    // remédio. A dose de resgate não tem horário nenhum para ajustar —
+    // não há o que deslocar. Então aqui a ausência de schedule não é um
+    // caso a contornar com `as`: é a resposta certa, e o fluxo da PRN
+    // (§10.4) tem entrada própria.
+    if (dose.dose_schedule_id === null || !dose.dose_schedule) return;
+
     setConfirmDialog({
       kind: 'recalculate',
       scheduleId: dose.dose_schedule_id,
@@ -531,6 +651,11 @@ export default function HomeScreen() {
 
   const skipDose = useMutation({
     mutationFn: async (dose: DoseLog) => {
+      // Mesma regra do `markDose`: dose prevista, com horário.
+      if (dose.dose_schedule_id === null || !dose.scheduled_at) {
+        throw new Error('skipDose recebeu dose de resgate — o fluxo de PRN é o do §10.4');
+      }
+
       const payload = {
         dose_schedule_id: dose.dose_schedule_id,
         medication_id: dose.medication_id,
@@ -559,7 +684,13 @@ export default function HomeScreen() {
   const undoMutation = useMutation({
     mutationFn: async (dose: DoseLog) => {
       if (dose._pendingSync) {
-        await cancelPendingLog(dose.dose_schedule_id, dose.scheduled_at);
+        // P4: a identidade vem pronta de `identityOfDose`, que devolve
+        // `null` quando a dose não tem identidade nenhuma — e aí não há
+        // ação pendente a cancelar. Passar `dose.dose_schedule_id,
+        // dose.scheduled_at` aqui reintroduzia justamente o `null ===
+        // null` do §10.4, agora dentro da própria fila.
+        const identity = identityOfDose(dose);
+        if (identity) await cancelPendingLog(identity);
         return { queued: false };
       }
       try {
@@ -572,13 +703,18 @@ export default function HomeScreen() {
       }
     },
     onSuccess: (result, dose) => {
-      const time = format(parseISO(dose.scheduled_at), 'HHmm');
+      // O id otimista `pending_<schedule>_<HHmm>` só faz sentido para
+      // dose com horário. A de resgate ainda não existe no servidor
+      // enquanto está na fila, então não passa por aqui — mas se
+      // passasse, preserva o id real em vez de fabricar um
+      // `pending_null_null`.
+      const time = dose.scheduled_at ? format(parseISO(dose.scheduled_at), 'HHmm') : null;
       queryClient.setQueryData<DoseLog[]>(['today-doses', dose.profile_id], (old) =>
         old?.map((d) =>
           d.id === dose.id
             ? {
                 ...d,
-                id: `pending_${dose.dose_schedule_id}_${time}`,
+                id: dose.scheduled_at ? `pending_${dose.dose_schedule_id}_${time}` : d.id,
                 status: 'pending' as const,
                 taken_at: null,
                 notes: null,
@@ -604,10 +740,101 @@ export default function HomeScreen() {
     },
   });
 
+  // Resposta da dose de ontem. `taken_at` é o **horário agendado**,
+  // não "agora": a dose aconteceu ontem, e registrar que ela foi tomada
+  // às 15:00 de hoje seria inventar um horário. É a mesma regra do
+  // "Tomei" comum (decisão de 2026-09-11).
+  function responderDoseOntem(dose: DoseLog, estado: 'recorded' | 'skipped') {
+    markDose.mutate({
+      dose,
+      ...(estado === 'recorded'
+        ? { takenAt: scheduledInstantOf(dose) }
+        : { status: 'skipped' as const }),
+    });
+    queryClient.setQueryData<DoseLog[]>(['ontem-ocorrencias', activeProfile?.id, ontem], (old) =>
+      (old ?? []).filter((d) => String(d.dose_schedule_id) + d.scheduled_at !== String(dose.dose_schedule_id) + dose.scheduled_at),
+    );
+  }
+
   const locale = DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR;
   const dateFormat = DATE_FORMAT[i18n.language] ?? DATE_FORMAT.pt;
   const today = format(new Date(), dateFormat, { locale });
-  const takenCount = doses.filter((d) => d.status === 'taken').length;
+  // 9.5a (2026-09-25) — o anel usava `takenCount / doses.length`, e
+  // `doses` são TODAS as ocorrências de hoje, **inclusive as que ainda não
+  // chegaram**. Às 07:00, com 3 doses no dia e nenhuma tomada, a Home
+  // abria o dia mostrando **0% em vermelho** — antes de existir uma dose
+  // devida. A pessoa vê um veredito sobre um dia que ainda nem começou.
+  //
+  // A regra não foi inventada aqui: é a do backend, em
+  // `GenerateConsultationSummary:106-108`:
+  //     if ($scheduledAt->gt(now())) { continue; }  // "ainda não chegou
+  //                                                  //  a hora, não conta
+  //                                                  //  como devido"
+  // O Histórico e o relatório já obedecem; a Home era a exceção.
+  //
+  // Denominador = dose **já vencida**. Dose com registro conta sempre (já
+  // aconteceu, tenha sido tomada ou pulada); dose `pending` só entra
+  // quando o horário passou.
+  const nowMs = Date.now();
+  // Próxima dose ainda não vencida, pro estado neutro do cabeçalho.
+  const nextDose = doses
+    // `d.scheduled_at &&` é o que exclui a dose de resgate de "próxima
+    // dose": ela não tem horário previsto, então não tem "ainda não
+    // venceu" — o filtro sem ele contaria uma PRN que ninguém pediu.
+    .filter((d) => d.status === 'pending' && d.scheduled_at && parseISO(d.scheduled_at).getTime() > nowMs)
+    // O `!a.scheduled_at` no sort não é redundante com o filter: o
+    // estreitamento de tipo não atravessa o callback, e sem ele o TS
+    // volta a acusar `string | null`. Ele também é correto por si —
+    // uma dose sem horário não tem posição na linha do tempo.
+    .sort((a, b) => scheduledInstantOf(a).getTime() - scheduledInstantOf(b).getTime())[0];
+  const nextDoseTime = nextDose
+    ? format(scheduledInstantOf(nextDose), 'HH:mm', { locale: DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR })
+    : null;
+  // `d.scheduled_at ||` na primeira parte: uma dose de resgate não tem
+  // horário previsto, logo não tem "venceu". Sem isso ela entraria no
+  // denominador de "faltam N" e no anel de adesão como se fosse uma
+  // dose que o app esperava — e o PRN não toca no denominador (D13).
+  const dueDoses = doses.filter(
+    (d) => d.status !== 'pending' || !d.scheduled_at || parseISO(d.scheduled_at).getTime() <= nowMs,
+  );
+
+  // ── P3 / decisão D5 (2026-09-25): o headline ──
+  //
+  // O cabeçalho hoy era "Doses de hoje" + o **% de adesão** em destaque.
+  // Porcentagem é avaliativa: ela julga antes de o dia terminar. Dia em
+  // andamento não é 0%, é "em andamento" — e o 9.5a já tinha parado de
+  // Mostrar 0% no anel, mas o texto ainda dizia "0 de 3", que é a mesma
+  // mentira em forma de fração.
+  //
+  // A escolha é a **opção B**: próxima dose como headline, e "faltam N"
+  // abaixo. Motivo (do ROADMAP §8.5): "faltam 2" é *goal gradient
+  // honesto* — olha pra frente, não julga — e a contagem preserva o
+  // "de relance" que quem cuida de 5 pessoas precisa, porque contagem
+  // se lê em prosa e porcentagem não.
+  //
+  // **Regra que vale:** o % só aparece em relatório e histórico, onde é
+  // *fato*. Na tela do dia, nunca.
+  // "Faltam N" conta as doses de hoje que **ainda não foram registradas**,
+  // vencidas ou não. A contagem é deliberadamente de tudo que falta: é
+  // goal gradient — "faltam 2" olha pra frente e diz o que ainda dá pra
+  // fazer hoje. Contar só as vencidas daria 0 às 07:00 com 3 doses pela
+  // frente, que é o "0%" de novo, só que mais difícil de enxergar.
+  const remaining = doses.filter((d) => d.status === 'pending').length;
+  const nextPending = doses
+    // `d.scheduled_at &&` é o que exclui a dose de resgate de "próxima
+    // dose": ela não tem horário previsto, então não tem "ainda não
+    // venceu" — o filtro sem ele contaria uma PRN que ninguém pediu.
+    .filter((d) => d.status === 'pending' && d.scheduled_at && parseISO(d.scheduled_at).getTime() > nowMs)
+    // O `!a.scheduled_at` no sort não é redundante com o filter: o
+    // estreitamento de tipo não atravessa o callback, e sem ele o TS
+    // volta a acusar `string | null`. Ele também é correto por si —
+    // uma dose sem horário não tem posição na linha do tempo.
+    .sort((a, b) => scheduledInstantOf(a).getTime() - scheduledInstantOf(b).getTime())[0];
+  const dueCount = dueDoses.length;
+  const takenCount = dueDoses.filter((d) => d.status === 'taken').length;
+  // `skipped` fica no denominador e fora do numerador — mesma semântica do
+  // relatório: pulou de propósito não é "tomada", mas também não é falta
+  // (é por isso que `takenCount` conta só `taken` e não "não-pendentes").
 
   const lowStockNames = Array.from(
     new Set(
@@ -651,16 +878,53 @@ export default function HomeScreen() {
                 </View>
               )}
             </View>
-            {doses.length > 0 && (
-              // O anel ao lado já anuncia a mesma informação (com %) pro
-              // leitor de tela — texto aqui evita duplicar o anúncio,
-              // mas continua visível pra quem enxerga.
+            {/* P3 / D5 — o headline. Substitui o "% de adesão" que
+                estava em destaque: porcentagem é juízo, e dia em
+                andamento não é 0%. Aqui é "próxima dose" + "faltam N". */}
+            {nextPending && (
               <Text style={styles.progress} importantForAccessibility="no" accessibilityElementsHidden>
-                {t('home.progress', { count: takenCount, total: doses.length })}
+                {t('home.nextDose', {
+                  time: format(
+                    scheduledInstantOf(nextPending),
+                    'HH:mm',
+                    { locale: DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR },
+                  ),
+                  name: maskMedicationName(nextPending.medication.name, isPrivate),
+                })}
               </Text>
             )}
+            {/* "Faltam N" e "Tudo certo até agora" **não** ficam ocultos
+                da acessibilidade, ao contrário da "Próxima dose". A
+                diferença é deliberada: a próxima dose já é anunciada,
+                na ordem, pela lista de cards logo abaixo — seria
+                redundância. Mas "faltam 2" é resumo, e não existe em
+                lugar nenhum da lista. Esconder isso seria o mesmo erro
+                do texto "Próxima dose" do 9.5a: só o que enxerga
+                saberia que faltam 2. */}
+            {doses.length > 0 && remaining > 0 && (
+              <Text style={styles.progress}>{t('home.remainingCount', { count: remaining })}</Text>
+            )}
+            {doses.length > 0 && remaining === 0 && (
+              <Text style={styles.progress}>{t('home.allDone')}</Text>
+            )}
+            {dueCount === 0 && doses.length > 0 && (
+              // Nem "0%" nem silêncio. Às 07:00 o dia tem 3 doses e
+              // nenhuma devida: mostrar 0% seria verdicto falso, e não
+              // mostrar nada algum deixaria a pessoa sem saber se o app
+              // sabe o que tem pra hoje. A informação útil é a próxima.
+              //
+              // SEM `accessibilityElementsHidden` aqui, ao contrário do
+              // texto de progresso logo abaixo. Este não pode ficar
+              // escondido: lá o anel anuncia a mesma informação pra
+              // leitor de tela, e o texto é só redundância visual. Aqui
+              // **não existe anel** (é justamente o caso `dueCount === 0`),
+              // então esconder este texto deixaria quem usa leitor de tela
+              // sem nenhuma informação durante a manhã inteira. Bug
+              // achado pelo teste do 9.5a.
+              <Text style={styles.progress}>{t('home.nothingDueYet', { time: nextDoseTime ?? '' })}</Text>
+            )}
           </View>
-          {doses.length > 0 && (
+          {dueCount > 0 && (
             // Anel de progresso de adesão do dia (v1.3, aprovado
             // 2026-09-02) — usa `react-native-svg`, dependência nova
             // (ver package.json) que só entra de verdade num próximo
@@ -671,7 +935,7 @@ export default function HomeScreen() {
             <ErrorBoundary fallback={null}>
               <AdherenceRing
                 taken={takenCount}
-                total={doses.length}
+                total={dueCount}
                 trackColor="rgba(255,255,255,0.25)"
                 textColor={colors.headerText}
               />
@@ -742,7 +1006,28 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {!isLoading && profiles.length === 0 && (
+      {/* 9.7 — falha ao carregar os perfis NÃO pode virar convite para
+          criar perfil. O botão "Criar perfil" some de propósito aqui: a
+          pessoa não tem como saber que o app não achou o perfil dela
+          porque a rede caiu, e criar outro agora é exatamente o
+          duplicado que a tela precisa evitar. */}
+      {!isLoading && profilesLoad === 'error' && (
+        <View style={styles.emptyBox}>
+          <MaterialCommunityIcons name="wifi-alert" size={56} color={colors.textMuted} />
+          <Text style={styles.emptyTitle}>{t('home.profilesLoadErrorTitle')}</Text>
+          <Text style={styles.emptyText}>{t('home.profilesLoadErrorText')}</Text>
+          <TouchableOpacity
+            style={styles.emptyBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('home.retryLoad')}
+            onPress={loadProfiles}
+          >
+            <Text style={styles.emptyBtnText}>{t('home.retryLoad')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {!isLoading && profilesLoad === 'ok' && profiles.length === 0 && (
         <View style={styles.emptyBox}>
           <MaterialCommunityIcons name="account-plus-outline" size={56} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>{t('home.noProfileTitle')}</Text>
@@ -786,12 +1071,26 @@ export default function HomeScreen() {
             // "Atrasado": mesmo status `missed` do backend, mas agora só
             // acontece depois de 24h (ver DoseLog::MISSED_TOLERANCE_HOURS).
             const missed = item.status === 'missed';
-            // "Atrasado" NOVO (2026-09-11, item 14/23) — 100% calculado
-            // aqui, nunca gravado: dose ainda `pending` no backend, mas
-            // já passou da tolerância de 30min. `nowTick` (timer de 1min)
-            // é o que faz isso reavaliar sozinho sem precisar recarregar
-            // a tela.
-            const delayed = !taken && !skipped && !missed && isDelayed(item.scheduled_at, nowTick);
+            // `delayed` NÃO rotula mais nada (decisão D7, 2026-09-25).
+            //
+            // Antes isto imprimia "Atrasado" no card. O app estava
+            // **julgando**: 30 min é um número arbitrário que ele mesmo
+            // escolheu, e o mesmo dia no relatório não tinha judgment
+            // nenhum — o relatório mostra previsto e real e deixa o
+            // leitor concluir (é isso que o médico precisa). A partir
+            // daqui, o card mostra o horário previsto e **nada mais**: a
+            // pessoa vê 08:00 e sabe que são 08:45, sem o app precisar
+            // afirmar que ela "atardou".
+            //
+            // O limiar de 30 min **continua existindo**, com outro
+            // propósito: é o que decide se vale a pena **perguntar** o
+            // horário ("quer corrigir?") — decisão de UX, não veredito
+            // sobre o dado. `nowTick` (timer de 1min) segue fazendo essa
+            // pergunta aparecer sozinha, sem recarregar a tela.
+            // O `item.scheduled_at &&` é o estreitamento de tipo, e
+            // também o comportamento certo: sem horário previsto não há
+            // "atrasada" para perguntar.
+            const delayed = !taken && !skipped && !missed && !!item.scheduled_at && isDelayed(item.scheduled_at, nowTick);
             // Mesmo bug/fix do Histórico (2026-09-09, "Bug 2" do item 17)
             // — ficou de fora daquela rodada por só ter mexido em
             // history.tsx. Achado real do Rilson (2026-09-11): registrar
@@ -799,9 +1098,12 @@ export default function HomeScreen() {
             // atualizava certinho a PRÓXIMA dose (17h), mas o card da
             // PRÓPRIA dose continuava com "10:00" — sempre lia
             // `scheduled_at`, nunca `taken_at`, pra dose já tomada.
-            const time = taken && item.taken_at
-              ? format(parseISO(item.taken_at), 'HH:mm')
-              : format(parseISO(item.scheduled_at), 'HH:mm');
+            // P4: a dose de resgate não tem horário previsto; o que
+            // existe é o `taken_at` real, e é ele que entra. O `—`
+            // cobre o estado impossível (nenhum dos dois) em vez de
+            // exibir "Invalid Date".
+            const instante = taken && item.taken_at ? item.taken_at : item.scheduled_at;
+            const time = instante ? format(parseISO(instante), 'HH:mm') : '—';
             const maskedName = maskMedicationName(item.medication.name, isPrivate);
             const statusColor = missed ? colors.warning : delayed ? colors.delayed : item.medication.color;
             return (
@@ -831,7 +1133,6 @@ export default function HomeScreen() {
                           aconteceu até hoje: "Atrasado" aqui, "Não
                           tomado" lá, pro mesmo status). */}
                       {missed && <Text style={[styles.missedLabel, { color: colors.warning }]}>{t('history.filterMissed')}</Text>}
-                      {delayed && <Text style={[styles.missedLabel, { color: colors.delayed }]}>{t('home.delayed')}</Text>}
                     </View>
                     <TouchableOpacity
                       style={styles.cardBody}
@@ -1002,7 +1303,7 @@ export default function HomeScreen() {
                     oferecia (sim/não foi no horário certo), fundido
                     neste modal em vez de uma etapa extra antes dele —
                     mesmas opções, 1 tela a menos. */}
-                {customTimeDose?.status === 'pending' &&
+                {customTimeDose?.status === 'pending' && !!customTimeDose.scheduled_at &&
                   (isDelayed(customTimeDose.scheduled_at, nowTick) || isEarly(customTimeDose.scheduled_at, nowTick)) && (
                   <TouchableOpacity
                     style={styles.onScheduleChip}
@@ -1070,6 +1371,37 @@ export default function HomeScreen() {
                 />
               );
             })()}
+            {/* P3 (2026-09-25) — a nota.
+                *
+                * Por que AQUI e não em outro lugar: o modal "Outro
+                * horário" é onde o dedo já está, e é onde a pessoa tem
+                * contexto — ela acabou de dizer "tomei 40 min depois", e
+                * é exatamente aí que cabe "e senti um pouco de tontura".
+                *
+                * Por que tem LABEL visível e não placeholder: a skill de
+                * qualidade de interface é explícita — placeholder como
+                * label desaparece quando a pessoa digita e leva o
+                * contexto junto. E o campo é opcional por construção:
+                * não tem asterisco, não valida, e o botão "Registrar"
+                * funciona com ele vazio.
+                *
+                * Fica nos DOIS estados do modal (atalhos e picker): quem
+                * escreve e escolhe "Agora" não deve ver o campo sumir.
+                */}
+            <View style={styles.noteField}>
+              <Text style={styles.noteLabel}>{t('home.noteLabel')}</Text>
+              <TextInput
+                style={styles.noteInput}
+                value={customTimeNote}
+                onChangeText={setCustomTimeNote}
+                placeholder={t('home.notePlaceholder')}
+                placeholderTextColor={colors.textMuted}
+                multiline
+                maxLength={500}
+                accessibilityLabel={t('home.noteAccessibilityLabel')}
+                textAlignVertical="top"
+              />
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalCancelBtn}
@@ -1093,6 +1425,20 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      {/* E1 (2026-09-25) — a pergunta sobre ontem. Fica no fim da fila de
+          modais da Home, e abre sozinho na primeira vez que há dose sem
+          registro dentro da tolerância de 24 h. */}
+      <PendingDosesPrompt
+        visible={pendingPromptOpen && dosesSemRegistro.length > 0}
+        doses={dosesSemRegistro}
+        isPrivate={isPrivate}
+        onResolve={responderDoseOntem}
+        onDismiss={() => {
+          setPendingPromptOpen(false);
+          setPendingDismissed(true);
+        }}
+        onDone={() => setPendingPromptOpen(false)}
+      />
       {/* 3 diálogos de confirmação novos (2026-09-11, entrevista de
           decisões de horário) — unificados num Modal só (mesmo padrão
           visual dos outros já existentes), o conteúdo muda conforme
@@ -1322,6 +1668,12 @@ function makeStyles(c: ThemeColors) {
       minHeight: 48, borderRadius: 12, backgroundColor: c.brand,
       alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
       marginBottom: 10,
+    },
+    noteField: { marginTop: 18, gap: 6 },
+    noteLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted },
+    noteInput: {
+      backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, padding: 12, fontSize: 15, color: c.text, minHeight: 72,
     },
     onScheduleChipText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
     // Atalhos relativos (2026-09-11) — grid 2x2, cada chip com o mesmo

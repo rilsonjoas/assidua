@@ -20,13 +20,21 @@ import { useAlertDialog } from '../hooks/useAlertDialog';
 // arredondado/inventado):
 // - MedicationController::store — 15 medicamentos/perfil grátis, sem limite Pro
 // - ProfileController::store — 4 perfis grátis, sem limite Pro
-// - DoseLogController::history — 30 dias de histórico grátis, 3650 Pro
-// - DoseLogController::weeklyAdherence — 4 semanas de gráfico grátis, 8 Pro
+//
+// T1 (2026-09-25): as linhas `history` ("30 dias" grátis) e `chart`
+// ("4 semanas" grátis) foram REMOVIDAS desta tabela. Elas pararam de
+// ser verdade quando o histórico deixou de ser paywall de leitura — o
+// paciente não perde o acesso ao próprio registro por causa de plano
+// (ver `HISTORY_FLOOR_DAYS` em DoseLogController e a regra em
+// CLAUDE.md). Deixar a tabela anunciando um limite que o backend não
+// aplica é pior do que tabela curta: é a tela de venda mentindo.
+//
+// Pendente de planejar (não implementado): a tabela agora tem só 2
+// linhas e omite os benefícios Pro que realmente diferem — cuidador
+// remoto, relatório em PDF, e o resumo de consulta de 30→90 dias.
 const BENEFITS: { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; key: string }[] = [
   { icon: 'account-multiple-outline', key: 'profiles' },
   { icon: 'pill', key: 'medications' },
-  { icon: 'history', key: 'history' },
-  { icon: 'chart-bar', key: 'chart' },
 ];
 
 export default function ProScreen() {

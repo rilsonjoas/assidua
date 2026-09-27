@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { format, startOfMonth, subMonths } from 'date-fns';
+import { format, subDays, startOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdherenceCalendar } from '../components/AdherenceCalendar';
 import * as dosesService from '../services/doses';
@@ -55,7 +55,27 @@ describe('AdherenceCalendar', () => {
     expect(await screen.findByLabelText(`Dia ${day}, 100%, 2 de 2 doses tomadas`)).toBeTruthy();
   });
 
-  it('dia sem schedule devido (due: 0) é anunciado como "sem dado", não como 0%', async () => {
+  it('dia PASSADO sem schedule devido (due: 0) é "sem dado", não 0%', async () => {
+    // P2: a data é **passada** de propósito. Um dia passado sem nada
+    // agendado é "sem dado"; o dia de hoje com `due: 0` é outra coisa
+    // (nada venceu ainda) e tem o próprio rótulo, testado abaixo.
+    const passado = format(subDays(new Date(), 3), 'yyyy-MM-dd');
+    mockedDoses.getDailyAdherence.mockResolvedValue([
+      { date: passado, percentage: null, taken: 0, due: 0 },
+    ]);
+
+    renderCalendar();
+
+    const day = passado.slice(-2).replace(/^0/, '');
+    expect(await screen.findByLabelText(`Dia ${day}, sem dado`)).toBeTruthy();
+  });
+
+  it('dia de hoje sem nada vencido é "ainda não chegou", nao "sem dado"', async () => {
+    // Desde P2 o backend não conta dose **futura** no denominador
+    // (decisão do Rilson: o dia em andamento não é 0%, está em aberto).
+    // O dia de hoje de manhã chega com `due: 0` — o mesmo número de um
+    // dia sem nada agendado. Chamar os dois de "sem dado" diria que o
+    // app não sabe, quando ele sabe: ainda não chegou.
     const today = format(new Date(), 'yyyy-MM-dd');
     mockedDoses.getDailyAdherence.mockResolvedValue([
       { date: today, percentage: null, taken: 0, due: 0 },
@@ -64,7 +84,8 @@ describe('AdherenceCalendar', () => {
     renderCalendar();
 
     const day = today.slice(-2).replace(/^0/, '');
-    expect(await screen.findByLabelText(`Dia ${day}, sem dado`)).toBeTruthy();
+    expect(await screen.findByLabelText(`Dia ${day}, ainda não chegou`)).toBeTruthy();
+    expect(screen.queryByLabelText(`Dia ${day}, sem dado`)).toBeNull();
   });
 
   it('dia com adesão baixa (< 50%) é distinto de dia sem dado', async () => {

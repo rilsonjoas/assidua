@@ -40,6 +40,24 @@ class GenerateScheduleOccurrences
      */
     public function handle(DoseSchedule $schedule, Carbon $date): array
     {
+        // P4 (§10.4) — remédio de resgate não gera ocorrência NUNCA.
+        //
+        // Este é o ponto único por onde passam tanto a tela Hoje quanto o
+        // cron `doses:check-missed`, então a guarda aqui cobre os dois de
+        // uma vez. Ela existe como segunda linha: o `MedicationController`
+        // já desativa os horários ao virar resgate, mas um prontuário
+        // antigo, uma edição direta no banco ou um cliente futuro que
+        // não passe pelo controller ainda pode deixar um PRN com horário
+        // ativo — e aí a dose apareceria na tela, o cron a marcaria como
+        // PERDIDA, e a adesão de quem fez tudo certo iria embora.
+        //
+        // Retornar lista vazia (e não exceção) porque é um estado
+        // legitimately sem ocorrências, não um erro: quem chama só quer
+        // saber que não há o que gerar.
+        if ($schedule->medication?->is_prn) {
+            return [];
+        }
+
         $occurrences = $schedule->interval_hours !== null
             ? $this->intervalOccurrences($schedule, $date)
             : $this->fixedOccurrences($schedule, $date);

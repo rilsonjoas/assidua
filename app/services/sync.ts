@@ -113,6 +113,14 @@ export async function drainQueue(): Promise<{ synced: number; failed: number }> 
     // resposta real da API).
     queryClient.invalidateQueries({ queryKey: ['today-doses'] });
     queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
+    // P4/§10.4: `pending-prn` é a fila vista pelo Histórico. Sem esta
+    // linha, a dose de resgate que acabou de sincronizar continuaria
+    // aparecendo como "aguardando internet" — e também como linha
+    // real, duplicada, porque a invalidação do `history` traz a versão
+    // do servidor enquanto a pendente segue em cache.
+    queryClient.invalidateQueries({ queryKey: ['pending-prn'] });
+    queryClient.invalidateQueries({ queryKey: ['history'] });
+    queryClient.invalidateQueries({ queryKey: ['daily-adherence'] });
   }
 
   return { synced, failed };

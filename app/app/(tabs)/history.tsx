@@ -11,19 +11,20 @@ import {
   TextInput,
 } from 'react-native';
 import * as Sentry from '@sentry/react-native';
-import { useQuery } from '@tanstack/react-query';
-import { format, parseISO, isToday, isYesterday } from 'date-fns';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, parseISO, isToday, isYesterday, Locale } from 'date-fns';
 import { ptBR, enUS, es } from 'date-fns/locale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useProfileStore } from '../../store/profileStore';
+import { listPending, type PrnLogPayload } from '../../services/offlineQueue';
 import { useAuthStore } from '../../store/authStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { generateConsultationReportHtml } from '../../lib/reportHtml';
 import { exportConsultationReportPdf } from '../../lib/reportPdf';
-import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, DoseLog, HistoryFilters, TimezoneChangeEntry } from '../../services/doses';
+import { getDoseHistory, getWeeklyAdherence, getConsultationSummary, derivedState, dayOfDose, updateDoseNote, DoseLog, HistoryFilters, HistoryResponse, TimezoneChangeEntry } from '../../services/doses';
 import { getMedications, formatDosageUnit } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
@@ -31,6 +32,7 @@ import { ThemeColors } from '../../constants/theme';
 import { ProfileContextBar } from '../../components/ProfileContextBar';
 export { ErrorBoundary } from '../../components/ErrorBoundary';
 import { SkeletonList } from '../../components/Skeleton';
+import { LoadErrorState } from '../../components/LoadErrorState';
 import { AppText as Text } from '../../components/AppText';
 import { AdherenceChart } from '../../components/AdherenceChart';
 import { AdherenceCalendar } from '../../components/AdherenceCalendar';
@@ -59,19 +61,58 @@ function sectionTitle(dateStr: string, lang: string, t: (key: string) => string)
 // feed do Histórico" — intercalado por data, não numa seção à parte.
 export type HistoryRow =
   | { kind: 'dose'; id: string | number; log: DoseLog }
-  | { kind: 'timezoneChange'; id: string; entry: TimezoneChangeEntry };
+  | { kind: 'timezoneChange'; id: string; entry: TimezoneChangeEntry }
+  /**
+   * P4/§10.4 — dose de resgate registrada OFFLINE, que só existe na
+   * fila: o servidor ainda nunca viu esse registro.
+   *
+   * Precisa ser uma linha à parte, e não um `log` sintetizado, porque
+   * ela não tem `id` de servidor — e o `id` é o que a tela usa para
+   * abrir o editor de nota e para desfazer. Uma dose sem servidor que
+   * se passasse por dose real faria o "editar nota" gravar em cima de
+   * um registro que não existe.
+   */
+  | { kind: 'pendingPrn'; id: string; payload: PrnLogPayload };
+
+/**
+ * O instante a mostrar de uma dose do relatório: o previsto, ou — quando
+ * não há horário previsto (a dose de resgate do P4) — o real.
+ *
+ * Sem isto, `parseISO(null)` daria uma Data inválida e a linha sairia
+ * "Invalid Date" no texto que vai para o paciente e para o médico.
+ */
+function formatWhen(
+  dose: { scheduled_at: string | null; taken_at: string | null },
+  pattern: string,
+  locale: Locale,
+): string {
+  const base = dose.scheduled_at ?? dose.taken_at;
+  return base ? format(parseISO(base), pattern, { locale }) : '—';
+}
 
 function groupByDate(
   logs: DoseLog[],
   timezoneChanges: TimezoneChangeEntry[],
   lang: string,
   t: (key: string) => string,
+  pendingPrn: PrnLogPayload[] = [],
 ): { title: string; data: HistoryRow[] }[] {
   const map = new Map<string, HistoryRow[]>();
   for (const log of logs) {
-    const key = log.scheduled_at.slice(0, 10);
+    // P4: `dayOfDose` porque a dose de resgate não tem horário previsto —
+    // o dia dela é o dia em que foi tomada. Ver o comentário da função
+    // sobre por que isto NÃO é `new Date()`.
+    const key = dayOfDose(log);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push({ kind: 'dose', id: log.id, log });
+  }
+  // P4: a dose de resgate pendente entra pelo dia do `taken_at` que a
+  // fila guardou — o mesmo dia que `dayOfDose` usaria depois que ela
+  // sincronizar, então a linha não "pula" de dia ao sincronizar.
+  for (const payload of pendingPrn) {
+    const key = payload.taken_at.slice(0, 10);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push({ kind: 'pendingPrn', id: `pending-${payload.client_key}`, payload });
   }
   for (const entry of timezoneChanges) {
     const key = entry.changed_at.slice(0, 10);
@@ -130,10 +171,20 @@ export default function HistoryScreen() {
     { key: 'missed', label: t('history.filterMissed') },
   ];
 
+  // `unrecorded` NÃO pode cair no fallback de `missed`. P2/§10.2: o
+  // Histórico devolve ocorrências, e uma dose prevista que ninguém
+  // registrado chega aqui com `unrecorded`. Sem esta entrada, o
+  // `?? STATUS_CONFIG.missed` de baixo a pintaria de VERMELHO com o
+  // rótulo "Perdida" — que é exatamente a mentira que o P1 e o P2
+  // existem para tirar. A diferença importa: "ninguém registrou" é
+  // ausência de informação, e "marcada como perdida" é um veredito do
+  // app depois da tolerância de 24 h.
   const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'] }> = {
     taken: { label: t('history.filterTaken'), color: '#22c55e', icon: 'check-circle' },
     skipped: { label: t('history.filterSkipped'), color: '#f59e0b', icon: 'minus-circle' },
     missed: { label: t('history.filterMissed'), color: '#ef4444', icon: 'close-circle' },
+    // Cinza, não vermelho: o app não sabe o que aconteceu.
+    unrecorded: { label: t('history.statusUnrecorded'), color: '#94a3b8', icon: 'help-circle-outline' },
     pending: { label: t('history.filterPending'), color: '#94a3b8', icon: 'clock-outline' },
   };
 
@@ -159,7 +210,7 @@ export default function HistoryScreen() {
     setMedicationSearch('');
   }
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['history', activeProfile?.id, filters],
     queryFn: () => getDoseHistory(activeProfile!.id, filters),
     enabled: !!activeProfile,
@@ -167,14 +218,117 @@ export default function HistoryScreen() {
 
   const logs: DoseLog[] = data?.data ?? [];
   const timezoneChanges: TimezoneChangeEntry[] = data?.timezone_changes ?? [];
+
+  // P4/§10.4 — as doses de resgate que estão só na fila.
+  //
+  // O `applyPendingOverlay` (usado na Home) só SOBREPÕE doses que o
+  // servidor já conhece; ele não inventa linha nenhuma. Sem esta query,
+  // quem registrasse um resgate sem sinal veria o toast de "salvou" e
+  // depois ABRIRIA O HISTÓRICO sem a dose — o produto affirmando com
+  // convicção que o registro não existe, bem depois de ter dito que
+  // salvou. A fila é a fonte da verdade até o servidor assumir.
+  const { data: pendingPrn = [] } = useQuery({
+    queryKey: ['pending-prn', activeProfile?.id],
+    queryFn: async () => {
+      const all = await listPending();
+      return all
+        .filter((a): a is typeof a & { type: 'log' } => a.type === 'log')
+        .map((a) => a.payload as PrnLogPayload)
+        .filter((p) => !('dose_schedule_id' in p) && p.profile_id === activeProfile!.id);
+    },
+    enabled: !!activeProfile,
+  });
+
   const sections = useMemo(
-    () => groupByDate(logs, timezoneChanges, i18n.language, t),
-    [logs, timezoneChanges, i18n.language],
+    () => groupByDate(logs, timezoneChanges, i18n.language, t, pendingPrn),
+    [logs, timezoneChanges, i18n.language, pendingPrn],
   );
+
+  // ── P3: editar a nota na linha do histórico ──
+  //
+  // Segunda parte da decisão do Rilson ("modal + linha do histórico"). A
+  // linha é onde a pessoa **volta** pra conferir, e é onde ela lembra do
+  // que aconteceu. Sem isto, a nota era escrita uma única vez e nunca
+  // mais podia ser corrigida — inclusive quando a pessoa lembra do
+  // detalhe no dia seguinte.
+  //
+  // `onMutate` com rollback: a lista é atualizada na hora (senão a nota
+  // salva levaria um refetch para aparecer, e pareceria que não salvou).
+  const queryClient = useQueryClient();
+  const [editingNoteId, setEditingNoteId] = useState<number | string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+
+  const updateNoteMutation = useMutation({
+    mutationFn: ({ id, notes }: { id: number | string; notes: string | null }) => updateDoseNote(id, notes),
+    onMutate: async ({ id, notes }) => {
+      await queryClient.cancelQueries({ queryKey: ['history', activeProfile?.id] });
+      const anterior = queryClient.getQueryData(['history', activeProfile?.id]);
+      queryClient.setQueryData<HistoryResponse>(['history', activeProfile?.id], (old) =>
+        old
+          ? {
+              ...old,
+              data: old.data.map((l) => (l.id === id ? { ...l, notes } : l)),
+            }
+          : old,
+      );
+      return { anterior };
+    },
+    onError: (_err, _vars, ctx) => {
+      // Rollback: a nota volta ao que era. Sem isto, uma falha de rede
+      // deixaria na tela um relato que **não** foi salvo — e essa nota
+      // vai para o médico. É o pior tipo de bug possível neste campo.
+      if (ctx?.anterior) {
+        queryClient.setQueryData(['history', activeProfile?.id], ctx.anterior);
+      }
+      showAlert(t('common.error'), t('history.noteSaveError'));
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['history', activeProfile?.id] });
+    },
+  });
+
+  function startEditingNote(log: DoseLog) {
+    setEditingNoteId(log.id);
+    setEditingNoteText(log.notes ?? '');
+  }
+
+  function saveNote(log: DoseLog) {
+    const id = editingNoteId;
+    setEditingNoteId(null);
+    if (id === null) return;
+    const texto = editingNoteText.trim();
+    if (texto === (log.notes ?? '')) return; // nada mudou
+    updateNoteMutation.mutate({ id, notes: texto === '' ? null : texto });
+  }
 
   const takenCount = logs.filter((l) => l.status === 'taken').length;
   const totalCount = logs.length;
+  // 9.5b (2026-09-25) — "Perdidas" era `totalCount - takenCount`, que na
+  // verdade é `skipped + missed`: **pular de propósito virava "perdida"**.
+  // E o relatório do médico exclui `skipped` por decisão explícita
+  // ("decisão informada não é falha", GenerateConsultationSummary:120-123).
+  // As duas telas discordavam sobre a mesma dose. Agora o número é o
+  // número: só o que o app registrou como perdida.
+  // Só o que o app **julgou** como perdido. `unrecorded` é dose prevista
+  // sem registro — ausência de informação, não veredito — e somada a ela aqui
+  // o número voltaria a ser falso pelo outro caminho.
+  const missedCount = logs.filter((l) => derivedState(l) === 'marked_missed').length;
+  // `skipped` fica FORA do numerador e DENTRO do denominador — a
+  // semântica do relatório (`percentage = totalTaken / totalDue`, e skipped
+  // não vira `missed` mas também não conta como tomada).
   const adherence = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : null;
+
+  // 9.5c (2026-09-25), **por enquanto** — o % acima é sobre os
+  // `totalCount` registros **carregados**, e o app pede `page: 1` fixo
+  // (`services/doses.ts:154`), ou seja, os 50 mais recentes. Lido como
+  // "adesão do histórico", mente. A correção de raiz é estrutural
+  // (derivação por ocorrência + paginação de verdade) e está na **P2**;
+  // inventar denominador aqui seria pior que admitir a dívida. O que dá
+  // pra fazer agora é **não deixar o número mentir em silêncio**: o
+  // paginador do Laravel já devolve `total`, então a tela diz que está
+  // mostrando um recorte.
+  const historyTotal = typeof data?.total === 'number' ? data.total : null;
+  const isPartialHistory = historyTotal !== null && historyTotal > totalCount;
 
   // "PDF respeita o filtro da tela" (2026-09-08, item 16) — achado real
   // do Rilson: o relatório sempre saía fixo (todos os remédios),
@@ -191,8 +345,12 @@ export default function HistoryScreen() {
     try {
       const summary = await getConsultationSummary(activeProfile.id, 30);
       const dateLocale = DATE_FNS_LOCALES[i18n.language as keyof typeof DATE_FNS_LOCALES] ?? ptBR;
+      // P4: a dose de resgate nunca entra em `missed` (ninguém falhou
+      // nela), mas o payload é o mesmo das demais e `scheduled_at` ficou
+      // anulável — daí o tratamento. `formatWhen` centraliza a regra
+      // "usa o previsto, ou o real se não houver".
       const missedLines = summary.missed
-        .map((m) => `• ${maskMedicationName(m.medication_name, isPrivate)} — ${format(parseISO(m.scheduled_at), "d 'de' MMMM, HH:mm", { locale: dateLocale })}`)
+        .map((m) => `• ${maskMedicationName(m.medication_name, isPrivate)} — ${formatWhen(m, "d 'de' MMMM, HH:mm", dateLocale)}`)
         .join('\n');
       const message = t('history.consultationSummaryText', {
         profileName: activeProfile.name,
@@ -243,6 +401,35 @@ export default function HistoryScreen() {
         percentage: summary.percentage,
         taken: summary.taken,
         due: summary.due,
+        // P4/D13: mesma armadilha do `doses` acima, um passo adiante. O
+        // campo é OBRIGATÓRIO em `ReportData`, então o compilador trava
+        // este envio se alguém esquecer.
+        rescue: summary.rescue ?? 0,
+        // P1/§9.2 (2026-09-25) — ESTE era o gap de integração. O backend
+        // passou a devolver `doses` (todas as ocorrências, com horário
+        // previsto E real) e o HTML do PDF passou a usar, mas esta
+        // chamada não repassava nada disso. Resultado: o relatório
+        // melhorado existia, os testes da lib passavam, e o app continuava
+        // gerando o PDF antigo. Os campos agora são OBRIGATÓRIOS em
+        // `ReportData` justamente para o compilador impedir isso de
+        // voltar em silêncio.
+        // `doses` é OBRIGATÓRIO no tipo (senão o compilador deixava
+        // passar o esquecimento), mas o `?? []` continua aqui de
+        // propósito: o app fala com um backend já implantado, que pode
+        // estar uma versão atrás. Sem isto, `summary.doses.map` estoura
+        // e o usuário fica sem relatório nenhum — pior que o relatório
+        // antigo. O contrato forte é o tipo; isto é só não derrubar a
+        // tela.
+        doses: (summary.doses ?? []).map((d) => ({
+          ...d,
+          // Privacidade: `doses` traz o nome do remédio, igual ao
+          // `missed` acima. Mascarar só o `missed` vazava o nome no
+          // relatório em modo privado.
+          medication_name: maskMedicationName(d.medication_name, isPrivate),
+        })),
+        periodStart: summary.period_start ?? null,
+        periodEnd: summary.period_end ?? null,
+        allTaken: summary.all_taken ?? null,
         missed: summary.missed.map((m) => ({
           ...m,
           medication_name: maskMedicationName(m.medication_name, isPrivate),
@@ -279,23 +466,65 @@ export default function HistoryScreen() {
           <View style={styles.headerContainer}>
             {adherence !== null && (
               <View style={styles.summaryCard}>
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryValue}>{takenCount}</Text>
-                  <Text style={styles.summaryLabel}>{t('history.summaryTaken')}</Text>
+                {/* `accessible` + `accessibilityLabel` em cada item, com os
+                    textos internos escondidos. Sem isso o leitor de tela
+                    anuncia os nós soltos — "1", "2", "60%", "Tomadas",
+                    "Perdidas", "Adesão" — e quem não vê não tem como
+                    saber que o "1" é o valor de "Perdidas". O rótulo
+                    combinado diz a mesma coisa, inteira, e é por ele que
+                    os testes do 9.5b conferem o número. */}
+                <View
+                  style={styles.summaryItem}
+                  accessible
+                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryTaken'), value: takenCount })}
+                >
+                  <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
+                    {takenCount}
+                  </Text>
+                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                    {t('history.summaryTaken')}
+                  </Text>
                 </View>
                 <View style={styles.summaryDivider} />
-                <View style={styles.summaryItem}>
-                  <Text style={styles.summaryValue}>{totalCount - takenCount}</Text>
-                  <Text style={styles.summaryLabel}>{t('history.summaryMissed')}</Text>
+                <View
+                  style={styles.summaryItem}
+                  accessible
+                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryMissed'), value: missedCount })}
+                >
+                  <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
+                    {missedCount}
+                  </Text>
+                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                    {t('history.summaryMissed')}
+                  </Text>
                 </View>
                 <View style={styles.summaryDivider} />
-                <View style={styles.summaryItem}>
-                  <Text style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}>
+                <View
+                  style={styles.summaryItem}
+                  accessible
+                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryAdherence'), value: `${adherence}%` })}
+                >
+                  <Text
+                    style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}
+                    importantForAccessibility="no"
+                    accessibilityElementsHidden
+                  >
                     {adherence}%
                   </Text>
-                  <Text style={styles.summaryLabel}>{t('history.summaryAdherence')}</Text>
+                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                    {t('history.summaryAdherence')}
+                  </Text>
                 </View>
               </View>
+            )}
+
+            {isPartialHistory && (
+              // 9.5c — diz o que o % acima está medindo. Enquanto a P2
+              // não vier, pelo menos o número não é lido como "adesão do
+              // histórico inteiro" sem aviso.
+              <Text style={styles.summaryScope}>
+                {t('history.summaryPartialScope', { shown: totalCount, total: historyTotal ?? 0 })}
+              </Text>
             )}
 
             <AdherenceChart data={weeklyAdherence} />
@@ -390,7 +619,13 @@ export default function HistoryScreen() {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? (
+          /* 9.7 — a lista vazia por falha de rede mostrava "nenhum
+             registro encontrado", que é a mesma coisa que o filtro não
+             casou com nada. Quem está filtrando por "Perdidas" e não vê
+             nenhuma achava que não tinha nenhuma perdida. */
+          isError ? (
+            <LoadErrorState onRetry={() => refetch()} message={t('history.loadErrorText')} />
+          ) : isLoading ? (
             <SkeletonList lines={2} />
           ) : (
             <View style={styles.emptyBox}>
@@ -431,6 +666,36 @@ export default function HistoryScreen() {
             );
           }
 
+          // P4/§10.4 — dose de resgate ainda só na fila. Ela aparece
+          // com a hora real, marcada como "aguardando internet": o
+          // registro NÃO está no servidor, e dizer "tomado" sem
+          // qualifier seria o app afirmando uma coisa que ele ainda não
+          // conseguiu confirmar em lugar nenhum.
+          if (item.kind === 'pendingPrn') {
+            const payload = item.payload;
+            const med = medications.find((m) => m.id === payload.medication_id);
+            const pendingTime = format(parseISO(payload.taken_at), 'HH:mm');
+            const pendingName = maskMedicationName(med?.name ?? '', isPrivate);
+            return (
+              <View
+                style={styles.row}
+                accessible
+                accessibilityLabel={t('prn.historyLabel', { name: pendingName, time: pendingTime })}
+                accessibilityHint={t('prn.pendingToast', { name: pendingName })}
+              >
+                <View style={styles.timeBox}>
+                  <Text style={styles.time}>{pendingTime}</Text>
+                </View>
+                <View style={[styles.colorBar, { backgroundColor: med?.color ?? colors.textMuted }]} />
+                <View style={styles.rowBody}>
+                  <Text style={styles.medName}>{pendingName}</Text>
+                  <Text style={styles.dosage}>{t('prn.pendingBadge')}</Text>
+                </View>
+                <MaterialCommunityIcons name="cloud-upload-outline" size={18} color={colors.textMuted} />
+              </View>
+            );
+          }
+
           const log = item.log;
           const cfg = STATUS_CONFIG[log.status] ?? STATUS_CONFIG.missed;
           // Bug real reportado pelo Rilson (2026-09-09): dose registrada
@@ -441,10 +706,25 @@ export default function HistoryScreen() {
           // existe pra toda dose tomada (inclusive as no horário certo,
           // onde os dois batem quase sempre) — mostrar ele quando existir
           // é sempre mais correto que o agendado.
-          const time = log.status === 'taken' && log.taken_at
-            ? format(parseISO(log.taken_at), 'HH:mm')
-            : format(parseISO(log.scheduled_at), 'HH:mm');
+          // P4: a dose de resgate não tem horário previsto, mas tem
+          // `taken_at` sempre (o servidor exige), então ela cai no
+          // primeiro ramo e mostra a hora real — que é a única que
+          // existe. O `—` cobre o estado impossível (nenhum dos dois),
+          // visível em vez de `parseISO(null)` estourando a tela.
+          const instante = log.status === 'taken' && log.taken_at ? log.taken_at : log.scheduled_at;
+          const time = instante ? format(parseISO(instante), 'HH:mm') : '—';
           const maskedName = maskMedicationName(log.medication.name, isPrivate);
+            // P3 (2026-09-25) — a linha é **um** nó de acessibilidade
+            // (nome, dose, horário, status, nota), e a ação de editar a
+            // nota é exposta como `accessibilityActions` da própria linha.
+            //
+            // A primeira tentativa foi tirar o `accessible` da linha para
+            // o botão virar alcançável — e isso quebrava o empilhamento
+            // visual, porque a nota vive *dentro* do bloco de nome. A
+            // solução certa é o padrão do próprio React Native: a linha
+            // continua sendo um nó, e ganha uma **ação** que o leitor de
+            // tela anuncia e executa. O botão visual continua ali para o
+            // toque, e quem não enxerga não fica de fora.
           return (
             <View
               style={styles.row}
@@ -454,7 +734,12 @@ export default function HistoryScreen() {
                 dosageUnit: formatDosageUnit(log.medication.dosage, log.medication.unit),
                 time,
                 status: cfg.label,
+                ...(log.notes ? { note: log.notes } : {}),
               })}
+              accessibilityActions={[{ name: 'activate', label: t(log.notes ? 'history.noteEdit' : 'history.noteAdd') }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === 'activate') startEditingNote(log);
+              }}
             >
               <View style={styles.timeBox}>
                 <Text style={styles.time}>{time}</Text>
@@ -466,11 +751,74 @@ export default function HistoryScreen() {
                   {formatDosageUnit(log.medication.dosage, log.medication.unit)}
                 </Text>
               </View>
+                {/* P3 (2026-09-25) — a nota por escrito finalmente aparece.
+                    A API sempre aceitou `notes` e o app nunca mostrou:
+                    ninguém conseguia ver o que tinha anotado, nem quando
+                    era para o médico. O texto também entra no
+                    `rowLabel` acima, para não ser informação só de quem
+                    enxerga — a nota costuma ser a única pista de uma
+                    reação adversa, e é exatamente quem usa leitor de
+                    tela que mais precisa dela. */}
+                {editingNoteId === log.id ? (
+                  // Edição **inline**, não um modal: a nota já está
+                  // visível na linha, e abrir outro modal para editar três
+                  // palavras é atrito sem motivo. Confirmar é pelo teclado
+                  // (blur) e há botão explícito também — porque nem todo
+                  // mundo tem teclado aberto.
+                  <View style={styles.noteEditRow}>
+                    <TextInput
+                      style={styles.noteEditInput}
+                      value={editingNoteText}
+                      onChangeText={setEditingNoteText}
+                      placeholder={t('home.notePlaceholder')}
+                      placeholderTextColor={colors.textMuted}
+                      multiline
+                      maxLength={500}
+                      autoFocus
+                      accessibilityLabel={t('history.noteEditAccessibilityLabel')}
+                      onSubmitEditing={() => saveNote(log)}
+                      onBlur={() => saveNote(log)}
+                    />
+                    <TouchableOpacity
+                      onPress={() => saveNote(log)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('history.noteSave')}
+                      disabled={updateNoteMutation.isPending}
+                    >
+                      <MaterialCommunityIcons name="check" size={22} color={colors.brand} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setEditingNoteId(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.cancel')}
+                    >
+                      <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    {!!log.notes && <Text style={styles.rowNote}>{log.notes}</Text>}
+                    {/* "Anotar" é sempre visível, mesmo sem nota. Esconder
+                        atrás de toque longo seria função sem pista
+                        visual — e a nota é a única forma de a pessoa
+                        corrigir o registro com a própria voz. */}
+                    <TouchableOpacity
+                      onPress={() => startEditingNote(log)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('history.noteAdd')}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.noteAddBtn}>
+                        {log.notes ? t('history.noteEdit') : t('history.noteAdd')}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               <View style={[styles.statusBadge, { backgroundColor: cfg.color + '1f' }]}>
                 <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
                 <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
               </View>
-            </View>
+              </View>
           );
         }}
       />
@@ -582,6 +930,14 @@ function makeStyles(c: ThemeColors) {
     summaryItem: { flex: 1, alignItems: 'center' },
     summaryValue: { fontSize: 26, fontWeight: '700', color: c.text },
     summaryLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted, marginTop: 4 },
+    summaryScope: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: -8, marginBottom: 12 },
+    rowNote: { fontSize: 12, color: c.textMuted, fontStyle: 'italic', marginTop: 2 },
+    noteAddBtn: { fontSize: 12, color: c.brand, fontWeight: '600', marginTop: 4 },
+    noteEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    noteEditInput: {
+      flex: 1, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
+      borderRadius: 10, padding: 8, fontSize: 14, color: c.text, minHeight: 44,
+    },
     summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
     consultationButtonsRow: {
       flexDirection: 'column',
@@ -735,8 +1091,16 @@ function makeStyles(c: ThemeColors) {
       color: c.textSecondary,
       letterSpacing: 0.2,
     },
+    // P3: a linha passou a ter dois filhos (resumo acessível + ação), e
+    // o badge de status precisa ficar alinhado à direita. O wrapper do
+    // resumo cresce, e o badge continua no fim.
+    // P3: a linha tem duas faixas (resumo acessível em cima, nota+ação
+    // embaixo). rowTop é a faixa de cima; rowA11y2 é o nó acessível que
+    // carrega hora+nome+dose.
+    rowTop: { flexDirection: 'row', alignItems: 'center' },
+    rowA11y2: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     row: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       alignItems: 'center',
       backgroundColor: c.surface,
       borderRadius: 14,

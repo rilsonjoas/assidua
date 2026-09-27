@@ -27,6 +27,12 @@ export interface Medication {
   // Fase 2 (2026-08-12) — "Pausar medicamento": diferente de is_active,
   // continua visível na lista; só para de gerar dose/notificação.
   is_paused: boolean;
+  /**
+   * P4 (§10.4) — remédio de resgate: não tem horário previsto e a dose
+   * é registrada sob demanda. Sem este campo na tela, um PRN aparece
+   * com "0 horários", que parece remendo do cadastro.
+   */
+  is_prn?: boolean;
   schedules: DoseSchedule[];
   stock: StockItem | null;
   // Calculado no backend (current_quantity ÷ doses/dia médio dos

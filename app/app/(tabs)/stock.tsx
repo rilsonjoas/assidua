@@ -25,6 +25,7 @@ import { ThemeColors } from '../../constants/theme';
 import { AppText as Text } from '../../components/AppText';
 import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
+import { LoadErrorState } from '../../components/LoadErrorState';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 export default function StockScreen() {
@@ -45,7 +46,7 @@ export default function StockScreen() {
   // mesmo padrão do toast global usado no cadastro de remédio.
   const showToast = useToastStore((s) => s.showToast);
 
-  const { data: medications = [], isLoading } = useQuery({
+  const { data: medications = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['medications', activeProfile?.id],
     queryFn: () => getMedications(activeProfile!.id),
     enabled: !!activeProfile,
@@ -120,7 +121,10 @@ export default function StockScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ProfileContextBar />
-      {isLoading ? (
+      {/* 9.7 — mesmo padrão: erro de rede não vira "sem estoque". */}
+      {isError ? (
+        <LoadErrorState onRetry={() => refetch()} message={t('stock.loadErrorText')} />
+      ) : isLoading ? (
         <SkeletonList lines={2} />
       ) : (
         <FlatList

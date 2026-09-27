@@ -67,6 +67,20 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
     return getAdherenceColor(point.percentage!, colors);
   }
 
+  /**
+   * "Sem dado" e "nada venceu ainda" são coisas diferentes, e o app
+   * passou a saber a diferença em P2.
+   *
+   * Desde que o backend parou de contar dose **futura** no denominador
+   * (decisão do Rilson: o dia em andamento não é 0%, está em aberto), o
+   * dia de hoje de manhã chega aqui com `due === 0` — o mesmo número de
+   * um dia em que nada foi agendado. Chamar os dois de "sem dado" diz
+   * que o app não sabe, quando na verdade ele sabe: ainda não chegou.
+   */
+  function isPendingDay(point: DailyAdherencePoint): boolean {
+    return point.due === 0 && point.date <= today && point.date >= today;
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -103,7 +117,10 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
           const bg = cellColor(point);
           const dayNumber = format(parseISO(point.date), 'd');
           const label = bg === null
-            ? t('history.calendarNoDataLabel', { day: dayNumber })
+            ? t(
+                isPendingDay(point) ? 'history.calendarPendingLabel' : 'history.calendarNoDataLabel',
+                { day: dayNumber },
+              )
             : t('history.calendarDayLabel', { day: dayNumber, percentage: point.percentage, taken: point.taken, count: point.due });
           return (
             <View key={i} style={styles.cellSlot}>

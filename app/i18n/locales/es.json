@@ -13,7 +13,10 @@
     "or": "o",
     "offlineBanner": "Estás sin conexión. Tus acciones se sincronizarán al reconectarte.",
     "syncGaveUpToast_one": "1 registro no se sincronizó después de varios intentos — puede haberse perdido, revísalo",
-    "syncGaveUpToast_other": "{{count}} registros no se sincronizaron después de varios intentos — pueden haberse perdido, revísalos"
+    "syncGaveUpToast_other": "{{count}} registros no se sincronizaron después de varios intentos — pueden haberse perdido, revísalos",
+    "loadErrorTitle": "No se pudo cargar",
+    "loadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo.",
+    "retry": "Reintentar"
   },
   "notifications": {
     "permissionBannerLabel": "Notificaciones desactivadas, toca para activar",
@@ -86,8 +89,6 @@
     "doseSuccessToast": "¡Muy bien! Dosis de {{name}} registrada con éxito.",
     "timezoneChangedToast": "Zona horaria actualizada a {{timezone}}",
     "dosesToday": "Dosis de hoy",
-    "progress_one": "{{count}} de {{total}} tomada",
-    "progress_other": "{{count}} de {{total}} tomadas",
     "adherenceRingLabel_one": "Adherencia de hoy: {{count}} de {{total}} dosis tomada",
     "adherenceRingLabel_other": "Adherencia de hoy: {{count}} de {{total}} dosis tomadas",
     "stockRunningOut": "Existencias por acabar: {{names}}",
@@ -97,7 +98,6 @@
     "noDosesTitle": "Ninguna dosis hoy",
     "noDosesText": "Añade una medicina con horario para verla aquí.",
     "addMedication": "Añadir medicina",
-    "delayed": "Atrasado",
     "onScheduleTime": "En el horario previsto ({{time}})",
     "stillMissedTitle": "¿Confirmas que tomaste {{name}}?",
     "stillMissedMessage": "Esta dosis ya está marcada como no tomada. ¿Quieres marcarla como tomada o dejarla así?",
@@ -142,7 +142,18 @@
     "milestone30Text": "Eso ya es un hábito real, no suerte.",
     "milestone60Title": "Dos meses seguidos",
     "milestone60Text": "Rutina de verdad. Tu cuidado está funcionando.",
-    "pendingSync": "Esperando conexión"
+    "pendingSync": "Esperando conexión",
+    "nothingDueYet": "\"Próxima dosis a las {{time}}\"",
+    "profilesLoadErrorTitle": "No se pudieron cargar tus perfiles",
+    "profilesLoadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo.",
+    "retryLoad": "Reintentar",
+    "nextDose": "Siguiente: {{time}} · {{name}}",
+    "remainingCount_one": "falta 1",
+    "remainingCount_other": "faltan {{count}}",
+    "allDone": "Todo bien hasta ahora",
+    "noteLabel": "¿Algo que anotar? (opcional)",
+    "notePlaceholder": "Ej.: lo tomé después de comer, sentí un poco de mareo",
+    "noteAccessibilityLabel": "Nota sobre esta dosis, opcional"
   },
   "medications": {
     "empty": "Ninguna medicina registrada.",
@@ -159,7 +170,8 @@
     "defaultUnit": "unid",
     "sortAlphabetical": "Alfabético",
     "sortStockLow": "Existencia acabando",
-    "sortAccessibilityLabel": "Ordenar por: {{label}}"
+    "sortAccessibilityLabel": "Ordenar por: {{label}}",
+    "loadErrorText": "No se pudieron cargar tus medicamentos. Puede ser la conexión."
   },
   "stock": {
     "empty": "Ninguna medicina registrada.",
@@ -178,7 +190,8 @@
     "setLabel": "Definir existencia de {{name}}",
     "errorSave": "No se pudo actualizar el stock ahora. Intenta de nuevo en un momento.",
     "neverSetHint": "Existencia no informada — toca Editar",
-    "defaultUnit": "unid"
+    "defaultUnit": "unid",
+    "loadErrorText": "No se pudo cargar el stock. Puede ser la conexión."
   },
   "history": {
     "filterAll": "Todos",
@@ -203,7 +216,7 @@
     "emptyTitle": "Ningún registro",
     "emptyFiltered": "Ninguna dosis con ese estado en el período.",
     "emptyGeneric": "Marca dosis como tomadas para ver el historial aquí.",
-    "rowLabel": "{{name}}, {{dosageUnit}}, {{time}}, {{status}}",
+    "rowLabel": "{{name}}, {{dosageUnit}}, {{time}}, {{status}}{{#note}}, nota: {{note}}{{/note}}",
     "timezoneChangeText": "Zona horaria cambió de {{old}} a {{new}}",
     "timezoneChangeLabel": "Evento del sistema: zona horaria cambió de {{old}} a {{new}}",
     "chartTitle": "Adherencia semanal",
@@ -231,7 +244,17 @@
     "printConfirmAction": "Generar informe",
     "consultationSummaryText": "Resumen de {{profileName}} — últimos 30 días\n\nAdherencia: {{percentage}}% ({{taken}} de {{due}} dosis tomadas)\n\nDosis no tomadas:\n{{missedList}}\n\nGenerado por la app Assídua.",
     "consultationSummaryNoMissed": "Ninguna — todas las dosis fueron tomadas.",
-    "consultationSummaryError": "No se pudo generar el resumen. Intenta de nuevo."
+    "consultationSummaryError": "No se pudo generar el resumen. Intenta de nuevo.",
+    "summaryPartialScope": "en los {{shown}} registros mostrados de {{total}} del historial",
+    "summaryItemLabel": "{{label}}: {{value}}",
+    "loadErrorText": "No se pudo cargar el historial. Puede ser la conexión.",
+    "statusUnrecorded": "Sin registro",
+    "calendarPendingLabel": "Día {{day}}, todavía no toca",
+    "noteAdd": "Anotar",
+    "noteEdit": "Editar nota",
+    "noteSave": "Guardar nota",
+    "noteEditAccessibilityLabel": "Editar la nota de esta dosis",
+    "noteSaveError": "No se pudo guardar la nota. Revisa la conexión."
   },
   "profile": {
     "pro": "Pro",
@@ -351,7 +374,8 @@
     "privacyMode": "Modo Privacidad",
     "privacyModeHint": "Oculta los nombres de los medicamentos en la pantalla (útil si alguien más puede ver tu teléfono).",
     "privacyToggle": "Alternar modo privacidad",
-    "privacyHintToast": "Modo Privacidad: oculta los nombres de los medicamentos en la pantalla. Toca el ojo de nuevo cuando quieras, o ajústalo en Perfil > Privacidad y Seguridad."
+    "privacyHintToast": "Modo Privacidad: oculta los nombres de los medicamentos en la pantalla. Toca el ojo de nuevo cuando quieras, o ajústalo en Perfil > Privacidad y Seguridad.",
+    "collaboratorsLoadErrorText": "No se pudieron cargar los cuidadores. Puede ser la conexión."
   },
   "pro": {
     "headerTitle": "Plan Pro",
@@ -361,21 +385,15 @@
     "alreadyPro": "Ya eres Pro — ¡gracias por apoyar la app!",
     "benefit": {
       "profiles": "Perfiles de paciente",
-      "medications": "Medicinas por perfil",
-      "history": "Historial de dosis",
-      "chart": "Gráfico de adherencia"
+      "medications": "Medicinas por perfil"
     },
     "free": {
       "profiles": "4",
-      "medications": "15",
-      "history": "30 días",
-      "chart": "4 semanas"
+      "medications": "15"
     },
     "pro": {
       "profiles": "Ilimitado",
-      "medications": "Ilimitado",
-      "history": "10 años",
-      "chart": "8 semanas"
+      "medications": "Ilimitado"
     },
     "comingSoon": "Suscripción próximamente — esta pantalla es solo para que conozcas los beneficios por ahora.",
     "comingSoonLabel": "Suscripción del plan Pro próximamente",
@@ -387,6 +405,12 @@
     "restoreError": "No encontramos ninguna suscripción para restaurar."
   },
   "medicationForm": {
+    "sectionUsage": "¿Cómo se usa este medicamento?",
+    "usageScheduled": "Con horario",
+    "usageScheduledExample": "Ej.: 1 comprimido a las 8h, todos los días",
+    "usagePrn": "Solo cuando haga falta",
+    "usagePrnExample": "Ej.: medicamento para el dolor o la fiebre, que se toma cuando aparece",
+    "prnNoScheduleHint": "Medicamento de rescate: registrarás cada dosis cuando la tomes, y la app no te avisará de ningún horario.",
     "sectionData": "Datos de la medicina",
     "nameLabel": "Nombre *",
     "nameAccessibilityLabel": "Nombre de la medicina",
@@ -438,9 +462,9 @@
     "errorDelete": "No se pudo eliminar el medicamento ahora. Intenta de nuevo en un momento.",
     "pausedToast": "Medicamento pausado",
     "resumedToast": "Medicamento reactivado",
-    "overdueBeforePauseTitle": "Hay una dosis pendiente",
-    "overdueBeforePauseMessage": "Hay {{count}} dosis que ya pasó de su horario y todavía no fue marcada. ¿Qué hacer con ella antes de pausar?",
-    "overdueBeforePauseIgnore": "Ignorar",
+    "overdueBeforePauseTitle": "Dosis sin registro",
+    "overdueBeforePauseMessage": "Hay {{count}} dosis de este medicamento que aún no fueron registradas. ¿Qué quieres registrar antes de pausar?",
+    "overdueBeforePauseIgnore": "Saltar esta dosis",
     "overdueBeforePauseMarkMissed": "Marcar como perdida",
     "errorFillRequired": "Completa el nombre del medicamento.",
     "errorNoProfileTitle": "Selecciona un perfil",
@@ -559,5 +583,34 @@
     "title": "¡Ups! Algo salió mal",
     "subtitle": "Ocurrió un error inesperado al mostrar esta pantalla.",
     "retry": "Reintentar"
+  },
+  "prn": {
+    "badge": "Rescate",
+    "noSchedule": "sin horario previsto",
+    "registerAction": "Registrar dosis",
+    "registerLabel": "Registrar que tomaste {{name}}",
+    "pendingBadge": "esperando internet",
+    "registeredToast": "{{name}}: dosis registrada",
+    "pendingToast": "{{name}}: dosis registrada. Se sincronizará cuando tengas internet.",
+    "customTime": "La tomó a otra hora",
+    "note": "Observación",
+    "notePlaceholder": "Ej.: la tomó después del almuerzo",
+    "confirm": "Registrar",
+    "error": "No se pudo registrar la dosis.",
+    "historyLabel": "{{name}} a las {{time}}",
+    "historyHelp": "Dosis de rescate: la tomaste fuera de un horario previsto."
+  },
+  "pendingDoses": {
+    "title": "¿Quedó algo de ayer?",
+    "message_one": "Hay {{count}} dosis de ayer que no se registró. ¿Qué hiciste con ella?",
+    "message_other": "Hay {{count}} dosis de ayer que no se registraron. ¿Qué hiciste con ellas?",
+    "itemLabel": "{{name}}, {{time}}, {{state}}",
+    "took": "La tomé",
+    "skipped": "La salté",
+    "unanswered": "sin respuesta",
+    "markTaken": "Marcar que tomaste {{name}}",
+    "markSkipped": "Marcar que saltaste {{name}}",
+    "notNow": "Ahora no",
+    "done": "Listo"
   }
 }

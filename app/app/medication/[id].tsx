@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { useToastStore } from '../../store/toastStore';
+import { useLogPrnDose } from '../../hooks/useLogPrnDose';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { maskMedicationName } from '../../lib/privacy';
 import { parseStockQuantity, isStockNeverSet } from '../../lib/stockQuantity';
@@ -200,6 +201,27 @@ export default function MedicationFormScreen() {
   const [photoModalVisible, setPhotoModalVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  // P4/§10.4 — "remédio de resgate": sem horário previsto, dose
+  // registrada sob demanda. Default false = todo mundo que já usa o
+  // app é medicamento com horário até marcar o contrário.
+  const [isPrn, setIsPrn] = useState(false);
+  const [prnModalVisible, setPrnModalVisible] = useState(false);
+  const [prnPickTime, setPrnPickTime] = useState(false);
+  const [prnTime, setPrnTime] = useState(new Date());
+  // O horário que o usuário REALMENTE escolheu, separado do valor do
+  // picker. No Android o evento entrega a escolha direto e o setState
+  // ainda não aplicou; sem este segundo estado, o "Registrar" leria o
+  // horário anterior.
+  const [prnConfirmedTime, setPrnConfirmedTime] = useState<Date | null>(null);
+  const [prnNote, setPrnNote] = useState('');
+  const logPrnDose = useLogPrnDose();
+  // Atalho de leitura: o JSX usa em vários lugares e
+  // `logPrnDose.isPending` em cada um polui a tela sem esclarecer.
+  const prnPending = logPrnDose.isPending;
+  // `getDateTimePicker()` DEVOLVE o componente, então precisa virar
+  // binding antes do JSX — e só é procurado quando o campo de horário está
+  // aberto, para não exigir o módulo nativo numa tela que não usa.
+  const PrnTimePicker = prnPickTime ? getDateTimePicker() : null;
   const [pausing, setPausing] = useState(false);
   // "Perguntar antes de pausar" (entrevista de horário, 2026-09-12) —
   // ver requestPause/resolveOverdueThenPause.
@@ -286,6 +308,11 @@ export default function MedicationFormScreen() {
         setNotes(med.notes ?? '');
         setPhotoUrl(med.photo_url);
         setIsPaused(med.is_paused ?? false);
+        // `?? false` e não `||`: o backend manda false explicitamente, e
+        // um `||` aqui transformaria qualquer valor ausente em PRN —
+        // vale a pena ser explícito num campo que decide se a tela
+        // mostra horários ou não.
+        setIsPrn(med.is_prn ?? false);
         setStock(med.stock);
         setSchedules(med.schedules ?? []);
         // Modo inicial inferido dos horários reais — remédios antigos
@@ -349,6 +376,7 @@ export default function MedicationFormScreen() {
           instructions,
           notes,
           treatment_duration_days: treatmentDurationToSend,
+          is_prn: isPrn,
         });
         // Estoque inicial é opcional — sem preencher, fica no default
         // (0) que o backend já cria junto do medicamento; não vale a
@@ -409,6 +437,7 @@ export default function MedicationFormScreen() {
           instructions,
           notes,
           treatment_duration_days: treatmentDurationToSend,
+          is_prn: isPrn,
         });
       }
       queryClient.invalidateQueries({ queryKey: ['medications'] });
@@ -465,10 +494,35 @@ export default function MedicationFormScreen() {
     }
     try {
       const doses = await getTodayDoses(activeProfile.id);
+      // P1/§9.3 (2026-09-25) — este filtro continuava com tolerância
+      // ZERO, e a primeira tentativa de "consertar" foi trocar por 24 h
+      // (a constante do servidor). ESSA TENTATIVA ESTAVA ERRADA, e o
+      // motivo é útil:
+      //
+      // `getTodayDoses` só devolve ocorrências de HOJE. Uma dose de
+      // hoje tem, no máximo, ~24 h de idade — nunca passa da tolerância
+      // de 24 h do servidor. Um filtro de 24 h aqui tornaria este
+      // diálogo CÓDIGO MORTO: nunca apareceria, para dose nenhuma.
+      //
+      // E o limiar certo aqui não é "a dose já se perdeu" (veredito do
+      // servidor, que só existe depois da tolerância). É "essa dose
+      // ainda não foi registrada e o usuário está pausando agora" —
+      // que é uma pergunta, não um julgamento. Uma dose de 08:00 vista
+      // às 08:01 AINDA PODE SER TOMADA; tratá-la como perdida rouba do
+      // usuário a chance de registrar a verdade.
+      //
+      // O que era mentira no texto antigo ("já passou do horário" +
+      // "Ignorar", que na verdade GRAVA um `skipped`) foi corrigido na
+      // copy, não no filtro.
+      // P4: `d.scheduled_at &&` porque "atrasada" é uma comparação com
+      // um horário previsto, e a dose de resgate não tem um. Sem isso, o
+      // `new Date(null)` seria epoch (1970) e ela entraria na lista de
+      // atrasadas de qualquer remédio.
       const overdue = doses.filter(
         (d) =>
           d.medication_id === Number(id) &&
           d.status === 'pending' &&
+          !!d.scheduled_at &&
           new Date(d.scheduled_at).getTime() <= Date.now(),
       );
       if (overdue.length > 0) {
@@ -492,12 +546,15 @@ export default function MedicationFormScreen() {
     setResolvingOverdue(true);
     try {
       await Promise.all(
+        // `pendingOverdueDoses` só recebe doses que passaram no filtro
+        // `overdue` acima, que exige horário previsto — daí o
+        // `scheduledInstantOf` não estourar aqui.
         pendingOverdueDoses.map((dose) =>
           logDose({
-            dose_schedule_id: dose.dose_schedule_id,
+            dose_schedule_id: dose.dose_schedule_id as number,
             medication_id: dose.medication_id,
             profile_id: dose.profile_id,
-            scheduled_at: dose.scheduled_at,
+            scheduled_at: dose.scheduled_at as string,
             status,
           }),
         ),
@@ -519,6 +576,53 @@ export default function MedicationFormScreen() {
   // lembrete local — sem isso, o celular continuaria avisando pra tomar
   // um remédio que a pessoa decidiu pausar, o que anularia o propósito
   // da função pro usuário.
+  // ── Dose de resgate (P4/§10.4) ──
+  function openPrnModal() {
+    setPrnTime(new Date());
+    setPrnConfirmedTime(null);
+    setPrnPickTime(false);
+    setPrnNote('');
+    setPrnModalVisible(true);
+  }
+
+  function closePrnModal() {
+    setPrnModalVisible(false);
+  }
+
+  /**
+   * `takenAt` undefined = "agora". Quando a pessoa escolheu outro
+   * horário, a base é o dia de HOJE e só hora/minuto vêm do picker: o
+   * picker nativo (mode="time") devolve a data de hoje, e ancorar
+   * noutro dia jogaria o registro para o dia errado.
+   */
+  function submitPrn(takenAt?: Date) {
+    if (!activeProfile || !Number(id)) return;
+    let quando: Date | undefined = takenAt;
+    if (!quando && prnPickTime && prnConfirmedTime) {
+      quando = new Date();
+      quando.setHours(prnConfirmedTime.getHours(), prnConfirmedTime.getMinutes(), 0, 0);
+    }
+    const req = {
+      medicationId: Number(id),
+      profileId: activeProfile.id,
+      takenAt: quando,
+      note: prnNote,
+      medicationName: maskMedicationName(name, isPrivate),
+    };
+    // Fecha antes de mutar: o toast confirma o resultado, e deixar o
+    // modal aberto em cima bloquearia justamente a leitura dele.
+    setPrnModalVisible(false);
+    logPrnDose.mutate(req, {
+      onError: (err: any) => {
+        showAlert(t('prn.error'), err?.response?.data?.message ?? t('common.error'));
+      },
+    });
+  }
+
+  function formatPrnTime(d: Date): string {
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
   async function togglePause() {
     const next = !isPaused;
     setPausing(true);
@@ -1391,7 +1495,51 @@ export default function MedicationFormScreen() {
           remédio; Salvar virou a última ação do formulário, no fim de
           tudo (padrão comum: preenche, confirma por último). */}
 
+      {/* — Tipo de uso (P4/§10.4) — */}
+      <Text style={styles.sectionTitle}>{t('medicationForm.sectionUsage')}</Text>
+      <View style={styles.scheduleKindRow}>
+        <TouchableOpacity
+          style={[styles.scheduleKindCard, !isPrn && styles.scheduleKindCardActive]}
+          onPress={() => setIsPrn(false)}
+          accessibilityRole="button"
+          accessibilityLabel={t('medicationForm.usageScheduled')}
+          accessibilityState={{ selected: !isPrn }}
+        >
+          <MaterialCommunityIcons name="clock-outline" size={26} color={!isPrn ? colors.onBrand : colors.textMuted} />
+          <Text style={[styles.scheduleKindCardTitle, !isPrn && styles.scheduleKindCardTitleActive]}>
+            {t('medicationForm.usageScheduled')}
+          </Text>
+          <Text style={[styles.scheduleKindCardExample, !isPrn && styles.scheduleKindCardExampleActive]}>
+            {t('medicationForm.usageScheduledExample')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.scheduleKindCard, isPrn && styles.scheduleKindCardActive]}
+          onPress={() => setIsPrn(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('medicationForm.usagePrn')}
+          accessibilityState={{ selected: isPrn }}
+        >
+          <MaterialCommunityIcons name="medical-bag" size={26} color={isPrn ? colors.onBrand : colors.textMuted} />
+          <Text style={[styles.scheduleKindCardTitle, isPrn && styles.scheduleKindCardTitleActive]}>
+            {t('medicationForm.usagePrn')}
+          </Text>
+          <Text style={[styles.scheduleKindCardExample, isPrn && styles.scheduleKindCardExampleActive]}>
+            {t('medicationForm.usagePrnExample')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {isPrn && (
+        <Text style={styles.fieldHint}>{t('medicationForm.prnNoScheduleHint')}</Text>
+      )}
+
       {/* — Horários — */}
+      {/* P4: remédio de resgate não tem horário previsto, por definição.
+          Mostrar a seção de Horários aqui significava a pessoa preencher
+          um horário que o app NUNCA usaria — e, pior, podia criar
+          horário às 8h para o remédio e achar que o app lembrava. */}
+      {!isPrn && (
+      <>
       <Text style={styles.sectionTitle}>{t('medicationForm.sectionSchedules')}</Text>
 
       {/* "Horário salva sozinho" (2026-09-07, item 12) — achado real do
@@ -1731,6 +1879,34 @@ export default function MedicationFormScreen() {
           )}
         </>
       )}
+      </>
+      )}
+
+      {/* P4/§10.4 — a ação que faltava. Um remédio de resgate não
+          gera dose na Home (não há horário), então SEM este botão o
+          cadastro inteiro do PRN era decorativo: a pessoa via o
+          remédio na lista, não recebia lembrete — e não tinha onde
+          registrar que o tomou. Este é o único lugar do app onde a
+          dose de resgate é criada. */}
+      {!isNew && isPrn && (
+        <TouchableOpacity
+          style={styles.prnBtn}
+          onPress={openPrnModal}
+          disabled={prnPending}
+          accessibilityRole="button"
+          accessibilityLabel={t('prn.registerLabel', { name: maskMedicationName(name, isPrivate) })}
+          accessibilityState={{ busy: prnPending }}
+        >
+          {prnPending
+            ? <ActivityIndicator color="#fff" size="small" />
+            : (
+              <>
+                <MaterialCommunityIcons name="medical-bag" size={18} color="#fff" />
+                <Text style={styles.prnBtnText}>{t('prn.registerAction')}</Text>
+              </>
+            )}
+        </TouchableOpacity>
+      )}
 
       {!isNew && (
         <TouchableOpacity
@@ -1909,9 +2085,108 @@ export default function MedicationFormScreen() {
         </View>
       </TouchableOpacity>
     </Modal>
+    {/* Modal da dose de resgate (P4/§10.4). O caso comum — "tomei agora" —
+        é UM toque: o botão principal grava direto. "Foi em outro
+        horário" e a observação são o segundo tempo, para quem precisa.
+        A inversão (abrir modal sempre) colocaria uma etapa entre a
+        pessoa e o registro da dose que ela acabou de tomar. */}
+    <Modal
+      visible={prnModalVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={closePrnModal}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={closePrnModal}
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>
+            {t('prn.registerAction')} — {maskMedicationName(name, isPrivate)}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => submitPrn(undefined)}
+            disabled={prnPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('prn.registerAction')}
+          >
+            <MaterialCommunityIcons name="check-circle-outline" size={22} color={colors.brand} />
+            <Text style={styles.modalOptionText}>{t('prn.registerAction')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.modalOption}
+            onPress={() => setPrnPickTime(true)}
+            disabled={prnPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('prn.customTime')}
+          >
+            <MaterialCommunityIcons name="clock-outline" size={22} color={colors.brand} />
+            <Text style={styles.modalOptionText}>
+              {prnPickTime ? formatPrnTime(prnTime) : t('prn.customTime')}
+            </Text>
+          </TouchableOpacity>
+          {PrnTimePicker && (
+            <PrnTimePicker
+              value={prnTime}
+              mode="time"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_, picked) => {
+                // Android confirma no próprio evento: sem guardar o
+                // valor aqui, o onConfirm leria o estado ANTIGO, que
+                // ainda é o anterior ao setState.
+                if (picked) {
+                  setPrnTime(picked);
+                  setPrnConfirmedTime(picked);
+                }
+              }}
+            />
+          )}
+
+          <Text style={styles.label}>{t('prn.note')}</Text>
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            value={prnNote}
+            onChangeText={setPrnNote}
+            placeholder={t('prn.notePlaceholder')}
+            placeholderTextColor={colors.textMuted}
+            multiline
+            numberOfLines={2}
+            accessibilityLabel={t('prn.note')}
+          />
+
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={closePrnModal}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.cancel')}
+          >
+            <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
     {alertDialog}
     </>
   );
+}
+
+// P4/§10.4 — o DateTimePicker é carregado sob demanda, o mesmo motivo
+// e o mesmo padrão da Home (component community quebra em web se for
+// import estático).
+let cachedDateTimePicker: typeof import('@react-native-community/datetimepicker').default | null | undefined;
+function getDateTimePicker() {
+  if (cachedDateTimePicker === undefined) {
+    try {
+      cachedDateTimePicker = require('@react-native-community/datetimepicker').default;
+    } catch {
+      cachedDateTimePicker = null;
+    }
+  }
+  return cachedDateTimePicker;
 }
 
 function makeStyles(c: ThemeColors) {
@@ -1932,6 +2207,22 @@ function makeStyles(c: ThemeColors) {
     // era 4, bem menor que qualquer outro espaçamento da tela (14-24),
     // deixava os cards colados na lista de horários logo abaixo.
     scheduleKindRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+    // P4/§10.4 — a ação principal do remédio de resgate. Laranja e não
+    // a cor da marca: ela não é "salvar cadastro", é o equivalente a
+    // "Tomei" da Home, e precisa se parecer com isso.
+    prnBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: '#ea580c',
+      borderRadius: 12,
+      paddingVertical: 14,
+      marginBottom: 12,
+      // Alvo de toque de 48px: público idoso (regra já usada na tela).
+      minHeight: 48,
+    },
+    prnBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     scheduleKindCard: {
       flex: 1, alignItems: 'center', gap: 6, padding: 16, borderRadius: 16,
       backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,

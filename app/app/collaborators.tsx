@@ -10,6 +10,7 @@ import { ThemeColors } from '../constants/theme';
 import { useProfileStore } from '../store/profileStore';
 import { AppText as Text } from '../components/AppText';
 import { SkeletonList } from '../components/Skeleton';
+import { LoadErrorState } from '../components/LoadErrorState';
 import { useAlertDialog } from '../hooks/useAlertDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { listCollaborators, createInvite, revokeCollaborator, Collaborator } from '../services/collaborators';
@@ -38,7 +39,7 @@ export default function CollaboratorsScreen() {
   const [revokeTarget, setRevokeTarget] = useState<Collaborator | null>(null);
   const [revoking, setRevoking] = useState(false);
 
-  const { data: collaborators = [], isLoading } = useQuery({
+  const { data: collaborators = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['collaborators', id],
     queryFn: () => listCollaborators(id),
     enabled: !!id,
@@ -80,7 +81,12 @@ export default function CollaboratorsScreen() {
         {profile ? t('profile.collaboratorsSubtitle', { name: profile.name }) : ''}
       </Text>
 
-      {isLoading ? (
+      {/* 9.7 — este é o caso mais grave das quatro: "nenhum cuidador
+          cadastrado" é convite para convidar alguém. Um reject na query
+          transformava falha de rede em convite de envio. */}
+      {isError ? (
+        <LoadErrorState onRetry={() => refetch()} message={t('profile.collaboratorsLoadErrorText')} />
+      ) : isLoading ? (
         <SkeletonList lines={2} />
       ) : collaborators.length === 0 ? (
         <View style={styles.emptyBox}>

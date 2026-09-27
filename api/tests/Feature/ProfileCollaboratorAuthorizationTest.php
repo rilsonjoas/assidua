@@ -176,4 +176,79 @@ class ProfileCollaboratorAuthorizationTest extends TestCase
         $this->actingAs($collaborator)->getJson("/api/profiles/{$profile->id}/collaborators")
             ->assertForbidden();
     }
+
+    // =============================================================
+    // P0 (2026-09-25, ROADMAP §9.11) — autoria.
+    //
+    // ⚠️ ESTES DOIS SUBSTITUEM a versão anterior, que afirmava
+    // "cuidador não desfaz dose do dono". A regra mudou em 2026-09-25
+    // (§9.11): o Rilson trocou a RESTRIÇÃO pela ATRIBUIÇÃO.
+    //
+    // > Mesmo poder que o dono sobre o registro de dose — e tudo que o
+    // > cuidador toca fica assinado.
+    //
+    // Motivo declarado: a restrição resolvia o risco de "cuidador não mal
+    // intencionado sujar dados", mas criava a armadilha de o cuidador errar
+    // o registro e não ter como corrigir. A transparência substitui a
+    // licença moral, e a assimetria vira rastreabilidade em vez de
+    // permissão.
+    //
+    // `test_colaborador_desfaz_dose_marcada_pelo_dono` (acima) continua
+    // PASSANDO e continua correto sob a regra nova — agora ele precisa
+    // virar "pode desfaz, E FICA ASSINADO" (§9.11 item 5).
+    // =============================================================
+
+    public function test_colaborador_registra_dose_com_autoria_presente(): void
+    {
+        $this->markTestSkipped('P6 pendente — ROADMAP §9.11: exige recorded_by_user_id');
+
+        ['owner' => $owner, 'collaborator' => $collaborator, 'profile' => $profile, 'medication' => $medication, 'schedule' => $schedule] = $this->makeSetup();
+
+        $response = $this->actingAs($collaborator)->postJson('/api/dose-logs', [
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => now()->toISOString(),
+            'taken_at' => now()->toISOString(),
+            'status' => 'taken',
+        ]);
+
+        $response->assertCreated();
+
+        // A autoria NAO vem do cliente — e o backend que decide quem e.
+        // Se viesse no payload, qualquer cuidador escreveria o nome do dono
+        // e a auditoria inteira nao valeria nada.
+        $this->assertDatabaseHas('dose_logs', [
+            'recorded_by_user_id' => $collaborator->id, // <- coluna que ainda nao existe
+        ]);
+    }
+
+    public function test_colaborador_que_altera_registro_deixa_rastro_no_log_de_eventos(): void
+    {
+        $this->markTestSkipped('P6 pendente — ROADMAP §9.11: delete precisa deixar rastro (hoje e hard delete)');
+
+        ['owner' => $owner, 'collaborator' => $collaborator, 'profile' => $profile, 'medication' => $medication, 'schedule' => $schedule] = $this->makeSetup();
+        $log = DoseLog::create([
+            'dose_schedule_id' => $schedule->id,
+            'medication_id' => $medication->id,
+            'profile_id' => $profile->id,
+            'scheduled_at' => now(),
+            'taken_at' => now(),
+            'status' => 'taken',
+            'recorded_by_user_id' => $owner->id,
+        ]);
+
+        // Paridade: o cuidador PODE desfazer a dose do dono agora. O que
+        // mudou nao e a permissao — e que a acao fica registrada.
+        $response = $this->actingAs($collaborator)->deleteJson("/api/dose-logs/{$log->id}");
+        $response->assertNoContent();
+
+        // ...e o rastro existe. Num hard delete puro (o que o app faz
+        // hoje) a linha some e nao sobraria prova de nada.
+        $this->assertDatabaseHas('dose_log_events', [
+            'dose_log_id' => $log->id,
+            'actor_user_id' => $collaborator->id,
+            'action' => 'deleted',
+        ]);
+    }
 }

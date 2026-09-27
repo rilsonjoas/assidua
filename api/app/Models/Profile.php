@@ -19,6 +19,7 @@ class Profile extends Model
         'is_active',
         'timezone',
         'last_weekly_summary_sent_at',
+        'occurrence_generation',
     ];
 
     protected function casts(): array
@@ -26,7 +27,25 @@ class Profile extends Model
         return [
             'is_active' => 'boolean',
             'last_weekly_summary_sent_at' => 'datetime',
+            // P2/§10.2 — entra na chave do cache de ocorrências. Precisa
+            // ser int, senão "1" e 1 geram chaves diferentes.
+            'occurrence_generation' => 'integer',
         ];
+    }
+
+    /**
+     * Invalida o cache de ocorrências deste perfil (P2/§10.2).
+     *
+     * Sobe o contador em vez de apagar chaves: as chaves antigas ficam
+     * órfãs e expiram sozinhas. Invalidar um perfil inteiro é O(1),
+     * enquanto apagar dia a dia seria O(dias).
+     *
+     * Chamar em: criação/edição/desativação de medication, e
+     * criação/edição/desativação/pausa de dose_schedule.
+     */
+    public function bumpOccurrenceGeneration(): void
+    {
+        $this->increment('occurrence_generation');
     }
 
     public function user(): BelongsTo
