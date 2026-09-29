@@ -122,6 +122,8 @@ class DataExportController extends Controller
             'Observações',
             'Pausado',
             'Estoque Atual',
+            'Unidade do Estoque',
+            'Aviso em',
             'Horários',
             'Data/Hora Agendada',
             'Data/Hora Tomado',
@@ -189,6 +191,8 @@ class DataExportController extends Controller
                             $this->csvSafe($medication->notes),
                             $medication->is_paused ? 'Sim' : 'Não',
                             $medication->stock ? $medication->stock->current_quantity : '',
+                            $medication->stock ? $medication->stock->unit : '',
+                            $medication->stock ? $medication->stock->min_alert_quantity : '',
                             $schedulesText,
                             $scheduledAtFormatted,
                             $takenAtFormatted,
@@ -205,6 +209,8 @@ class DataExportController extends Controller
                         $this->csvSafe($medication->notes),
                         $medication->is_paused ? 'Sim' : 'Não',
                         $medication->stock ? $medication->stock->current_quantity : '',
+                        $medication->stock ? $medication->stock->unit : '',
+                        $medication->stock ? $medication->stock->min_alert_quantity : '',
                         $schedulesText,
                         '',
                         '',
@@ -263,7 +269,19 @@ class DataExportController extends Controller
                             'treatment_duration_days' => $medication->treatment_duration_days,
                             'stock' => $medication->stock ? [
                                 'current_quantity' => $medication->stock->current_quantity,
-                                'low_stock_threshold' => $medication->stock->low_stock_threshold,
+                                // Bug (achado 2026-09-28): lia
+                                // `low_stock_threshold`, atributo que NÃO
+                                // existe — a coluna é
+                                // `min_alert_quantity` (migration
+                                // 2026_06_28_000006, e é o nome que o
+                                // app usa em `services/medications.ts`).
+                                // A leitura devolvia `null` em silêncio e
+                                // o JSON saía com o campo errado. A
+                                // unidade entra junto: é a informação que
+                                // passou a importar depois da correção da
+                                // unidade do estoque (2026-09-28).
+                                'unit' => $medication->stock->unit,
+                                'min_alert_quantity' => $medication->stock->min_alert_quantity,
                             ] : null,
                             'schedules' => $medication->schedules->map(fn ($schedule) => [
                                 'time' => $schedule->time,
