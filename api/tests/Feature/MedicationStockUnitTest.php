@@ -104,7 +104,11 @@ class MedicationStockUnitTest extends TestCase
             ->assertOk();
 
         $medication->refresh()->load('stock');
-        $this->assertSame(30, (float) $medication->stock->current_quantity);
+        // `assertEquals` e não `assertSame`: `current_quantity` é
+        // `decimal(8,2)`, então volta do banco como string e o cast
+        // produz float. `assertSame(30, 30.0)` falha por TIPO, não por
+        // valor — foi o que aconteceu na primeira rodada.
+        $this->assertEquals(30, $medication->stock->current_quantity);
         $this->assertSame('comprimidos', $medication->stock->unit);
     }
 
