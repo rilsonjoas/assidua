@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { useOnboardingStore } from '../store/onboardingStore';
 import { authenticateWithBiometrics } from '../services/biometrics';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // Bloqueio biométrico (2026-09-11, item 4 da rodada de transparência —
 // "bora retomar, com todo cuidado e teste possível"). Mesmo padrão
@@ -123,13 +124,13 @@ const styles = StyleSheet.create({
     zIndex: 100000, // acima até do PrivacyBlur (99999) — precisa cobrir tudo, sempre.
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: spacing.xxxl,
   },
-  title: { fontSize: 22, fontWeight: '700', marginTop: 16 },
-  subtitle: { fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  title: { fontSize: type.heading, fontWeight: '700', marginTop: spacing.lg },
+  subtitle: { fontSize: type.caption, textAlign: 'center', marginTop: spacing.sm, lineHeight: 20 },
   button: {
-    marginTop: 28, paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12,
+    marginTop: spacing.xxl, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, borderRadius: rounded.md,
     minHeight: 48, alignItems: 'center', justifyContent: 'center',
   },
-  buttonText: { fontWeight: '600', fontSize: 15 },
+  buttonText: { fontWeight: '600', fontSize: type.label },
 });

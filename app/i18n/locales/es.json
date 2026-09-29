@@ -16,7 +16,8 @@
     "syncGaveUpToast_other": "{{count}} registros no se sincronizaron después de varios intentos — pueden haberse perdido, revísalos",
     "loadErrorTitle": "No se pudo cargar",
     "loadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "dismiss": "Entendido"
   },
   "notifications": {
     "permissionBannerLabel": "Notificaciones desactivadas, toca para activar",
@@ -171,7 +172,7 @@
     "sortAlphabetical": "Alfabético",
     "sortStockLow": "Existencia acabando",
     "sortAccessibilityLabel": "Ordenar por: {{label}}",
-    "loadErrorText": "No se pudieron cargar tus medicamentos. Puede ser la conexión."
+    "loadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo."
   },
   "stock": {
     "empty": "Ninguna medicina registrada.",
@@ -191,7 +192,15 @@
     "errorSave": "No se pudo actualizar el stock ahora. Intenta de nuevo en un momento.",
     "neverSetHint": "Existencia no informada — toca Editar",
     "defaultUnit": "unid",
-    "loadErrorText": "No se pudo cargar el stock. Puede ser la conexión."
+    "loadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo.",
+    "neverSetShort": "Stock sin informar",
+    "doses": "dosis",
+    "dose": "dosis",
+    "setHint": "reemplaza el total",
+    "addHint": "suma al total",
+    "unitLabel": "Contando en",
+    "unitHint": "¿En qué cuentas lo que queda? No es la dosis — la dosis es cuánto tomar.",
+    "unitOption": "Contar en {{unit}}"
   },
   "history": {
     "filterAll": "Todos",
@@ -232,6 +241,8 @@
     "adherenceLegendLow": "<50% Bajo",
     "calendarLegendNoData": "Sin datos",
     "chartEmptyState": "Todavía no hay dosis registradas en este período. El gráfico aparece en cuanto empieces a marcar Tomado/Omitido.",
+    "chartLoading": "Cargando el gráfico…",
+    "chartError": "No se pudo cargar el gráfico. Puede ser la conexión — no se borró nada.",
     "shareConsultationSummary": "Compartir resumen para la consulta",
     "exportPdf": "Generar Informe Médico (PDF)",
     "exportPdfLockedLabel": "Generar Informe Médico en PDF, función Pro",
@@ -247,9 +258,12 @@
     "consultationSummaryError": "No se pudo generar el resumen. Intenta de nuevo.",
     "summaryPartialScope": "en los {{shown}} registros mostrados de {{total}} del historial",
     "summaryItemLabel": "{{label}}: {{value}}",
-    "loadErrorText": "No se pudo cargar el historial. Puede ser la conexión.",
+    "loadErrorText": "Puede ser la conexión. No se borró nada — solo inténtalo de nuevo.",
     "statusUnrecorded": "Sin registro",
     "calendarPendingLabel": "Día {{day}}, todavía no toca",
+    "calendarLoading": "Cargando el calendario…",
+    "calendarLoadingLabel": "Cargando el calendario de adherencia",
+    "calendarError": "No se pudo cargar el calendario. Puede ser la conexión — no se borró nada.",
     "noteAdd": "Anotar",
     "noteEdit": "Editar nota",
     "noteSave": "Guardar nota",

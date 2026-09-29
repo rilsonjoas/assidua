@@ -3,6 +3,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 /**
  * "Não foi possível carregar" — 9.7 (2026-09-25).
@@ -51,9 +52,9 @@ export function LoadErrorState({ onRetry, icon = 'wifi-alert', message }: LoadEr
 }
 
 const styles = StyleSheet.create({
-  box: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
-  title: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  text: { fontSize: 15, textAlign: 'center', lineHeight: 21 },
-  btn: { marginTop: 14, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 12 },
-  btnText: { fontSize: 15, fontWeight: '600' },
+  box: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.huge, gap: spacing.sm, marginTop: spacing.huge },
+  title: { fontSize: type.section, fontWeight: '700', textAlign: 'center' },
+  text: { fontSize: type.label, textAlign: 'center', lineHeight: 21 },
+  btn: { marginTop: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: rounded.md },
+  btnText: { fontSize: type.label, fontWeight: '600' },
 });

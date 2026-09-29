@@ -7,6 +7,7 @@ import { ptBR, enUS, es } from 'date-fns/locale';
 import { useTheme } from '../hooks/useTheme';
 import { maskMedicationName } from '../lib/privacy';
 import { DoseLog, derivedState, scheduledInstantOf } from '../services/doses';
+import { rounded, spacing, type } from '../constants/tokens';
 
 /**
  * E1 (2026-09-25) — "Você esqueceu de registrar?".
@@ -176,25 +177,25 @@ export function unanswered(doses: DoseLog[]): DoseLog[] {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 24 },
-  content: { borderRadius: 20, padding: 20, maxHeight: '85%' },
-  title: { fontSize: 19, fontWeight: '700', marginBottom: 6 },
-  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 14 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: spacing.xxl },
+  content: { borderRadius: rounded.xl, padding: spacing.xl, maxHeight: '85%' },
+  title: { fontSize: type.critical, fontWeight: '700', marginBottom: spacing.xs },
+  subtitle: { fontSize: type.caption, lineHeight: 20, marginBottom: spacing.md },
   list: { flexGrow: 0 },
-  listContent: { gap: 10 },
-  item: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  listContent: { gap: spacing.sm },
+  item: { borderWidth: 1, borderRadius: rounded.md, padding: spacing.md, gap: spacing.sm },
   itemHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemName: { fontSize: 15, fontWeight: '600', flex: 1 },
-  itemTime: { fontSize: 14, marginLeft: 8 },
-  itemAnswer: { fontSize: 14, fontWeight: '600' },
-  itemActions: { flexDirection: 'row', gap: 8 },
-  btnPrimary: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', minHeight: 44 },
-  btnPrimaryText: { fontSize: 14, fontWeight: '700' },
-  btnSecondary: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', borderWidth: 1, minHeight: 44 },
-  btnSecondaryText: { fontSize: 14, fontWeight: '600' },
-  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
-  dismissBtn: { paddingVertical: 12, paddingHorizontal: 8, minHeight: 44, justifyContent: 'center' },
-  dismissText: { fontSize: 14 },
-  doneBtn: { paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, minHeight: 44, justifyContent: 'center' },
-  doneText: { fontSize: 15, fontWeight: '700' },
+  itemName: { fontSize: type.label, fontWeight: '600', flex: 1 },
+  itemTime: { fontSize: type.caption, marginLeft: spacing.sm },
+  itemAnswer: { fontSize: type.caption, fontWeight: '600' },
+  itemActions: { flexDirection: 'row', gap: spacing.sm },
+  btnPrimary: { flex: 1, paddingVertical: spacing.sm, borderRadius: rounded.md, alignItems: 'center', minHeight: 44 },
+  btnPrimaryText: { fontSize: type.caption, fontWeight: '700' },
+  btnSecondary: { flex: 1, paddingVertical: spacing.sm, borderRadius: rounded.md, alignItems: 'center', borderWidth: 1, minHeight: 44 },
+  btnSecondaryText: { fontSize: type.caption, fontWeight: '600' },
+  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.lg },
+  dismissBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.sm, minHeight: 44, justifyContent: 'center' },
+  dismissText: { fontSize: type.caption },
+  doneBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.xl, borderRadius: rounded.md, minHeight: 44, justifyContent: 'center' },
+  doneText: { fontSize: type.label, fontWeight: '700' },
 });

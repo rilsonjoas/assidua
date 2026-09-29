@@ -3,6 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
 import { useProfileStore } from '../store/profileStore';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // "De quem são esses dados?" em todas as abas (2026-09-11, achado real
 // do Rilson: só a Home avisava "Cuidando de {{nome}}" quando o
@@ -81,19 +82,19 @@ export function ProfileContextBar() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 12 },
+  wrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   banner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start',
+    borderRadius: rounded.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.sm,
   },
-  bannerText: { fontSize: 13, fontWeight: '600' },
-  list: { paddingBottom: 12 },
+  bannerText: { fontSize: type.micro, fontWeight: '600' },
+  list: { paddingBottom: spacing.md },
   // minHeight 48 (WCAG AAA, mesmo padrão já auditado na Home) — troca
   // de perfil ativo, ação real e usada com frequência por quem cuida
   // de mais de uma pessoa.
   chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48,
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 48,
+    borderRadius: rounded.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginRight: spacing.sm,
   },
-  chipText: { fontSize: 13, fontWeight: '500' },
+  chipText: { fontSize: type.micro, fontWeight: '500' },
 });

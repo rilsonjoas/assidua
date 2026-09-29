@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
 import { AppText as Text } from './AppText';
+import { spacing, type } from '../constants/tokens';
 
 export function OfflineBanner() {
   const { t } = useTranslation();
@@ -33,13 +34,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.lg,
   },
   text: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: type.microTight,
     fontWeight: '600',
     textAlign: 'center',
   },

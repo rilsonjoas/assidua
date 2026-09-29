@@ -14,6 +14,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useMedicationsSortStore, MedicationsSort } from '../../store/medicationsSortStore';
 import { maskMedicationName } from '../../lib/privacy';
+import { isStockNeverSet, formatStockQuantity } from '../../lib/stockQuantity';
 import { getMedications, formatDosageUnit, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
@@ -22,6 +23,7 @@ import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
 import { LoadErrorState } from '../../components/LoadErrorState';
 import { AppText as Text } from '../../components/AppText';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 // "Ordenar por" (2026-09-07, item 11) — v1 traz só as duas baratas
 // (dado já pronto, sem mudança de backend): nome já vem em toda
@@ -186,7 +188,27 @@ export default function MedicationsScreen() {
                     */}
                     {item.is_prn ? t('prn.noSchedule') : t('medications.scheduleCount', { count: item.schedules.length })}
                     {' · '}
-                    {item.stock?.current_quantity ?? 0} {item.stock?.unit ?? t('medications.defaultUnit')} {t('medications.stockCount')}
+                    {/* Mesma distinção do Estoque (2026-09-28): estoque
+                        nunca informado NÃO é "0 em estoque". Aqui dizia
+                        "0 unid em estoque" liso, enquanto a aba Estoque —
+                        com o mesmo dado — dizia "não informado". Para um
+                        idoso, "0" significa "estou sem remédio": ele ia
+                        à farmácia ou desistia de tomar o que tem em
+                        casa. `isStockNeverSet` já existia desde
+                        2026-09-05, aplicado só em um dos dois lugares. */}
+                    {isStockNeverSet(item.stock) ? (
+                      <Text style={styles.neverSetInline}>{t('stock.neverSetShort')}</Text>
+                    ) : (
+                      <>
+                        {/* Mesma unidade do campo próprio da aba Estoque
+                            (2026-09-28) — ver `formatStockQuantity`. */}
+                        {formatStockQuantity({
+                          quantity: item.stock?.current_quantity ?? 0,
+                          stockUnit: item.stock?.unit,
+                        })}{' '}
+                        {t('medications.stockCount')}
+                      </>
+                    )}
                   </Text>
                   {isLow && (
                     <View style={styles.alertRow}>
@@ -228,71 +250,75 @@ function makeStyles(c: ThemeColors) {
     // visual já usado em presets de dias/intervalo no cadastro de
     // remédio, não um menu escondido.
     sortRow: {
-      flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-      paddingHorizontal: 16, paddingTop: 16,
+      flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm,
+      paddingHorizontal: spacing.lg, paddingTop: spacing.lg,
     },
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
     // só 2 chips numa fileira, sobra espaço de sobra pra crescer sem
     // apertar nada.
     sortChip: {
-      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, minHeight: 48,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: rounded.xl, minHeight: 48,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     sortChipActive: { backgroundColor: c.brand, borderColor: c.brand },
-    sortChipText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    sortChipText: { fontSize: type.micro, fontWeight: '600', color: c.textSecondary },
     sortChipTextActive: { color: c.onBrand },
-    list: { padding: 16, gap: 12 },
-    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
-    gridRow: { gap: 12 },
-    empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
+    list: { padding: spacing.lg, gap: spacing.md },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl },
+    gridRow: { gap: spacing.md },
+    empty: { textAlign: 'center', color: c.textMuted, marginTop: spacing.huge, fontSize: type.body },
     // Mesmo padrão visual do estado vazio da Home (emptyBox/emptyTitle/
     // emptyText/emptyBtn) — ícone, título, texto de apoio e CTA.
-    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
-    emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.huge, gap: spacing.sm, marginTop: spacing.huge },
+    emptyTitle: { fontSize: type.critical, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
+    emptyText: { fontSize: type.caption, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
     // minHeight 48 (WCAG AAA, achado revisando toque mínimo 2026-09-05).
-    emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8, minHeight: 48, justifyContent: 'center' },
-    emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
+    emptyBtn: { backgroundColor: c.brand, borderRadius: rounded.md, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, marginTop: spacing.sm, minHeight: 48, justifyContent: 'center' },
+    emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: type.label },
     prnBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 3,
+      gap: spacing.xxs,
       backgroundColor: '#fff7ed',
       borderWidth: 1,
       borderColor: '#fed7aa',
-      borderRadius: 6,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
+      borderRadius: rounded.sm,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.xxs,
     },
-    prnBadgeText: { color: '#c2410c', fontSize: 11, fontWeight: '700' },
+    prnBadgeText: { color: '#c2410c', fontSize: type.micro, fontWeight: '700' },
+    // "Estoque não informado" dentro da linha de metadados: mesma
+    // cor do texto, sem destacar — é informação, não alarme. O que não
+    // pode é aparecer o número "0" (ver `isStockNeverSet`).
+    neverSetInline: { color: c.textMuted },
     card: {
-      backgroundColor: c.surface, borderRadius: 16,
-      flexDirection: 'row', alignItems: 'center', padding: 16,
+      backgroundColor: c.surface, borderRadius: rounded.lg,
+      flexDirection: 'row', alignItems: 'center', padding: spacing.lg,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardPaused: { opacity: 0.6 },
     // Mesmo tratamento visual do alerta de estoque baixo na aba Estoque.
     cardAlert: { borderWidth: 1.5, borderColor: c.warning },
-    alertRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    alertText: { fontSize: 13, color: c.warning },
-    colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14 },
+    alertRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+    alertText: { fontSize: type.micro, color: c.warning },
+    colorDot: { width: 14, height: 14, borderRadius: rounded.sm, marginRight: spacing.md },
     colorDotPaused: { opacity: 0.4 },
-    photoThumb: { width: 40, height: 40, borderRadius: 8, marginRight: 14 },
+    photoThumb: { width: 40, height: 40, borderRadius: rounded.sm, marginRight: spacing.md },
     info: { flex: 1 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    name: { fontSize: 16, fontWeight: '600', color: c.text },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    name: { fontSize: type.body, fontWeight: '600', color: c.text },
     pausedBadge: {
-      flexDirection: 'row', alignItems: 'center', gap: 3,
-      backgroundColor: c.surfaceSecondary, borderRadius: 8,
-      paddingHorizontal: 6, paddingVertical: 2,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.xxs,
+      backgroundColor: c.surfaceSecondary, borderRadius: rounded.sm,
+      paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs,
     },
-    pausedBadgeText: { fontSize: 10, fontWeight: '700', color: c.textMuted, textTransform: 'uppercase' },
-    dosage: { fontSize: 14, color: c.textSecondary, marginTop: 2 },
-    schedules: { fontSize: 13, color: c.textMuted, marginTop: 4 },
+    pausedBadgeText: { fontSize: type.micro, fontWeight: '700', color: c.textMuted, textTransform: 'uppercase' },
+    dosage: { fontSize: type.caption, color: c.textSecondary, marginTop: spacing.xxs },
+    schedules: { fontSize: type.micro, color: c.textMuted, marginTop: spacing.xs },
     fab: {
       position: 'absolute', right: 24, bottom: 24,
-      width: 56, height: 56, borderRadius: 28,
+      width: 56, height: 56, borderRadius: rounded.xxl,
       backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center',
       elevation: 6, shadowColor: c.brand, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
     },

@@ -14,6 +14,7 @@ import { LoadErrorState } from '../components/LoadErrorState';
 import { useAlertDialog } from '../hooks/useAlertDialog';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { listCollaborators, createInvite, revokeCollaborator, Collaborator } from '../services/collaborators';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // "Quem tem acesso" (2026-09-08, maior achado da revisão de UI/UX do
 // Rilson) — `listCollaborators`/`revokeCollaborator` já existiam no
@@ -182,29 +183,29 @@ export default function CollaboratorsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { padding: 20, paddingBottom: 48 },
-    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
-    subtitle: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
-    emptyBox: { alignItems: 'center', gap: 8, paddingVertical: 32, paddingHorizontal: 16 },
-    emptyText: { fontSize: 16, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
-    emptySubText: { fontSize: 13, color: c.textMuted, textAlign: 'center', lineHeight: 19 },
+    inner: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
+    subtitle: { fontSize: type.caption, color: c.textSecondary, lineHeight: 20, marginBottom: spacing.xl },
+    emptyBox: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxxl, paddingHorizontal: spacing.lg },
+    emptyText: { fontSize: type.body, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
+    emptySubText: { fontSize: type.micro, color: c.textMuted, textAlign: 'center', lineHeight: 19 },
     row: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: c.surface, borderRadius: 14, padding: 14, marginBottom: 10,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+      backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.md, marginBottom: spacing.sm,
       borderWidth: 1, borderColor: c.border,
     },
     rowIconBox: {
-      width: 36, height: 36, borderRadius: 18, backgroundColor: c.surfaceSecondary,
+      width: 36, height: 36, borderRadius: rounded.xl, backgroundColor: c.surfaceSecondary,
       alignItems: 'center', justifyContent: 'center',
     },
-    rowName: { fontSize: 15, fontWeight: '600', color: c.text },
-    rowHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
-    revokeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, minHeight: 48, justifyContent: 'center' },
-    revokeBtnText: { fontSize: 12, fontWeight: '600', color: c.error },
+    rowName: { fontSize: type.label, fontWeight: '600', color: c.text },
+    rowHint: { fontSize: type.microTight, color: c.textMuted, marginTop: spacing.xxs },
+    revokeBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.sm, minHeight: 48, justifyContent: 'center' },
+    revokeBtnText: { fontSize: type.microTight, fontWeight: '600', color: c.error },
     inviteBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, marginTop: 12, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+      backgroundColor: c.brand, borderRadius: rounded.md, paddingVertical: spacing.md, marginTop: spacing.md, minHeight: 48,
     },
-    inviteBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
+    inviteBtnText: { color: c.onBrand, fontWeight: '700', fontSize: type.label },
   });
 }

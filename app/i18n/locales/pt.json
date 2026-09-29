@@ -16,7 +16,8 @@
     "syncGaveUpToast_other": "{{count}} registros não sincronizaram depois de várias tentativas — podem ter se perdido, confira",
     "loadErrorTitle": "Não foi possível carregar",
     "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo.",
-    "retry": "Tentar de novo"
+    "retry": "Tentar de novo",
+    "dismiss": "Entendi"
   },
   "notifications": {
     "permissionBannerLabel": "Notificações desligadas, toque pra ativar",
@@ -171,7 +172,7 @@
     "sortAlphabetical": "Alfabética",
     "sortStockLow": "Estoque acabando",
     "sortAccessibilityLabel": "Ordenar por: {{label}}",
-    "loadErrorText": "Não foi possível carregar seus remédios. Pode ser a conexão."
+    "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo."
   },
   "stock": {
     "empty": "Nenhum medicamento cadastrado.",
@@ -191,7 +192,15 @@
     "errorSave": "Não foi possível atualizar o estoque agora. Tente de novo em instantes.",
     "neverSetHint": "Estoque não informado — toque em Editar",
     "defaultUnit": "unid",
-    "loadErrorText": "Não foi possível carregar o estoque. Pode ser a conexão."
+    "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo.",
+    "neverSetShort": "Estoque não informado",
+    "doses": "doses",
+    "dose": "dose",
+    "setHint": "substitui o total",
+    "addHint": "soma ao total",
+    "unitLabel": "Contando em",
+    "unitHint": "Em que você conta o que sobrou? Não é a dose — a dose é o quanto tomar.",
+    "unitOption": "Contar em {{unit}}"
   },
   "history": {
     "filterAll": "Todos",
@@ -232,6 +241,8 @@
     "adherenceLegendLow": "<50% Baixo",
     "calendarLegendNoData": "Sem dados",
     "chartEmptyState": "Ainda não há doses registradas nesse período. O gráfico aparece assim que você começar a marcar Tomei/Pulei.",
+    "chartLoading": "Carregando o gráfico…",
+    "chartError": "Não foi possível carregar o gráfico. Pode ser a conexão — nada foi apagado.",
     "shareConsultationSummary": "Compartilhar resumo pra consulta",
     "exportPdf": "Gerar Relatório Médico (PDF)",
     "exportPdfLockedLabel": "Gerar Relatório Médico em PDF, recurso Pro",
@@ -247,9 +258,12 @@
     "consultationSummaryError": "Não foi possível gerar o resumo. Tente de novo.",
     "summaryPartialScope": "nos {{shown}} registros exibidos de {{total}} no histórico",
     "summaryItemLabel": "{{label}}: {{value}}",
-    "loadErrorText": "Não foi possível carregar o histórico. Pode ser a conexão.",
+    "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo.",
     "statusUnrecorded": "Sem registro",
     "calendarPendingLabel": "Dia {{day}}, ainda não chegou",
+    "calendarLoading": "Carregando o calendário…",
+    "calendarLoadingLabel": "Carregando o calendário de adesão",
+    "calendarError": "Não foi possível carregar o calendário. Pode ser a conexão — nada foi apagado.",
     "noteAdd": "Anotar",
     "noteEdit": "Editar anotação",
     "noteSave": "Salvar anotação",

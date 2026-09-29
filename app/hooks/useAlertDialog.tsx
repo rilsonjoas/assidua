@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertDialog } from '../components/AlertDialog';
 
 // Extraído do padrão já usado em profile.tsx (2026-08-14) — um estado
@@ -14,6 +15,7 @@ import { AlertDialog } from '../components/AlertDialog';
 // gratuito → "Ver planos Pro"). Chamadas existentes com 2 argumentos
 // continuam idênticas, sem nada pra mudar.
 export function useAlertDialog() {
+  const { t } = useTranslation();
   const [alertInfo, setAlertInfo] = useState<{
     title: string;
     message: string;
@@ -29,7 +31,11 @@ export function useAlertDialog() {
       visible={!!alertInfo}
       title={alertInfo?.title ?? ''}
       message={alertInfo?.message ?? ''}
-      okLabel="OK"
+      // "OK" estava hardcoded aqui (2026-09-28), fora do i18n: o
+      // diálogo aparecia em inglês mesmo com o app em pt/es. Já existem
+      // `common.confirm` e `common.close` traduzidos, e o i18n tem teste
+      // de paridade entre os três idiomas.
+      okLabel={t('common.dismiss')}
       onDismiss={() => setAlertInfo(null)}
       actionLabel={alertInfo?.action?.label}
       onAction={

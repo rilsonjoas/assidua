@@ -3,6 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
+import { spacing, type } from '../constants/tokens';
 
 // Shell web W1 (2026-08-22) — o que faz o app "parecer site" não é a
 // largura, é a NAVEGAÇÃO: navbar persistente no topo substitui a tab
@@ -85,13 +86,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     height: 56,
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.xxl,
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
   },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   brandIcon: {
     width: 26,
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   brandText: {
-    fontSize: 17,
+    fontSize: type.critical,
     fontWeight: '700',
   },
   links: {
@@ -115,14 +116,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
     minHeight: 48,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   linkText: {
-    fontSize: 14,
+    fontSize: type.caption,
     fontWeight: '500',
   },
   linkTextActive: {

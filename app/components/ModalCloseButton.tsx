@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
+import { spacing } from '../constants/tokens';
 
 // Achado real de uso (2026-09-02): "botão de editar sem X — quem abre
 // achando que vai sair não encontra como". O back chevron padrão do
@@ -31,5 +32,5 @@ export function ModalCloseButton() {
 
 const styles = StyleSheet.create({
   // padding some no toque mínimo de 44px já com o hitSlop.
-  button: { padding: 8 },
+  button: { padding: spacing.sm },
 });

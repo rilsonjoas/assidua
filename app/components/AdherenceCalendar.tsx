@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { format, addMonths, subMonths, startOfMonth, getDay, getDaysInMonth, parseISO } from 'date-fns';
 import { ptBR, enUS, es } from 'date-fns/locale';
@@ -11,6 +11,7 @@ import { getAdherenceColor } from '../lib/adherence';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const DATE_FNS_LOCALES = { pt: ptBR, en: enUS, es } as const;
@@ -35,7 +36,16 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
   const today = format(new Date(), 'yyyy-MM-dd');
   const canGoNext = monthDate < startOfMonth(new Date());
 
-  const { data: days = [] } = useQuery({
+  // `isLoading`/`isError` sao lidos de verdade (2026-09-28). Antes a
+  // query so expunha `data`, e `data = []` num erro de rede produzia
+  // um mes INTEIRO pintado de cinza "sem dado" — indistinguivel de "voce
+  // nao tomou nada neste mes". Era uma afirmacao falsa na tela que a
+  // pessoa mais consulta para saber se esta em dia.
+  //
+  // A distincao que importa: "sem dado" (o app sabe, e nao ha) e
+  // "nao consegui perguntar" (o app nao sabe). Antes as duas se
+  // pareciam a mesma coisa.
+  const { data: days = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['daily-adherence', profileId, monthKey],
     queryFn: () => getDailyAdherence(profileId, monthKey),
     enabled: !!profileId,
@@ -111,6 +121,30 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
         ))}
       </View>
 
+      {/* Durante o carregamento e no erro, o grid NAO e renderizado. Um
+          esqueleto de quadrados diz "ainda nao sei"; um mes inteiro em
+          cinza diz "voce nao tomou nada" — que e uma conclusao que o
+          app nao tem direito de tirar quando a rede falhou. */}
+      {isLoading ? (
+        <View style={styles.feedbackBox} accessible accessibilityLabel={t('history.calendarLoadingLabel')}>
+          <ActivityIndicator size="large" color={colors.textMuted} />
+          <Text style={styles.feedbackText}>{t('history.calendarLoading')}</Text>
+        </View>
+      ) : isError ? (
+        <View style={styles.feedbackBox}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={28} color={colors.textSecondary} />
+          <Text style={styles.feedbackText}>{t('history.calendarError')}</Text>
+          <TouchableOpacity
+            onPress={() => refetch()}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.retry')}
+            style={styles.retryBtn}
+          >
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
       <View style={styles.grid}>
         {cells.map((point, i) => {
           if (!point) return <View key={i} style={styles.cellSlot} />;
@@ -156,6 +190,8 @@ export function AdherenceCalendar({ profileId }: AdherenceCalendarProps) {
           <Text style={styles.legendText}>{t('history.calendarLegendNoData')}</Text>
         </View>
       </View>
+        </>
+      )}
     </View>
   );
 }
@@ -164,41 +200,49 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: {
       backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 12,
-      borderRadius: 16,
-      padding: 16,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      borderRadius: rounded.lg,
+      padding: spacing.lg,
       elevation: 2,
       shadowColor: '#000',
       shadowOpacity: 0.05,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
     },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
     // minHeight/minWidth 48 (WCAG AAA, achado revisando toque mínimo
-    // 2026-09-05) — só `padding: 8` em cima de um ícone de 22px dava
+    // 2026-09-05) — só `padding: spacing.sm` em cima de um ícone de 22px dava
     // ~38px de área real, abaixo do alvo mínimo.
-    navBtn: { padding: 8, minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 15, fontWeight: '700', color: c.text, textTransform: 'capitalize' },
+    navBtn: { padding: spacing.sm, minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: type.label, fontWeight: '700', color: c.text, textTransform: 'capitalize' },
     weekdayRow: { flexDirection: 'row' },
-    weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: c.textMuted },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
+    weekdayText: { flex: 1, textAlign: 'center', fontSize: type.microTight, fontWeight: '700', color: c.textMuted },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
     // 1/7 de largura cada — 7 colunas, quantas linhas o mês precisar.
-    cellSlot: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
-    cell: { flex: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-    cellText: { fontSize: 13, fontWeight: '600' },
+    cellSlot: { width: `${100 / 7}%`, aspectRatio: 1, padding: spacing.xxs },
+    cell: { flex: 1, borderRadius: rounded.sm, alignItems: 'center', justifyContent: 'center' },
+    cellText: { fontSize: type.micro, fontWeight: '600' },
     legendRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'center',
-      gap: 14,
-      marginTop: 14,
-      paddingTop: 10,
+      gap: spacing.md,
+      marginTop: spacing.md,
+      paddingTop: spacing.sm,
       borderTopWidth: 1,
       borderTopColor: c.border,
     },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    legendDot: { width: 10, height: 10, borderRadius: 5 },
-    legendText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    legendDot: { width: 10, height: 10, borderRadius: rounded.sm },
+    legendText: { fontSize: type.microTight, color: c.textSecondary, fontWeight: '600' },
+    // Estados de carregamento e erro do calendário (2026-09-28). O grid
+    // some nesses dois casos de propósito: um mês inteiro em cinza se
+    // confunde com "não tomou nada", e a falha de rede não é a mesma
+    // coisa que um dia sem registro.
+    feedbackBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl, gap: spacing.md },
+    feedbackText: { fontSize: type.caption, color: c.textSecondary, textAlign: 'center' },
+    retryBtn: { minHeight: 44, minWidth: 120, alignItems: 'center', justifyContent: 'center' },
+    retryText: { fontSize: type.label, color: c.brand, fontWeight: '600' },
   });
 }

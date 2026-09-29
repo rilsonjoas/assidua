@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, View, StyleSheet, DimensionValue } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
+import { rounded, spacing } from '../constants/tokens';
 
 // Fase 2 (2026-08-12) — substitui o `ActivityIndicator` genérico nas 4
 // telas de lista (Hoje, Remédios, Histórico, Estoque) por um placeholder
@@ -84,14 +85,14 @@ export function SkeletonList({ count = 4, lines = 2 }: { count?: number; lines?:
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16, gap: 12 },
+  list: { padding: spacing.lg, gap: spacing.md },
 });
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     card: {
-      flexDirection: 'row', alignItems: 'center', gap: 14,
-      backgroundColor: c.surface, borderRadius: 16, padding: 16,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+      backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.lg,
     },
     body: { flex: 1 },
   });

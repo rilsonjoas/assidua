@@ -39,6 +39,7 @@ import { ThemeColors } from '../../constants/theme';
 import { SkeletonList } from '../../components/Skeleton';
 import { AppText as Text } from '../../components/AppText';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 // Picker nativo de horário (2026-09-11) — módulo nativo, pode não
 // existir ainda num build EAS anterior à instalação desse pacote (mesmo
@@ -947,7 +948,7 @@ export default function HomeScreen() {
             accessibilityLabel={t('profile.privacyToggle')}
             accessibilityHint={t('profile.privacyModeHint')}
             accessibilityState={{ checked: isPrivate }}
-            style={{ padding: 8 }}
+            style={{ padding: spacing.sm }}
           >
             <MaterialCommunityIcons
               name={isPrivate ? 'eye-off-outline' : 'eye-outline'}
@@ -1530,37 +1531,37 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
     // overflow hidden mantém a marca d'água recortada dentro do header.
-    header: { backgroundColor: c.headerBg, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20, overflow: 'hidden' },
+    header: { backgroundColor: c.headerBg, paddingTop: spacing.huge, paddingBottom: spacing.xl, paddingHorizontal: spacing.xl, overflow: 'hidden' },
     // Grande e quase transparente: presença de marca sem brigar com
     // data/título por atenção (feedback "nem que seja como marca d'água").
     brandWatermark: {
       position: 'absolute', top: -44, right: -32, width: 170, height: 170, opacity: 0.12,
     },
-    headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    headerTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     caregiverBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-      backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20,
-      paddingHorizontal: 12, paddingVertical: 6, marginTop: 12,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start',
+      backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: rounded.xl,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginTop: spacing.md,
     },
-    caregiverBannerText: { color: c.headerText, fontSize: 13, fontWeight: '600' },
+    caregiverBannerText: { color: c.headerText, fontSize: type.micro, fontWeight: '600' },
     brandMark: { width: 30, height: 30, opacity: 0.92 },
-    date: { color: c.headerSubtext, fontSize: 13, textTransform: 'capitalize' },
-    title: { color: c.headerText, fontSize: 24, fontWeight: '700', marginTop: 2 },
-    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    date: { color: c.headerSubtext, fontSize: type.micro, textTransform: 'capitalize' },
+    title: { color: c.headerText, fontSize: type.homeHeader, fontWeight: '700', marginTop: spacing.xxs },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     streakBadge: {
-      flexDirection: 'row', alignItems: 'center', gap: 3,
-      backgroundColor: 'rgba(245,158,11,0.18)', borderRadius: 12,
-      paddingHorizontal: 8, paddingVertical: 3, marginTop: 2,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.xxs,
+      backgroundColor: 'rgba(245,158,11,0.18)', borderRadius: rounded.md,
+      paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, marginTop: spacing.xxs,
     },
-    streakBadgeText: { color: '#f59e0b', fontWeight: '700', fontSize: 13 },
-    progress: { color: c.headerSubtext, fontSize: 13, marginTop: 4 },
-    profileList: { marginTop: 14 },
+    streakBadgeText: { color: '#f59e0b', fontWeight: '700', fontSize: type.micro },
+    progress: { color: c.headerSubtext, fontSize: type.micro, marginTop: spacing.xs },
+    profileList: { marginTop: spacing.md },
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
     // troca de perfil ativo, ação real e usada com frequência.
     profileChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 48,
-      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20,
-      paddingHorizontal: 12, paddingVertical: 6, marginRight: 8,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 48,
+      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: rounded.xl,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginRight: spacing.sm,
     },
     // Achado real testando no dispositivo (2026-08-13): usava c.surface,
     // que é claro no tema claro (destaca bem) mas escuro no tema escuro
@@ -1569,28 +1570,28 @@ function makeStyles(c: ThemeColors) {
     // pensada pra ler sobre o header colorido), então o chip ativo
     // sempre fica o mais claro/destacado, não o mais escuro.
     profileChipActive: { backgroundColor: c.headerText },
-    profileChipText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '500' },
+    profileChipText: { color: 'rgba(255,255,255,0.9)', fontSize: type.micro, fontWeight: '500' },
     profileChipTextActive: { color: c.headerBg },
     stockBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      marginHorizontal: 16, marginTop: 12, padding: 12,
-      backgroundColor: c.brandSubtle, borderRadius: 12,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md,
+      backgroundColor: c.brandSubtle, borderRadius: rounded.md,
       borderWidth: 1, borderColor: c.warning,
     },
-    stockBannerText: { flex: 1, fontSize: 13, color: c.text, fontWeight: '500' },
-    list: { padding: 16, gap: 10 },
-    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
-    gridRow: { gap: 12 },
-    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10, marginTop: 40 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
-    emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
+    stockBannerText: { flex: 1, fontSize: type.micro, color: c.text, fontWeight: '500' },
+    list: { padding: spacing.lg, gap: spacing.sm },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl },
+    gridRow: { gap: spacing.md },
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.huge, gap: spacing.sm, marginTop: spacing.huge },
+    emptyTitle: { fontSize: type.critical, fontWeight: '700', color: c.textSecondary, textAlign: 'center' },
+    emptyText: { fontSize: type.caption, color: c.textMuted, textAlign: 'center', lineHeight: 20 },
     // minHeight 48 (WCAG AAA, achado revisando toque mínimo 2026-09-05
     // — mesmo estilo replicado em medications.tsx, mantido igual nos
     // dois pra não virar botão idêntico com altura diferente).
-    emptyBtn: { backgroundColor: c.brand, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8, minHeight: 48, justifyContent: 'center' },
-    emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
+    emptyBtn: { backgroundColor: c.brand, borderRadius: rounded.md, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, marginTop: spacing.sm, minHeight: 48, justifyContent: 'center' },
+    emptyBtnText: { color: c.onBrand, fontWeight: '600', fontSize: type.label },
     card: {
-      backgroundColor: c.surface, borderRadius: 16, flexDirection: 'row',
+      backgroundColor: c.surface, borderRadius: rounded.lg, flexDirection: 'row',
       overflow: 'hidden',
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
@@ -1600,21 +1601,21 @@ function makeStyles(c: ThemeColors) {
     // segura as duas (nome+horário em cima, ações/status embaixo);
     // `alignSelf: 'stretch'` do colorBar continua acompanhando a altura
     // total, agora maior quando a fileira de ações existe.
-    cardContent: { flex: 1, paddingVertical: 14 },
+    cardContent: { flex: 1, paddingVertical: spacing.md },
     cardTopRow: { flexDirection: 'row', alignItems: 'center' },
-    timeCol: { paddingHorizontal: 12, alignItems: 'center' },
-    time: { fontSize: 15, fontWeight: '700', color: c.brand },
+    timeCol: { paddingHorizontal: spacing.md, alignItems: 'center' },
+    time: { fontSize: type.label, fontWeight: '700', color: c.brand },
     // Sem `color` fixo (2026-09-11) — agora serve tanto "Perdido"
     // (c.warning) quanto "Atrasado" (c.delayed), cor sempre passada
     // inline no JSX conforme o status.
-    missedLabel: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+    missedLabel: { fontSize: type.micro, fontWeight: '600', marginTop: spacing.xxs },
     // paddingRight (não mais paddingVertical, que subiu pro cardContent)
     // — evita o texto colar na borda direita do card.
-    cardBody: { flex: 1, paddingRight: 12 },
-    medName: { fontSize: 15, fontWeight: '600', color: c.text },
-    medDosage: { fontSize: 13, color: c.textSecondary, marginTop: 2 },
-    pendingSyncRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    pendingSyncText: { fontSize: 10, color: c.textMuted },
+    cardBody: { flex: 1, paddingRight: spacing.md },
+    medName: { fontSize: type.label, fontWeight: '600', color: c.text },
+    medDosage: { fontSize: type.micro, color: c.textSecondary, marginTop: spacing.xxs },
+    pendingSyncRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+    pendingSyncText: { fontSize: type.micro, color: c.textMuted },
     // Fileira própria pras ações (2026-09-09, achado real do Rilson com
     // screenshot) — antes dividia espaço com o nome do remédio na MESMA
     // fileira; num nome comprido ("Maleato de dexclorfeniramina +
@@ -1622,114 +1623,114 @@ function makeStyles(c: ThemeColors) {
     // os botões ganhavam rótulo visível (achado de UX anterior),
     // quebrando palavra no meio. Agora nome e ações têm fileira própria,
     // cada uma com a largura toda do card.
-    actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingHorizontal: 12 },
-    statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, marginTop: 10 },
+    actionsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, paddingHorizontal: spacing.md },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, marginTop: spacing.sm },
     // minHeight 48 nos 3 (WCAG AAA, 2026-09-08). flex:1 só no Tomei
     // (2026-09-09) — com fileira própria agora, sobra espaço; a ação
     // principal usa esse espaço pra virar o botão mais fácil de
     // acertar, em vez de disputar tamanho igual com os outros dois.
     takeButton: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.brand,
-      paddingVertical: 12, borderRadius: 12, minHeight: 48,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, backgroundColor: c.brand,
+      paddingVertical: spacing.md, borderRadius: rounded.md, minHeight: 48,
     },
-    takeButtonText: { color: c.onBrand, fontWeight: '700', fontSize: 14 },
+    takeButtonText: { color: c.onBrand, fontWeight: '700', fontSize: type.caption },
     // "Foi em outro horário" (item 8, 2026-09-08; rótulo visível
     // adicionado em 2026-09-08 num achado de UX à parte — ícone sozinho
     // não dava pra entender o que fazia).
     customTimeButton: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: rounded.md, minHeight: 48,
       backgroundColor: c.surfaceSecondary,
     },
-    customTimeButtonText: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+    customTimeButtonText: { color: c.textMuted, fontSize: type.microTight, fontWeight: '600' },
     // Sem minWidth/minHeight aqui de propósito — ícone "X" sozinho, lado
     // a lado com dois botões que já têm texto; crescer o quadrado pra
     // 48x48 inflava a fileira inteira. hitSlop no JSX (ver abaixo)
     // resolve o toque mínimo sem mexer no visual.
-    skipButton: { padding: 10, borderRadius: 10, backgroundColor: c.surfaceSecondary },
+    skipButton: { padding: spacing.sm, borderRadius: rounded.md, backgroundColor: c.surfaceSecondary },
     // Modal "Foi em outro horário?" — mesmo padrão visual de
     // ConfirmDialog/AlertDialog (backdrop escuro, card claro, cantos
     // arredondados), só que local a esta tela por precisar de
     // conteúdo que os dois componentes genéricos não suportam.
     modalOverlay: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-      alignItems: 'center', justifyContent: 'center', padding: 24,
+      alignItems: 'center', justifyContent: 'center', padding: spacing.xxl,
     },
     modalContent: {
       width: '100%', maxWidth: 360, backgroundColor: c.surface,
-      borderRadius: 18, padding: 20,
+      borderRadius: rounded.xl, padding: spacing.xl,
     },
-    modalTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 14 },
+    modalTitle: { fontSize: type.critical, fontWeight: '700', color: c.text, marginBottom: spacing.md },
     // "No horário previsto" (2026-09-11) — cor de destaque (mesma do
     // botão principal dos outros diálogos), largura cheia, ACIMA do
     // grid neutro dos atalhos — é a resposta mais comum na prática
     // (pequeno atraso trivial), merece ser a mais fácil de achar/tocar.
     onScheduleChip: {
-      minHeight: 48, borderRadius: 12, backgroundColor: c.brand,
-      alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
-      marginBottom: 10,
+      minHeight: 48, borderRadius: rounded.md, backgroundColor: c.brand,
+      alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm,
+      marginBottom: spacing.sm,
     },
-    noteField: { marginTop: 18, gap: 6 },
-    noteLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted },
+    noteField: { marginTop: spacing.lg, gap: spacing.xs },
+    noteLabel: { fontSize: type.micro, fontWeight: '600', color: c.textMuted },
     noteInput: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 12, fontSize: 15, color: c.text, minHeight: 72,
+      borderRadius: rounded.md, padding: spacing.md, fontSize: type.label, color: c.text, minHeight: 72,
     },
-    onScheduleChipText: { color: c.onBrand, fontWeight: '600', fontSize: 15 },
+    onScheduleChipText: { color: c.onBrand, fontWeight: '600', fontSize: type.label },
     // Atalhos relativos (2026-09-11) — grid 2x2, cada chip com o mesmo
     // minHeight 48 dos outros botões do modal (WCAG AAA).
-    quickTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    quickTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     quickTimeChip: {
-      flexBasis: '47%', flexGrow: 1, minHeight: 48, borderRadius: 12,
+      flexBasis: '47%', flexGrow: 1, minHeight: 48, borderRadius: rounded.md,
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
-      alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+      alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm,
     },
-    quickTimeChipText: { color: c.text, fontWeight: '600', fontSize: 15 },
-    specificTimeLink: { alignItems: 'center', marginTop: 14, minHeight: 44, justifyContent: 'center' },
-    specificTimeLinkText: { color: c.brand, fontWeight: '600', fontSize: 14 },
-    modalActions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    quickTimeChipText: { color: c.text, fontWeight: '600', fontSize: type.label },
+    specificTimeLink: { alignItems: 'center', marginTop: spacing.md, minHeight: 44, justifyContent: 'center' },
+    specificTimeLinkText: { color: c.brand, fontWeight: '600', fontSize: type.caption },
+    modalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
     // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08) — column
     // layout, botão de largura cheia dentro do modal, crescer aqui é
     // só um botão normal ficando mais alto, sem efeito colateral visual.
-    modalCancelBtn: { flex: 1, padding: 13, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
+    modalCancelBtn: { flex: 1, padding: spacing.md, borderRadius: rounded.md, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     modalCancelText: { color: c.textSecondary, fontWeight: '600' },
-    modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
+    modalConfirmBtn: { flex: 1, backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md, alignItems: 'center', justifyContent: 'center', minHeight: 48 },
     modalConfirmText: { color: c.onBrand, fontWeight: '600' },
     // Corpo de texto pros 3 diálogos de confirmação novos (2026-09-11)
     // — mesmo estilo do `message` do AlertDialog genérico, mas local
     // aqui (esses diálogos têm 2 ações reais, não cabem nele).
-    modalMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginTop: -4, marginBottom: 4 },
+    modalMessage: { fontSize: type.caption, color: c.textSecondary, lineHeight: 20, marginTop: -4, marginBottom: spacing.xs },
     // Empilhado, não lado a lado (2026-09-11) — os 3 diálogos novos têm
     // textos de botão mais longos ("Sempre, a partir de agora",
     // "Marcar como tomada") que ficariam espremidos numa fileira de 2
     // (padrão já usado em `modalActions`, reservado pros diálogos de
     // texto curto como Cancelar/Registrar).
-    modalActionsColumn: { gap: 10, marginTop: 20 },
+    modalActionsColumn: { gap: spacing.sm, marginTop: spacing.xl },
     modalConfirmBtnFull: {
-      backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     modalCancelBtnFull: {
-      backgroundColor: c.surfaceSecondary, padding: 13, borderRadius: 10,
+      backgroundColor: c.surfaceSecondary, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     // minHeight 48 (2026-09-08) — badge com texto ("Tomado" + ícone de
     // desfazer), não um ícone sozinho; cabe na altura que o card já tem
     // (2 linhas de texto ao lado já passam de 48px), sem esticar nada.
-    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 14, paddingVertical: 4, minHeight: 48 },
-    undoIcon: { marginLeft: 2, opacity: 0.6 },
+    statusBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingRight: spacing.md, paddingVertical: spacing.xs, minHeight: 48 },
+    undoIcon: { marginLeft: spacing.xxs, opacity: 0.6 },
     // Ícone de coração sozinho — hitSlop, não padding/minHeight
     // (2026-09-08, mesmo raciocínio do skipButton acima): preserva o
     // visual compacto, só expande a área de toque.
-    reactButton: { paddingHorizontal: 12, paddingVertical: 8 },
-    reactedIndicator: { paddingRight: 14 },
-    takenText: { color: c.success, fontWeight: '600', fontSize: 13 },
-    skippedText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
+    reactButton: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+    reactedIndicator: { paddingRight: spacing.md },
+    takenText: { color: c.success, fontWeight: '600', fontSize: type.micro },
+    skippedText: { color: c.textMuted, fontWeight: '600', fontSize: type.micro },
     // Mesmo estilo do FAB de Remédios (2026-09-02) — "+" também na Home,
     // pedido explícito pra não obrigar trocar de aba pra adicionar.
     fab: {
       position: 'absolute', right: 24, bottom: 24,
-      width: 56, height: 56, borderRadius: 28,
+      width: 56, height: 56, borderRadius: rounded.xxl,
       backgroundColor: c.brand, alignItems: 'center', justifyContent: 'center',
       elevation: 6, shadowColor: c.brand, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
     },

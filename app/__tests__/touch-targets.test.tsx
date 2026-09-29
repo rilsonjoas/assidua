@@ -164,8 +164,18 @@ describe('Toque mínimo de 48px — ícones lado a lado (hitSlop, não crescer a
     fireEvent.press(await screen.findByTestId('edit-stock-10'));
 
     expect(minHeightOf(screen.getByLabelText('Cancelar'))).toBeGreaterThanOrEqual(48);
-    expect(minHeightOf(screen.getByLabelText('Adicionar ao estoque de Losartana'))).toBeGreaterThanOrEqual(48);
-    expect(minHeightOf(screen.getByLabelText('Definir estoque de Losartana'))).toBeGreaterThanOrEqual(48);
+    // O rótulo passou a incluir a dica da ação em 2026-09-28: "Adicionar"
+    // e "Definir" são opostos (soma x substitui) e tinham o mesmo peso
+    // visual, então o leitor de tela precisa ouvir a diferença — que só
+    // aparece na tela como texto. O `getByLabelText` exato não serve
+    // mais; o prefixo identifica o botão.
+    const add = screen.getByLabelText(/^Adicionar ao estoque de Losartana/);
+    const set = screen.getByLabelText(/^Definir estoque de Losartana/);
+    expect(minHeightOf(add)).toBeGreaterThanOrEqual(48);
+    expect(minHeightOf(set)).toBeGreaterThanOrEqual(48);
+    // E a dica tem que estar no rótulo, não só desenhada na tela.
+    expect(add.props.accessibilityLabel).toContain('soma ao total');
+    expect(set.props.accessibilityLabel).toContain('substitui o total');
   });
 
   // "Pular" (X) e "Reagir" (coração) são ícones sozinhos ao lado de

@@ -6,6 +6,7 @@ import { useTheme } from '../hooks/useTheme';
 import { getNotificationPermissionStatus } from '../services/notifications';
 import { useAlertDialog } from '../hooks/useAlertDialog';
 import { AppText as Text } from './AppText';
+import { spacing, type } from '../constants/tokens';
 
 // "Permissão negada é invisível pra sempre" (2026-09-11, achado real do
 // Rilson revendo o app) — antes, notificação só era pedida 1x no
@@ -94,14 +95,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
     minHeight: 40,
   },
   text: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: type.microTight,
     fontWeight: '600',
     textAlign: 'center',
     flexShrink: 1,

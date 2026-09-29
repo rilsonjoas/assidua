@@ -2,6 +2,7 @@ import { Modal, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // Achado real testando no dispositivo (2026-08-13): `Alert.alert` sempre
 // renderiza o diálogo *nativo* do sistema operacional — cor, fonte e
@@ -78,27 +79,27 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     backdrop: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-      alignItems: 'center', justifyContent: 'center', padding: 24,
+      alignItems: 'center', justifyContent: 'center', padding: spacing.xxl,
     },
     card: {
       width: '100%', maxWidth: 360, backgroundColor: c.surface,
-      borderRadius: 18, padding: 20,
+      borderRadius: rounded.xl, padding: spacing.xl,
     },
-    title: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 8 },
-    message: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    title: { fontSize: type.critical, fontWeight: '700', color: c.text, marginBottom: spacing.sm },
+    message: { fontSize: type.caption, color: c.textSecondary, lineHeight: 20 },
+    actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
     // minHeight 48 + justifyContent nos 2 (WCAG AAA, auditoria de toque
     // mínimo 2026-09-08) — mesmo raciocínio do AlertDialog: column
     // layout, sem justifyContent o texto não centralizaria numa caixa
     // mais alta. Usado em toda confirmação sim/não do app.
     cancelBtn: {
-      flex: 1, padding: 13, borderRadius: 10,
+      flex: 1, padding: spacing.md, borderRadius: rounded.md,
       borderWidth: 1, borderColor: c.border,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     cancelText: { color: c.textSecondary, fontWeight: '600' },
     confirmBtn: {
-      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      flex: 1, backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     confirmBtnDestructive: { backgroundColor: c.error },

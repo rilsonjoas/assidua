@@ -6,6 +6,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from '../components/AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // "Ajuda" (2026-08-14) — pergunta direta do Rilson: "não tem como
 // facilitar pra novos usuários com um guia?". O onboarding (3 telas)
@@ -66,22 +67,22 @@ export default function HelpScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { padding: 20, paddingBottom: 48 },
-    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
-    subtitle: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
+    inner: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
+    subtitle: { fontSize: type.caption, color: c.textSecondary, lineHeight: 20, marginBottom: spacing.xl },
     card: {
-      backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12,
+      backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.lg, marginBottom: spacing.md,
       borderWidth: 1, borderColor: c.border,
     },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-    cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, flexShrink: 1 },
-    cardText: { fontSize: 14, color: c.textSecondary, lineHeight: 21 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+    cardTitle: { fontSize: type.body, fontWeight: '700', color: c.text, flexShrink: 1 },
+    cardText: { fontSize: type.caption, color: c.textSecondary, lineHeight: 21 },
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
     shareBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, marginTop: 8, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+      backgroundColor: c.brand, borderRadius: rounded.md, paddingVertical: spacing.md, marginTop: spacing.sm, minHeight: 48,
     },
-    shareBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
-    shareHint: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 17 },
+    shareBtnText: { color: c.onBrand, fontWeight: '700', fontSize: type.label },
+    shareHint: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: spacing.sm, lineHeight: 17 },
   });
 }

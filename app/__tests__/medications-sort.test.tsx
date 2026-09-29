@@ -161,4 +161,42 @@ describe('MedicationsScreen — remédio de resgate (P4/§10.4)', () => {
     expect(await screen.findByText('Pausado')).toBeTruthy();
     expect(screen.queryByText('Resgate')).toBeNull();
   });
+  // Bug de leitura, corrigido 2026-09-28: a aba Remédios mostrava
+  // "0 unid em estoque" para um remédio cujo estoque NUNCA foi
+  // informado, enquanto a aba Estoque — com o mesmo dado — dizia
+  // "não informado". Para um idoso, "0" significa "estou sem
+  // remédio": ele ia à farmácia ou desistia de tomar o que tinha em
+  // casa. `isStockNeverSet` já existia desde 2026-09-05, aplicado só
+  // na metade certa.
+  it('estoque nunca informado NÃO aparece como "0 em estoque"', async () => {
+    mockedMedications.getMedications.mockResolvedValue([
+      makeMedication({
+        stock: { current_quantity: 0, unit: 'comprimidos', last_updated_at: null },
+      }),
+    ]);
+
+    renderScreen();
+
+    await screen.findByText('Losartana');
+    expect(screen.getByText('Estoque não informado')).toBeTruthy();
+    expect(screen.queryByText(/0 comprimidos/)).toBeNull();
+    expect(screen.queryByText(/0 unid/)).toBeNull();
+  });
+
+  it('estoque realmente zerado (já informativo) continua mostrando 0', async () => {
+    // O contraponto do teste acima: `current_quantity === 0` com
+    // `last_updated_at` preenchido é "acabou", e precisa continuar
+    // dizendo 0. Se os dois casos virassem a mesma string, o app
+    // perderia a distinção que a auditoria de 2026-09-05 criou.
+    mockedMedications.getMedications.mockResolvedValue([
+      makeMedication({
+        stock: { current_quantity: 0, unit: 'comprimidos', last_updated_at: '2026-09-01T10:00:00Z' },
+      }),
+    ]);
+
+    renderScreen();
+
+    await screen.findByText('Losartana');
+    expect(screen.queryByText('Estoque não informado')).toBeNull();
+  });
 });

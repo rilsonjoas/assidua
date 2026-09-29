@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
 import { getAdherenceColor } from '../lib/adherence';
 import { AppText as Text } from './AppText';
+import { type } from '../constants/tokens';
 
 interface AdherenceRingProps {
   taken: number;
@@ -82,5 +83,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pctText: { fontSize: 13, fontWeight: '700' },
+  pctText: { fontSize: type.micro, fontWeight: '700' },
 });

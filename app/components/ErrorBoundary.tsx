@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/react-native';
 import { useTheme } from '../hooks/useTheme';
 import { lightColors, ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 interface Props {
   children: ReactNode;
@@ -98,13 +99,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.xxl,
   },
   card: {
     width: '100%',
     maxWidth: 420,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: rounded.lg,
+    padding: spacing.xxl,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -113,23 +114,23 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   title: {
-    fontSize: 20,
+    fontSize: type.section,
     fontWeight: '700',
-    marginTop: 16,
+    marginTop: spacing.lg,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    marginTop: 8,
-    marginBottom: 24,
+    fontSize: type.caption,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
     textAlign: 'center',
     lineHeight: 20,
   },
   // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
   button: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxl,
+    borderRadius: rounded.md,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: type.label,
     fontWeight: '600',
   },
 });

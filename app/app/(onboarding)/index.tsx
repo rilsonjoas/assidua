@@ -9,6 +9,7 @@ import { ThemeColors } from '../../constants/theme';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { requestNotificationPermission, registerPushToken } from '../../services/notifications';
 import { AppText as Text } from '../../components/AppText';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 // Onboarding guiado (Fase 1 do roadmap) — 3 telas na primeira abertura.
 // Decisão: carrossel explicativo, não formulário embutido. Quem já usa
@@ -132,29 +133,29 @@ export default function OnboardingScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.background, paddingTop: 64, paddingBottom: 40 },
-    skip: { alignSelf: 'flex-end', marginHorizontal: 24 },
-    skipText: { color: c.textMuted, fontSize: 14, fontWeight: '600' },
+    container: { flex: 1, backgroundColor: c.background, paddingTop: spacing.huge, paddingBottom: spacing.huge },
+    skip: { alignSelf: 'flex-end', marginHorizontal: spacing.xxl },
+    skipText: { color: c.textMuted, fontSize: type.caption, fontWeight: '600' },
     pager: { flex: 1 },
-    content: { alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 24 },
+    content: { alignItems: 'center', justifyContent: 'center', gap: spacing.lg, paddingHorizontal: spacing.xxl },
     // Base sempre aplicada (celular E wide) — sem isso, o ícone (largura
     // fixa) cola na borda esquerda do wrapper em vez de centralizar
     // (achado do Rilson, regressão da minha própria edição de wide-mode).
-    contentInner: { alignItems: 'center', gap: 16 },
+    contentInner: { alignItems: 'center', gap: spacing.lg },
     contentInnerWide: { width: '100%', maxWidth: 480 },
     iconCircle: {
-      width: 112, height: 112, borderRadius: 56, backgroundColor: c.brandSubtle,
-      alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+      width: 112, height: 112, borderRadius: rounded.full, backgroundColor: c.brandSubtle,
+      alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm,
     },
-    title: { fontSize: 22, fontWeight: '700', color: c.text, textAlign: 'center' },
-    text: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: 8 },
-    dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 24 },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
+    title: { fontSize: type.heading, fontWeight: '700', color: c.text, textAlign: 'center' },
+    text: { fontSize: type.label, color: c.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: spacing.sm },
+    dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xxl },
+    dot: { width: 8, height: 8, borderRadius: rounded.sm, backgroundColor: c.border },
     dotActive: { backgroundColor: c.brand, width: 20 },
     // minHeight 48 explícito (WCAG AAA, 2026-09-08) — já batia perto via
     // padding, mas sem garantia (depende do tamanho de fonte do sistema).
-    nextBtn: { backgroundColor: c.brand, borderRadius: 14, paddingVertical: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginHorizontal: 24 },
-    nextBtnWide: { alignSelf: 'center', width: '100%', maxWidth: 480, marginHorizontal: 0 },
-    nextBtnText: { color: c.onBrand, fontWeight: '700', fontSize: 15 },
+    nextBtn: { backgroundColor: c.brand, borderRadius: rounded.lg, paddingVertical: spacing.lg, minHeight: 48, alignItems: 'center', justifyContent: 'center', marginHorizontal: spacing.xxl },
+    nextBtnWide: { alignSelf: 'center', width: '100%', maxWidth: 480, marginHorizontal: spacing.none },
+    nextBtnText: { color: c.onBrand, fontWeight: '700', fontSize: type.label },
   });
 }

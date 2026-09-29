@@ -11,6 +11,17 @@ use Illuminate\Support\Facades\Storage;
 
 class MedicationController extends Controller
 {
+    /**
+     * Unidade padrão do estoque — a de CONTAGEM, não a de dose.
+     *
+     * Veio de "comprimidos" (o default da migration
+     * `2026_06_28_000006_create_stock_items_table`), que é o que se conta
+     * numa caixa. A pessoa troca por ml, gotas, frascos ou ampolas na aba
+     * Estoque, onde tem a caixa na mão. Ver `store()` para por que a
+     * unidade da dose NÃO é usada aqui.
+     */
+    private const DEFAULT_STOCK_UNIT = 'comprimidos';
+
     public function index(Request $request, Profile $profile): JsonResponse
     {
         Gate::authorize('view', $profile);
@@ -62,8 +73,29 @@ class MedicationController extends Controller
 
         $medication = $profile->medications()->create($data);
 
+        // A unidade do estoque NÃO é a unidade da dose (2026-09-28).
+        //
+        // Bug: aqui ia `'unit' => $data['unit'] ?? 'comprimidos'`, e
+        // `$data['unit']` é o que a pessoa digitou no campo "Dose" — mg,
+        // ml, gotas. Então "Losartana 50 mg" com 30 comprimidos na caixa
+        // ficava com `stock_items.unit = 'mg'`, e o app mostrava "30 mg
+        // em estoque" ao lado de "acaba em 30 dias" — que não bate com a
+        // conta. Para o público do app, "0" e "mg" ao lado de um número
+        // significam "estou sem remédio": a pessoa corre na farmácia ou
+        // desiste de tomar o que tem em casa.
+        //
+        // A conta nunca esteve errada: `Medication::daysRemaining()`
+        // divide por doses por dia, nunca pela dosagem. O defeito era o
+        // texto ao lado do número e a origem do dado.
+        //
+        // A unidade do estoque é escolhida pela pessoa na aba Estoque
+        // (chips), onde ela tem a caixa na mão. Aqui só entra o default
+        // de CONTAGEM — "comprimido" é o que se conta numa caixa. A
+        // migration que corrige o que já foi gravado com a unidade da
+        // dose está pendente; o SQL de diagnóstico está em
+        // `docs/interface-2026-09-28.md` §6.
         $medication->stock()->create([
-            'unit' => $data['unit'] ?? 'comprimidos',
+            'unit' => self::DEFAULT_STOCK_UNIT,
         ]);
 
         return response()->json($medication->load(['schedules', 'stock']), 201);

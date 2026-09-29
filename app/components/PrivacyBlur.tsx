@@ -3,6 +3,7 @@ import { AppState, AppStateStatus, View, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 import { AppText as Text } from './AppText';
+import { spacing, type } from '../constants/tokens';
 
 export function PrivacyBlur() {
   const { colors } = useTheme();
@@ -46,8 +47,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 22,
+    fontSize: type.heading,
     fontWeight: '700',
-    marginTop: 16,
+    marginTop: spacing.lg,
   },
 });

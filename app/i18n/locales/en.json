@@ -16,7 +16,8 @@
     "syncGaveUpToast_other": "{{count}} records didn't sync after several tries — they may have been lost, please check",
     "loadErrorTitle": "Couldn't load",
     "loadErrorText": "It may be the connection. Nothing was deleted — just try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "dismiss": "Got it"
   },
   "notifications": {
     "permissionBannerLabel": "Notifications are off, tap to enable",
@@ -171,7 +172,7 @@
     "sortAlphabetical": "Alphabetical",
     "sortStockLow": "Stock running out",
     "sortAccessibilityLabel": "Sort by: {{label}}",
-    "loadErrorText": "Couldn't load your medications. It may be the connection."
+    "loadErrorText": "Might be the connection. Nothing was deleted — just try again."
   },
   "stock": {
     "empty": "No medicines added yet.",
@@ -191,7 +192,15 @@
     "errorSave": "Couldn't update the stock right now. Try again in a moment.",
     "neverSetHint": "Stock not reported yet — tap Edit",
     "defaultUnit": "units",
-    "loadErrorText": "Couldn't load the stock. It may be the connection."
+    "loadErrorText": "Might be the connection. Nothing was deleted — just try again.",
+    "neverSetShort": "Stock not reported",
+    "doses": "doses",
+    "dose": "dose",
+    "setHint": "replaces the total",
+    "addHint": "adds to the total",
+    "unitLabel": "Counting in",
+    "unitHint": "What do you count what is left in? Not the dose — the dose is how much to take.",
+    "unitOption": "Count in {{unit}}"
   },
   "history": {
     "filterAll": "All",
@@ -232,6 +241,8 @@
     "adherenceLegendLow": "<50% Low",
     "calendarLegendNoData": "No data",
     "chartEmptyState": "No doses logged yet for this period. The chart appears once you start marking Taken/Skipped.",
+    "chartLoading": "Loading the chart…",
+    "chartError": "Couldn't load the chart. Might be the connection — nothing was deleted.",
     "shareConsultationSummary": "Share summary for appointment",
     "exportPdf": "Generate Medical Report (PDF)",
     "exportPdfLockedLabel": "Generate Medical Report as PDF, Pro feature",
@@ -247,9 +258,12 @@
     "consultationSummaryError": "Couldn't generate the summary. Try again.",
     "summaryPartialScope": "across the {{shown}} records shown of {{total}} in history",
     "summaryItemLabel": "{{label}}: {{value}}",
-    "loadErrorText": "Couldn't load the history. It may be the connection.",
+    "loadErrorText": "Might be the connection. Nothing was deleted — just try again.",
     "statusUnrecorded": "Not recorded",
     "calendarPendingLabel": "Day {{day}}, not due yet",
+    "calendarLoading": "Loading the calendar…",
+    "calendarLoadingLabel": "Loading the adherence calendar",
+    "calendarError": "Couldn't load the calendar. Might be the connection — nothing was deleted.",
     "noteAdd": "Add note",
     "noteEdit": "Edit note",
     "noteSave": "Save note",

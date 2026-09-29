@@ -11,6 +11,7 @@ import { AppText as Text } from '../components/AppText';
 import { getCurrentOffering, isPurchasesConfigured, purchasePackage, restorePurchases } from '../services/purchases';
 import { getMe } from '../services/auth';
 import { useAlertDialog } from '../hooks/useAlertDialog';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // "Plano Pro" (2026-08-13, fluxo de compra real ligado em 2026-08-21) —
 // decisão registrada: L1 (cobrança de verdade) continua sendo tratado
@@ -177,40 +178,40 @@ export default function ProScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { padding: 24, alignItems: 'center', paddingBottom: 48 },
-    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
+    inner: { padding: spacing.xxl, alignItems: 'center', paddingBottom: spacing.xxxl },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
     iconCircle: {
-      width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(251,191,36,0.15)',
-      alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+      width: 72, height: 72, borderRadius: rounded.xxl, backgroundColor: 'rgba(251,191,36,0.15)',
+      alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg,
     },
-    title: { fontSize: 22, fontWeight: '700', color: c.text, textAlign: 'center' },
-    subtitle: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 24, lineHeight: 20 },
-    table: { width: '100%', backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
-    tableHeader: { flexDirection: 'row', backgroundColor: c.surfaceSecondary, paddingVertical: 10, paddingHorizontal: 12 },
-    tableHeaderCell: { flex: 1, fontSize: 12, fontWeight: '700', color: c.textMuted },
+    title: { fontSize: type.heading, fontWeight: '700', color: c.text, textAlign: 'center' },
+    subtitle: { fontSize: type.caption, color: c.textSecondary, textAlign: 'center', marginTop: spacing.sm, marginBottom: spacing.xxl, lineHeight: 20 },
+    table: { width: '100%', backgroundColor: c.surface, borderRadius: rounded.lg, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+    tableHeader: { flexDirection: 'row', backgroundColor: c.surfaceSecondary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+    tableHeaderCell: { flex: 1, fontSize: type.microTight, fontWeight: '700', color: c.textMuted },
     tableHeaderCenter: { textAlign: 'center' },
     tableHeaderPro: { color: c.brand },
     tableRow: {
-      flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12,
+      flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, paddingHorizontal: spacing.md,
       borderTopWidth: 1, borderTopColor: c.border,
     },
-    tableLabelCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-    tableLabel: { fontSize: 13, color: c.text, fontWeight: '500', flexShrink: 1 },
-    tableValue: { flex: 1, fontSize: 13, color: c.textMuted, textAlign: 'center' },
+    tableLabelCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    tableLabel: { fontSize: type.micro, color: c.text, fontWeight: '500', flexShrink: 1 },
+    tableValue: { flex: 1, fontSize: type.micro, color: c.textMuted, textAlign: 'center' },
     tableValuePro: { color: c.brand, fontWeight: '700' },
-    loading: { marginTop: 20 },
-    packages: { width: '100%', marginTop: 20, gap: 12 },
+    loading: { marginTop: spacing.xl },
+    packages: { width: '100%', marginTop: spacing.xl, gap: spacing.md },
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
     subscribeButton: {
-      backgroundColor: c.brand, borderRadius: 12, paddingVertical: 14, minHeight: 48,
+      backgroundColor: c.brand, borderRadius: rounded.md, paddingVertical: spacing.md, minHeight: 48,
       alignItems: 'center', justifyContent: 'center',
     },
-    subscribeButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    restoreLink: { textAlign: 'center', fontSize: 13, color: c.textMuted, fontWeight: '600', marginTop: 4, padding: 8 },
+    subscribeButtonText: { color: '#fff', fontSize: type.label, fontWeight: '700' },
+    restoreLink: { textAlign: 'center', fontSize: type.micro, color: c.textMuted, fontWeight: '600', marginTop: spacing.xs, padding: spacing.sm },
     comingSoonBox: {
-      flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20,
-      backgroundColor: c.surfaceSecondary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl,
+      backgroundColor: c.surfaceSecondary, borderRadius: rounded.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
     },
-    comingSoonText: { fontSize: 13, color: c.textMuted, fontWeight: '600' },
+    comingSoonText: { fontSize: type.micro, color: c.textMuted, fontWeight: '600' },
   });
 }

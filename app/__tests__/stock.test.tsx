@@ -39,6 +39,10 @@ const medication = {
   treatment_ends_at: null,
 };
 
+function makeMed(over: Record<string, any> = {}) {
+  return { ...medication, ...over, stock: over.stock ?? medication.stock };
+}
+
 function renderStock() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -193,5 +197,96 @@ describe('StockScreen — refill alert inteligente', () => {
       expect(screen.getByText('Não foi possível atualizar o estoque agora. Tente de novo em instantes.')).toBeTruthy();
     });
     expect(screen.getByPlaceholderText('Qtd')).toBeTruthy();
+  });
+  // Unidade do estoque como campo PRÓPRIO (decisão do Rilson 2026-09-28).
+  //
+  // O bug: `MedicationController.php:66` gravava a unidade da DOSAGEM na
+  // linha de estoque, então "Losartana 50 mg" com 30 comprimidos aparecia
+  // como "30 mg" — alarme falso de "estou sem remédio", ao lado de um
+  // "acaba em 30 dias" que não batia com a conta. A matemática nunca
+  // esteve errada (`daysRemaining` divide por doses/dia, não pela
+  // dosagem): o defeito era a origem e o rótulo.
+  //
+  // Tentativa descartada no caminho: rotular sempre em "doses". A
+  // comparação `stockUnit === doseUnit` era degenerada (o controller
+  // copia uma na outra) e "doses" mente no líquido.
+  it('envia a unidade do estoque escolhida, e não a unidade da dose', async () => {
+    const med = makeMed({
+      unit: 'mg', // unidade da DOSE — é o que a API gravava no estoque
+      stock: { current_quantity: 30, unit: 'mg', last_updated_at: null },
+    });
+    mockedMedications.getMedications.mockResolvedValue([med]);
+
+    renderStock();
+
+    fireEvent.press(await screen.findByTestId('edit-stock-10'));
+    fireEvent.press(screen.getByLabelText('Contar em comprimidos'));
+    fireEvent.changeText(screen.getByPlaceholderText('Qtd'), '30');
+    fireEvent.press(screen.getByLabelText(/^Definir estoque/));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateStock).toHaveBeenCalledWith(10, {
+        current_quantity: 30,
+        unit: 'comprimidos',
+      });
+    });
+  });
+
+  // O contra-teste: a API JÁ aceita `unit` (`StockController.php:30`),
+  // e o app simplesmente nunca mandava. Se a pessoa não mexeu no seletor,
+  // reenviar o valor sobrescreveria o que já estava gravado.
+  it('não reenvia a unidade quando a pessoa não mexeu no seletor', async () => {
+    const med = makeMed({
+      unit: 'mg',
+      stock: { current_quantity: 30, unit: 'comprimidos', last_updated_at: '2026-09-01T00:00:00Z' },
+    });
+    mockedMedications.getMedications.mockResolvedValue([med]);
+
+    renderStock();
+
+    fireEvent.press(await screen.findByTestId('edit-stock-10'));
+    fireEvent.changeText(screen.getByPlaceholderText('Qtd'), '25');
+    fireEvent.press(screen.getByLabelText(/^Definir estoque/));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateStock).toHaveBeenCalledWith(10, {
+        current_quantity: 25,
+      });
+    });
+  });
+
+  // O caso que matou a solução "sempre doses": xarope. O item NASCE com
+  // a unidade da dose gravada ("ml" aqui, que por sorte coincide) e a
+  // pessoa conta em ml mesmo. O que importa é que a unidade escolhida
+  // chegue ao servidor — e que "ml" não vire "doses".
+  it('a unidade escolhida sobrevive para líquido (ml), sem virar "doses"', async () => {
+    const med = makeMed({
+      unit: 'ml',
+      stock: { current_quantity: 100, unit: 'ml', min_alert_quantity: 5, last_updated_at: '2026-09-01T00:00:00Z' },
+      days_remaining: 33,
+    });
+    mockedMedications.getMedications.mockResolvedValue([med]);
+
+    renderStock();
+
+    // Item já em ml: abrir e salvar sem mexer no seletor não pode
+    // reescrever a unidade (é o que `unitToSend` protege).
+    fireEvent.press(await screen.findByTestId('edit-stock-10'));
+    fireEvent.changeText(screen.getByPlaceholderText('Qtd'), '200');
+    fireEvent.press(screen.getByLabelText(/^Definir estoque/));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateStock).toHaveBeenCalledWith(10, {
+        current_quantity: 200,
+      });
+    });
+
+    // O card nao refleta o novo valor sem refetch (o mock nao devolve a
+    // linha atualizada), entao a assercao fica no payload — que e onde
+    // a decisao acontece. O que importa: "ml" chega ao servidor.
+    expect(mockedMedications.updateStock).not.toHaveBeenCalledWith(10, {
+      current_quantity: 200,
+      unit: 'doses',
+    });
   });
 });

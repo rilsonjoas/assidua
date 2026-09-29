@@ -38,6 +38,7 @@ import { LanguageMode } from '../../store/languageStore';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AlertDialog } from '../../components/AlertDialog';
 import { AppText as Text } from '../../components/AppText';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 const AVATAR_ICONS: Array<React.ComponentProps<typeof MaterialCommunityIcons>['name']> = [
   'account', 'account-outline', 'account-tie', 'account-heart',
@@ -384,7 +385,7 @@ export default function ProfileScreen() {
             {t('profile.pasteCode')}
           </Text>
           <TextInput
-            style={[styles.input, { marginTop: 12, color: colors.text }]}
+            style={[styles.input, { marginTop: spacing.md, color: colors.text }]}
             placeholder={t('profile.codePlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={redeemCode}
@@ -513,7 +514,7 @@ export default function ProfileScreen() {
       )}
 
       {/* Aparência */}
-      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>{t('profile.appearance')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xxl }]}>{t('profile.appearance')}</Text>
       <View style={styles.themeRow}>
         {THEME_OPTIONS.map((opt) => (
           <TouchableOpacity
@@ -545,7 +546,7 @@ export default function ProfileScreen() {
           e "Del dispositivo"/"Device default" quebrava em 2 linhas.
           Grade 2x2 dá espaço de sobra; rótulo "Sistema"/"System"
           também encurtado (igual ao do tema, mesmo padrão). */}
-      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{t('profile.language')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>{t('profile.language')}</Text>
       <View style={styles.languageRow}>
         {LANGUAGE_OPTIONS.map((opt) => (
           <TouchableOpacity
@@ -577,7 +578,7 @@ export default function ProfileScreen() {
           acessibilidade relacionadas (não uma depende da outra), um
           título "Acessibilidade" cobrindo as duas deixa isso claro em
           vez de parecer que o contraste é sub-item da fonte. */}
-      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{t('profile.accessibility')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>{t('profile.accessibility')}</Text>
 
       {/* Tamanho da fonte (2026-08-14) — item #1 de acessibilidade pro
           público real do app (idoso, cuidador com baixa familiaridade
@@ -620,7 +621,7 @@ export default function ProfileScreen() {
           `Switch` nativo (destoaria do resto do design do app, mesmo
           motivo documentado em `lib/alert.ts` no passado). */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 14 }]}
+        style={[styles.helpBtn, { marginTop: spacing.md }]}
         onPress={() => setConfirmingHighContrast(true)}
         accessibilityRole="switch"
         accessibilityLabel={t('profile.highContrast')}
@@ -644,7 +645,7 @@ export default function ProfileScreen() {
           porque era a ÚNICA coisa da seção; "Modo Privacidade" abaixo
           não depende de hardware nenhum, então a seção sempre tem pelo
           menos 1 item. */}
-      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>{t('profile.securitySection')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xxl }]}>{t('profile.securitySection')}</Text>
       {/* "Modo Privacidade" (2026-09-11, achado real do Rilson: o olho
           só existia na Home, sem explicação nenhuma do que fazia) —
           mesma função (`togglePrivacyWithHint`) que o olho no cabeçalho
@@ -681,7 +682,7 @@ export default function ProfileScreen() {
           quebra de transparência. */}
       {biometricsSupported && (
         <TouchableOpacity
-          style={[styles.helpBtn, { marginTop: 4 }]}
+          style={[styles.helpBtn, { marginTop: spacing.xs }]}
           onPress={() => setConfirmingBiometrics(true)}
           accessibilityRole="switch"
           accessibilityLabel={t('profile.biometricLock')}
@@ -707,14 +708,14 @@ export default function ProfileScreen() {
           "Acessibilidade" (só o Alto Contraste acima é acessibilidade
           de verdade) — sem separação visual entre coisas bem diferentes
           entre si. */}
-      <Text style={[styles.sectionTitle, { marginTop: 28 }]}>{t('profile.supportSection')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xxl }]}>{t('profile.supportSection')}</Text>
       {/* Ajuda (2026-08-14) — pergunta direta do Rilson: "não tem como
           facilitar pra novos usuários com um guia?". O onboarding só
           aparece uma vez; isto fica sempre acessível, pra quem
           esqueceu o que algo significa ou nunca chegou a ver o
           onboarding (porque foi o cuidador quem configurou). */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 4 }]}
+        style={[styles.helpBtn, { marginTop: spacing.xs }]}
         onPress={() => router.push('/help')}
         accessibilityRole="button"
         accessibilityLabel={t('help.headerTitle')}
@@ -724,12 +725,12 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
-      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('profile.dataSection')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xxl }]}>{t('profile.dataSection')}</Text>
       {/* Exportar meus dados (LGPD art. 18, 2026-08-22) — portabilidade
           de verdade, independente de plano pago. Mesma UI do botão de
           Ajuda; hint explica o que sai no arquivo. */}
       <TouchableOpacity
-        style={[styles.helpBtn, { marginTop: 4 }]}
+        style={[styles.helpBtn, { marginTop: spacing.xs }]}
         onPress={() => setExportModalVisible(true)}
         disabled={exporting}
         accessibilityRole="button"
@@ -750,7 +751,7 @@ export default function ProfileScreen() {
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
-      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('profile.accountSection')}</Text>
+      <Text style={[styles.sectionTitle, { marginTop: spacing.xxl }]}>{t('profile.accountSection')}</Text>
       {/* Logout — cor neutra (2026-09-08, achado real revisando a tela):
           antes usava o mesmo vermelho de alerta do botão "Excluir conta"
           logo abaixo. Sair é uma ação corriqueira e reversível (só faz
@@ -758,7 +759,7 @@ export default function ProfileScreen() {
           conta pra sempre. Vermelho fica reservado só pro que é
           realmente destrutivo. */}
       <TouchableOpacity
-        style={[styles.logoutBtn, { marginTop: 4 }]}
+        style={[styles.logoutBtn, { marginTop: spacing.xs }]}
         onPress={() => setConfirmingLogout(true)}
         accessibilityRole="button"
         accessibilityLabel={t('profile.logout')}
@@ -773,7 +774,7 @@ export default function ProfileScreen() {
           <Text style={styles.createTitle}>{t('profile.deleteConfirmTitle2')}</Text>
           <Text style={styles.emptySubText}>{t('profile.deletePasswordPrompt')}</Text>
           <TextInput
-            style={[styles.input, { marginTop: 12, color: colors.text }]}
+            style={[styles.input, { marginTop: spacing.md, color: colors.text }]}
             placeholder={t('profile.passwordPlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={deletePassword}
@@ -804,7 +805,7 @@ export default function ProfileScreen() {
         </View>
       ) : (
         <TouchableOpacity
-          style={[styles.logoutBtn, { marginTop: 10 }]}
+          style={[styles.logoutBtn, { marginTop: spacing.sm }]}
           onPress={() => setConfirmingDelete(true)}
           disabled={deleting}
           accessibilityRole="button"
@@ -933,7 +934,7 @@ export default function ProfileScreen() {
             <Text style={styles.formatText}>{t('profile.exportCsv')}</Text>
           </TouchableOpacity>
 
-          <View style={[styles.createActions, { marginTop: 16 }]}>
+          <View style={[styles.createActions, { marginTop: spacing.lg }]}>
             <TouchableOpacity
               onPress={() => setExportModalVisible(false)}
               style={styles.cancelBtn}
@@ -960,112 +961,112 @@ export default function ProfileScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { padding: 16, paddingBottom: 48 },
-    innerWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
+    inner: { padding: spacing.lg, paddingBottom: spacing.xxxl },
+    innerWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
     userCard: {
-      backgroundColor: c.headerBg, borderRadius: 20, padding: 20,
-      flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 28,
+      backgroundColor: c.headerBg, borderRadius: rounded.xl, padding: spacing.xl,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.xxl,
       overflow: 'hidden',
     },
     cardBrandMark: {
       position: 'absolute', top: -26, right: -26, width: 110, height: 110, opacity: 0.14,
     },
     userAvatarBox: {
-      width: 64, height: 64, borderRadius: 32,
+      width: 64, height: 64, borderRadius: rounded.xxl,
       backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
     },
     // Branco literal de propósito (não `c.onBrand`) — este texto fica
     // sobre `userCard`/`headerBg`, não sobre `c.brand`; `headerBg` já
     // tem contraste bom com branco nos dois temas (ver auditoria em
     // constants/theme.ts).
-    userName: { fontSize: 18, fontWeight: '700', color: '#fff' },
-    userEmail: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-    tierBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-    tierText: { fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
+    userName: { fontSize: type.section, fontWeight: '700', color: '#fff' },
+    userEmail: { fontSize: type.micro, color: 'rgba(255,255,255,0.7)', marginTop: spacing.xxs },
+    tierBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+    tierText: { fontSize: type.microTight, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
     tierPro: { color: '#fbbf24' },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 4 },
+    sectionTitle: { fontSize: type.body, fontWeight: '700', color: c.text, marginBottom: spacing.xs },
     // Rótulo de sub-item dentro de uma seção maior (ex.: "Tamanho da
     // fonte" dentro de "Acessibilidade") — menor e mais discreto que
     // sectionTitle, pra não competir com o título real da seção.
-    subsectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
-    sectionHint: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 12 },
-    emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-    emptyText: { fontSize: 15, fontWeight: '600', color: c.textMuted },
-    emptySubText: { fontSize: 13, color: c.textMuted, textAlign: 'center' },
+    subsectionLabel: { fontSize: type.micro, fontWeight: '600', color: c.textSecondary, marginBottom: spacing.xs },
+    sectionHint: { fontSize: type.micro, color: c.textSecondary, lineHeight: 18, marginBottom: spacing.md },
+    emptyBox: { alignItems: 'center', paddingVertical: spacing.xxxl, gap: spacing.sm },
+    emptyText: { fontSize: type.label, fontWeight: '600', color: c.textMuted },
+    emptySubText: { fontSize: type.micro, color: c.textMuted, textAlign: 'center' },
     profileRow: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface,
-      borderRadius: 14, padding: 14, marginBottom: 8, gap: 14,
+      borderRadius: rounded.lg, padding: spacing.md, marginBottom: spacing.sm, gap: spacing.md,
       elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
     },
     // Área clicável de seleção dentro da linha (fix botão aninhado web).
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
     // sem isso, a altura real era só a do avatar (40px), abaixo do alvo.
     profileRowMain: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 48,
+      flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48,
     },
     profileRowActive: { borderWidth: 2, borderColor: c.brand },
-    profileIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-    profileName: { fontSize: 15, color: c.text, fontWeight: '600' },
-    sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    sharedBadgeText: { fontSize: 11, color: c.brand, fontWeight: '600' },
+    profileIconBox: { width: 40, height: 40, borderRadius: rounded.xl, alignItems: 'center', justifyContent: 'center' },
+    profileName: { fontSize: type.label, color: c.text, fontWeight: '600' },
+    sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xxs },
+    sharedBadgeText: { fontSize: type.micro, color: c.brand, fontWeight: '600' },
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08).
-    inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8, marginRight: 4, minHeight: 48 },
-    inviteBtnText: { fontSize: 12, fontWeight: '600', color: c.brand },
-    createBox: { backgroundColor: c.surface, borderRadius: 16, padding: 16, marginBottom: 12 },
-    createTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 14 },
-    createLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8, marginTop: 4 },
+    inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.sm, marginRight: spacing.xs, minHeight: 48 },
+    inviteBtnText: { fontSize: type.microTight, fontWeight: '600', color: c.brand },
+    createBox: { backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.lg, marginBottom: spacing.md },
+    createTitle: { fontSize: type.label, fontWeight: '700', color: c.text, marginBottom: spacing.md },
+    createLabel: { fontSize: type.micro, fontWeight: '600', color: c.textSecondary, marginBottom: spacing.sm, marginTop: spacing.xs },
     input: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 10,
-      padding: 12, fontSize: 16, marginBottom: 4, backgroundColor: c.background,
+      borderWidth: 1, borderColor: c.border, borderRadius: rounded.md,
+      padding: spacing.md, fontSize: type.body, marginBottom: spacing.xs, backgroundColor: c.background,
     },
-    iconRow: { marginBottom: 4 },
+    iconRow: { marginBottom: spacing.xs },
     // minWidth/minHeight 48 + centralização (WCAG AAA, auditoria de
     // toque mínimo 2026-09-08) — 8px de padding + ícone de 24px dava só
     // 40x40, e sem alignItems/justifyContent o ícone nem centralizava
     // dentro do próprio quadrado.
     iconBtn: {
-      padding: 8, marginRight: 6, borderRadius: 10, backgroundColor: c.surfaceSecondary,
+      padding: spacing.sm, marginRight: spacing.xs, borderRadius: rounded.md, backgroundColor: c.surfaceSecondary,
       minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center',
     },
-    colorRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-    colorBtn: { width: 30, height: 30, borderRadius: 15 },
+    colorRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+    colorBtn: { width: 30, height: 30, borderRadius: rounded.lg },
     colorBtnActive: { borderWidth: 3, borderColor: c.text, transform: [{ scale: 1.15 }] },
-    createActions: { flexDirection: 'row', gap: 10 },
+    createActions: { flexDirection: 'row', gap: spacing.sm },
     // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08) — column
     // layout, então `alignItems: 'center'` só centraliza na horizontal;
     // sem justifyContent o texto ficaria colado no topo da caixa mais alta.
     cancelBtn: {
-      flex: 1, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: c.border,
+      flex: 1, padding: spacing.md, borderRadius: rounded.md, borderWidth: 1, borderColor: c.border,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     cancelText: { color: c.textSecondary, fontWeight: '600' },
     saveBtn: {
-      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      flex: 1, backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     saveBtnText: { color: c.onBrand, fontWeight: '600' },
     addBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 14, minHeight: 48,
-      borderWidth: 1.5, borderColor: c.brand, borderStyle: 'dashed', marginBottom: 16,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, minHeight: 48,
+      borderWidth: 1.5, borderColor: c.brand, borderStyle: 'dashed', marginBottom: spacing.lg,
     },
-    addBtnText: { color: c.brand, fontWeight: '600', fontSize: 15 },
-    themeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    addBtnText: { color: c.brand, fontWeight: '600', fontSize: type.label },
+    themeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
     themeBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 12, minHeight: 48,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     themeBtnActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
-    themeBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
+    themeBtnText: { fontSize: type.micro, fontWeight: '600', color: c.textMuted },
     themeBtnTextActive: { color: c.brand },
     // Grade 2x2 (2026-08-13) — 4 opções de idioma cabiam apertadas numa
     // linha só; largura fixa em vez de flex:1 dá espaço de sobra e
     // deixa quebrar em 2 linhas quando tem 4 itens.
-    languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+    languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
     languageBtn: {
-      width: '48%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.surface, borderRadius: 12, padding: 12, minHeight: 48,
+      width: '48%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     // Web wide (2026-08-22) — achado do Rilson: os 48% fixos (pensados
@@ -1074,56 +1075,56 @@ function makeStyles(c: ThemeColors) {
     // que aqui via override porque o base já tem width fixo.
     languageBtnWide: { width: undefined, flex: 1 },
     helpBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 20, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, marginTop: spacing.xl, minHeight: 48,
       borderWidth: 1, borderColor: c.border,
     },
-    helpBtnText: { flex: 1, color: c.text, fontWeight: '600', fontSize: 15 },
+    helpBtnText: { flex: 1, color: c.text, fontWeight: '600', fontSize: type.label },
     toggleState: {
-      borderWidth: 1.5, borderColor: c.border, borderRadius: 8,
-      paddingHorizontal: 10, paddingVertical: 5,
+      borderWidth: 1.5, borderColor: c.border, borderRadius: rounded.sm,
+      paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
     },
     toggleStateActive: { backgroundColor: c.brand, borderColor: c.brand },
-    toggleStateText: { fontSize: 12, fontWeight: '700', color: c.textMuted },
+    toggleStateText: { fontSize: type.microTight, fontWeight: '700', color: c.textMuted },
     toggleStateTextActive: { color: c.onBrand },
-    exportHint: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    exportHint: { fontSize: type.microTight, color: c.textMuted, marginTop: spacing.xxs },
     logoutBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-      gap: 8, paddingVertical: 14, paddingHorizontal: 20, marginTop: 24, minHeight: 48,
-      borderRadius: 12,
+      gap: spacing.sm, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.xxl, minHeight: 48,
+      borderRadius: rounded.md,
     },
-    logoutText: { color: c.error, fontWeight: '600', fontSize: 15 },
+    logoutText: { color: c.error, fontWeight: '600', fontSize: type.label },
     // Ver comentário no botão de logout: mesma silhueta, cor neutra.
-    logoutTextNeutral: { color: c.textSecondary, fontWeight: '600', fontSize: 15 },
+    logoutTextNeutral: { color: c.textSecondary, fontWeight: '600', fontSize: type.label },
     deleteBox: {
-      backgroundColor: c.surface, borderRadius: 16, padding: 16, marginTop: 12,
+      backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.lg, marginTop: spacing.md,
       borderWidth: 1, borderColor: c.error,
     },
     deleteConfirmBtn: {
-      flex: 1, backgroundColor: c.error, padding: 13, borderRadius: 10,
+      flex: 1, backgroundColor: c.error, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
-    brandFooter: { alignItems: 'center', marginTop: 48, marginBottom: 20, gap: 6 },
+    brandFooter: { alignItems: 'center', marginTop: spacing.xxxl, marginBottom: spacing.xl, gap: spacing.xs },
     // Mesma silhueta branca do header/card; tintColor (no JSX) a adapta
     // ao tema aqui, onde o fundo é claro/escuro variável.
     brandFooterLogo: { width: 30, height: 30, opacity: 0.55 },
-    brandFooterName: { fontSize: 14, fontWeight: '700', color: c.textMuted, letterSpacing: 0.3 },
-    brandFooterVersion: { fontSize: 11, color: c.textMuted, opacity: 0.8 },
+    brandFooterName: { fontSize: type.caption, fontWeight: '700', color: c.textMuted, letterSpacing: 0.3 },
+    brandFooterVersion: { fontSize: type.micro, color: c.textMuted, opacity: 0.8 },
     modalOverlay: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center', alignItems: 'center', padding: 20,
+      justifyContent: 'center', alignItems: 'center', padding: spacing.xl,
     },
     modalContent: {
       width: '100%', maxWidth: 400, backgroundColor: c.surface,
-      borderRadius: 16, padding: 20,
+      borderRadius: rounded.lg, padding: spacing.xl,
       elevation: 5, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
     },
     formatOption: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: c.border,
-      marginTop: 8, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      padding: spacing.md, borderRadius: rounded.md, borderWidth: 1.5, borderColor: c.border,
+      marginTop: spacing.sm, minHeight: 48,
     },
     formatOptionActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
-    formatText: { fontSize: 14, color: c.text, fontWeight: '500' },
+    formatText: { fontSize: type.caption, color: c.text, fontWeight: '500' },
   });
 }

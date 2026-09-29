@@ -433,9 +433,13 @@ describe('HistoryScreen — gráfico de adesão (Fase 2, 2026-08-13)', () => {
 
     renderHistory();
 
+    // `findBy` nas barras, não `getBy`: desde 2026-09-28 o gráfico tem
+    // estado de carregamento real (antes `data = []` devolvia `null` e
+    // o título aparecia já com as barras prontas). O título continua
+    // síncrono, mas as barras só existem depois que a query resolve.
     expect(await screen.findByText('Adesão por semana')).toBeTruthy();
-    expect(screen.getByLabelText('50% de adesão nessa semana')).toBeTruthy();
-    expect(screen.getByLabelText('100% de adesão nessa semana')).toBeTruthy();
+    expect(await screen.findByLabelText('50% de adesão nessa semana')).toBeTruthy();
+    expect(await screen.findByLabelText('100% de adesão nessa semana')).toBeTruthy();
   });
 
   // Achado real de uso, anotado no Obsidian (2026-08-14): quando

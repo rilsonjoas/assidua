@@ -16,7 +16,7 @@ import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
-import { parseStockQuantity, isStockNeverSet } from '../../lib/stockQuantity';
+import { parseStockQuantity, isStockNeverSet, formatStockQuantity } from '../../lib/stockQuantity';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
@@ -27,6 +27,15 @@ import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
 import { LoadErrorState } from '../../components/LoadErrorState';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
+import { rounded, spacing, type } from '../../constants/tokens';
+
+// Unidades em que alguém conta o que SOBROU. Diferente da unidade da
+// dose: "50 mg" é quanto tomar, aqui é "em que coisa eu conto". As 6
+// cobrem comprimido, cápsula, ml, gota, frasco e ampola — que é o que
+// aparece numa caixa de remédio de verdade. Texto livre continuaria
+// possível para o resto (patch, sachê), e nesse caso o item mantém a
+// unidade que já tinha.
+const STOCK_UNITS = ['comprimidos', 'cápsulas', 'ml', 'gotas', 'frascos', 'ampolas'] as const;
 
 export default function StockScreen() {
   const { t } = useTranslation();
@@ -38,6 +47,20 @@ export default function StockScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<number | null>(null);
   const [qty, setQty] = useState('');
+  // Unidade do ESTOQUE, escolhida aqui (2026-09-28). Não é a unidade da
+  // dose: "50 mg" é quanto tomar, "30 comprimidos" é o que sobrou. O
+  // cadastro do remédio gravava a unidade da dose na linha de estoque
+  // (`MedicationController.php:66`), então a tela dizia "30 mg" para 30
+  // comprimidos. A `StockController.php:30` já aceita `unit` — o app é
+  // que nunca mandava. A escolha fica na aba Estoque porque é lá que a
+  // pessoa tem a caixa na mão e sabe em que coisa está contando.
+  // `string`, não o literal de STOCK_UNITS: uma unidade fora da lista
+  // (patch, sachê) é válida e precisa sobreviver a uma edição que não
+  // mexeu na unidade.
+  const [unit, setUnit] = useState<string>(STOCK_UNITS[0]);
+  // Unidade que o item já tem, para o formulário abrir no valor atual
+  // em vez de sempre no primeiro da lista.
+  const [editingUnit, setEditingUnit] = useState<string | null>(null);
   // Qual dos dois botões está em voo — permite mostrar o spinner só
   // nele, não nos dois ao mesmo tempo (a mutação é uma só pras duas ações).
   const [pendingAction, setPendingAction] = useState<'add' | 'set' | null>(null);
@@ -53,8 +76,8 @@ export default function StockScreen() {
   });
 
   const mutation = useMutation({
-    mutationFn: ({ id, quantity }: { id: number; quantity: number }) =>
-      updateStock(id, { current_quantity: quantity }),
+    mutationFn: ({ id, quantity, unit: u }: { id: number; quantity: number; unit?: string }) =>
+      updateStock(id, u ? { current_quantity: quantity, unit: u } : { current_quantity: quantity }),
     onSuccess: async (_stock, { id }) => {
       await queryClient.invalidateQueries({ queryKey: ['medications', activeProfile?.id] });
       const fresh = queryClient.getQueryData<Medication[]>(['medications', activeProfile?.id]);
@@ -98,7 +121,7 @@ export default function StockScreen() {
     const quantity = parseTypedQty();
     if (quantity === null) return;
     setPendingAction('set');
-    mutation.mutate({ id: med.id, quantity });
+    mutation.mutate({ id: med.id, quantity, unit: unitToSend(med) });
   }
 
   function addQty(med: Medication) {
@@ -106,12 +129,32 @@ export default function StockScreen() {
     if (typed === null) return;
     const current = med.stock?.current_quantity ?? 0;
     setPendingAction('add');
-    mutation.mutate({ id: med.id, quantity: current + typed });
+    mutation.mutate({ id: med.id, quantity: current + typed, unit: unitToSend(med) });
+  }
+
+  // Só envia `unit` quando a pessoa mexeu nela. Reenviar sempre
+  // sobrescreveria o que já estava gravado por um valor derivado errado.
+  function unitToSend(med: Medication): string | undefined {
+    const atual = med.stock?.unit;
+    if (!atual) return unit;
+    if (editing === med.id && unit === atual) return undefined;
+    return unit;
+  }
+
+  function startEdit(med: Medication) {
+    setEditing(med.id);
+    setQty(String(med.stock?.current_quantity ?? 0));
+    // Abre no valor que o item já tem, e não sempre no primeiro da
+    // lista — trocar o campo ao abrir é pior que não ter.
+    setUnit(STOCK_UNITS.includes((med.stock?.unit ?? '').toLowerCase() as (typeof STOCK_UNITS)[number])
+      ? (med.stock!.unit!.toLowerCase())
+      : med.stock?.unit || STOCK_UNITS[0]);
   }
 
   function cancelEdit() {
     setEditing(null);
     setQty('');
+    setEditingUnit(null);
   }
 
   return (
@@ -178,6 +221,43 @@ export default function StockScreen() {
                         />
                         <Text style={styles.unit}>{stock?.unit}</Text>
                       </View>
+                      {/* Unidade do estoque (decisão do Rilson 2026-09-28).
+                          Fica AQUI, na aba Estoque, e não no cadastro do
+                          remédio: é aqui que a pessoa tem a caixa na mão
+                          e sabe em que coisa está contando. No cadastro a
+                          pergunta não faz sentido ainda — e a resposta
+                          errada (a unidade da dose) era gravada em
+                          `create()` e nunca corrigida.
+
+                          Chips, e não um `<Picker>`: para o público deste
+                          app, um seletor nativo abre uma roda que exige
+                          scroll para achar "gotas". Chips mostram as 6
+                          de uma vez, com toque de 48px. A unidade atual
+                          do item vem pré-selecionada — trocar o campo ao
+                          abrir o formulário seria pior que não ter. */}
+                      <View style={styles.unitBlock}>
+                        <Text style={styles.unitBlockLabel}>{t('stock.unitLabel')}</Text>
+                        <View style={styles.unitChips} accessibilityRole="radiogroup">
+                          {STOCK_UNITS.map((u) => {
+                            const selected = unit === u;
+                            return (
+                              <TouchableOpacity
+                                key={u}
+                                style={[styles.unitChip, selected && styles.unitChipSelected]}
+                                onPress={() => setUnit(u)}
+                                accessibilityRole="radio"
+                                accessibilityState={{ selected }}
+                                accessibilityLabel={t('stock.unitOption', { unit: u })}
+                              >
+                                <Text style={[styles.unitChipText, selected && styles.unitChipTextSelected]}>
+                                  {u}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                        <Text style={styles.unitBlockHint}>{t('stock.unitHint')}</Text>
+                      </View>
                       {/* Achado real de uso (2026-09-02): "editar só reescreve —
                           falta adicionar e definir". Dois botões claros, sem
                           menu escondido; o que o usuário digitou acima
@@ -192,13 +272,29 @@ export default function StockScreen() {
                           fileira com o mesmo peso visual, e "Cancelar"
                           (sair sem salvar) fica sozinho embaixo, discreto. */}
                       <View style={styles.editActions}>
+                        {/* "Adicionar" e "Definir" têm o mesmo peso visual
+                            por decisão deliberada (ver comentário em
+                            `editPrimaryRow`) — e OPSPOSTOS: um SOMA ao
+                            total, o outro SUBSTITUI. Decisão de produto
+                            2026-09-28: manter o peso igual e explicar a
+                            diferença NA TELA, em vez de hierarquizar.
+                            Raciocínio: a hierarquia esconderia "Definir",
+                            que é justamente o botão perigoso; e quem
+                            entende "Definir 30" como "tenho 30" e toca
+                            errado apaga o estoque real, sem desfazer. A
+                            diferença precisa estar escrita, não só na
+                            cor. */}
+                        <View style={styles.actionHints}>
+                          <Text style={styles.actionHint}>{t('stock.addHint')}</Text>
+                          <Text style={styles.actionHint}>{t('stock.setHint')}</Text>
+                        </View>
                         <View style={styles.editPrimaryRow}>
                           <TouchableOpacity
                             onPress={() => addQty(item)}
                             style={styles.addBtn}
                             disabled={mutation.isPending}
                             accessibilityRole="button"
-                            accessibilityLabel={t('stock.addLabel', { name: maskedName })}
+                            accessibilityLabel={`${t('stock.addLabel', { name: maskedName })}. ${t('stock.addHint')}`}
                             accessibilityState={{ busy: pendingAction === 'add' }}
                           >
                             {pendingAction === 'add'
@@ -215,7 +311,7 @@ export default function StockScreen() {
                             style={styles.saveBtn}
                             disabled={mutation.isPending}
                             accessibilityRole="button"
-                            accessibilityLabel={t('stock.setLabel', { name: maskedName })}
+                            accessibilityLabel={`${t('stock.setLabel', { name: maskedName })}. ${t('stock.setHint')}`}
                             accessibilityState={{ busy: pendingAction === 'set' }}
                           >
                             {pendingAction === 'set'
@@ -240,14 +336,20 @@ export default function StockScreen() {
                     </View>
                   ) : (
                     <Text style={styles.qty}>
-                      {stock?.current_quantity ?? 0} {stock?.unit ?? t('stock.defaultUnit')}
+                      {/* A unidade do estoque é campo próprio, escolhido
+                          nos chips acima (2026-09-28) — antes vinha da
+                          dose e produzia "30 mg" para 30 comprimidos. */}
+                      {formatStockQuantity({
+                        quantity: stock?.current_quantity ?? 0,
+                        stockUnit: stock?.unit,
+                      })}
                     </Text>
                   )}
                 </View>
                 {editing !== item.id && (
                   <TouchableOpacity
                     testID={`edit-stock-${item.id}`}
-                    onPress={() => { setEditing(item.id); setQty(String(stock?.current_quantity ?? 0)); }}
+                    onPress={() => startEdit(item)}
                     style={styles.editBtn}
                     accessibilityRole="button"
                     accessibilityLabel={t('stock.editLabel', { name: maskedName })}
@@ -269,19 +371,19 @@ export default function StockScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    list: { padding: 16, gap: 12 },
-    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
-    gridRow: { gap: 12 },
-    empty: { textAlign: 'center', color: c.textMuted, marginTop: 40, fontSize: 16 },
+    list: { padding: spacing.lg, gap: spacing.md },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl },
+    gridRow: { gap: spacing.md },
+    empty: { textAlign: 'center', color: c.textMuted, marginTop: spacing.huge, fontSize: type.body },
     card: {
-      backgroundColor: c.surface, borderRadius: 16,
+      backgroundColor: c.surface, borderRadius: rounded.lg,
       // "Card cresce ao editar e a bolinha de cor fica flutuando no meio"
       // (2026-09-08, achado real do Rilson com screenshot): era
       // `alignItems: 'center'`, então ao abrir o formulário de edição a
       // bolinha se centralizava na altura toda do card (que cresce),
       // ficando longe do nome — flex-start prende ela no topo, junto do
       // nome, não importa quanto o card cresça.
-      flexDirection: 'row', alignItems: 'flex-start', padding: 16,
+      flexDirection: 'row', alignItems: 'flex-start', padding: spacing.lg,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardAlert: { borderWidth: 1.5, borderColor: c.warning },
@@ -295,24 +397,45 @@ function makeStyles(c: ThemeColors) {
     // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
     // ícone+texto, não ícone sozinho; o card tem espaço de sobra, então
     // crescer aqui não aperta nada ao redor.
-    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginTop: 2, minHeight: 48 },
-    editBtnText: { fontSize: 13, fontWeight: '600', color: c.textMuted },
-    colorDot: { width: 14, height: 14, borderRadius: 7, marginRight: 14, marginTop: 3 },
+    editBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs, marginTop: spacing.xxs, minHeight: 48 },
+    editBtnText: { fontSize: type.micro, fontWeight: '600', color: c.textMuted },
+    colorDot: { width: 14, height: 14, borderRadius: rounded.sm, marginRight: spacing.md, marginTop: spacing.xxs },
     info: { flex: 1 },
-    name: { fontSize: 16, fontWeight: '600', color: c.text },
-    alertRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-    alertText: { fontSize: 13, color: c.warning },
-    qty: { fontSize: 15, color: c.brand, fontWeight: '600', marginTop: 4 },
-    neverSetRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    neverSetText: { fontSize: 13, color: c.textMuted, fontStyle: 'italic' },
-    editForm: { marginTop: 4, gap: 8 },
-    editRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    name: { fontSize: type.body, fontWeight: '600', color: c.text },
+    alertRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xxs },
+    alertText: { fontSize: type.micro, color: c.warning },
+    qty: { fontSize: type.label, color: c.brand, fontWeight: '600', marginTop: spacing.xs },
+    neverSetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+    neverSetText: { fontSize: type.micro, color: c.textMuted, fontStyle: 'italic' },
+    editForm: { marginTop: spacing.xs, gap: spacing.sm },
+    editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    // O campo de quantidade ficou ~28px de altura até 2026-09-28: o
+    // `paddingVertical` era de 4px, e com bordas e fonte de 15px dava
+    // isso. É o ÚNICO `TextInput` da tela — o passo que muda o dado
+    // real, com `autoFocus` e teclado numérico. O `TextInput`
+    // equivalente do Histórico (`noteEditInput`, `history.tsx`) já tinha
+    // `minHeight: 44` desde 2026-09-05; aqui faltava, e os dois editores
+    // inline quase idênticos tinham alvos diferentes.
     input: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 8,
-      paddingHorizontal: 10, paddingVertical: 6, width: 80, fontSize: 15,
+      borderWidth: 1, borderColor: c.border, borderRadius: rounded.sm,
+      paddingHorizontal: spacing.sm, width: 88, fontSize: type.label,
+      minHeight: 48, // alvo mínimo, não escolha estética
+      textAlign: 'center',
       backgroundColor: c.surface,
     },
-    unit: { color: c.textSecondary, fontSize: 14 },
+    unit: { color: c.textSecondary, fontSize: type.caption },
+    unitBlock: { gap: spacing.xs, marginTop: spacing.xs },
+    unitBlockLabel: { fontSize: type.micro, color: c.textSecondary, fontWeight: '600' },
+    unitBlockHint: { fontSize: type.microTight, color: c.textMuted },
+    unitChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+    unitChip: {
+      minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.md,
+      borderRadius: rounded.full, borderWidth: 1, borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    unitChipSelected: { borderColor: c.brand, backgroundColor: c.brandSubtle },
+    unitChipText: { fontSize: type.caption, color: c.textSecondary, fontWeight: '600' },
+    unitChipTextSelected: { color: c.brand },
     // Reorganizado (2026-09-08, achado real com screenshot): antes os 3
     // botões viviam numa fileira só, com pesos visuais bem diferentes
     // brigando por atenção (texto solto "Cancelar", contornado
@@ -321,23 +444,27 @@ function makeStyles(c: ThemeColors) {
     // "Definir" — as ações que de fato mudam o estoque — dividem uma
     // fileira com o mesmo peso (mesma largura, `flex: 1` nos dois), e
     // "Cancelar" fica sozinho embaixo, discreto, claramente secundário.
-    editActions: { gap: 8 },
-    editPrimaryRow: { flexDirection: 'row', gap: 8 },
+    editActions: { gap: spacing.sm },
+    // As duas ações são opostas (soma x substitui) e têm o mesmo peso
+    // visual. A diferença é dita em texto, logo acima dos botões.
+    actionHints: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+    actionHint: { fontSize: type.microTight, color: c.textMuted, flex: 1 },
+    editPrimaryRow: { flexDirection: 'row', gap: spacing.sm },
     // minHeight 48 nos três (WCAG AAA, achado revisando toque mínimo
     // 2026-09-05) — sem isso ficavam ~30-32px de altura real, abaixo do
     // alvo mínimo pro público idoso/baixa destreza motora do app.
-    cancelBtn: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 6, minHeight: 48, justifyContent: 'center' },
-    cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
+    cancelBtn: { alignSelf: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, minHeight: 48, justifyContent: 'center' },
+    cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: type.micro },
     addBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      borderWidth: 1.5, borderColor: c.brand, borderRadius: 8,
-      paddingVertical: 5, minHeight: 48,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      borderWidth: 1.5, borderColor: c.brand, borderRadius: rounded.sm,
+      paddingVertical: spacing.xs, minHeight: 48,
     },
-    addBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
+    addBtnText: { color: c.brand, fontWeight: '600', fontSize: type.micro },
     saveBtn: {
-      flex: 1, backgroundColor: c.brand, borderRadius: 8, paddingVertical: 6,
+      flex: 1, backgroundColor: c.brand, borderRadius: rounded.sm, paddingVertical: spacing.xs,
       minHeight: 48, alignItems: 'center', justifyContent: 'center',
     },
-    saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: 13 },
+    saveBtnText: { color: c.onBrand, fontWeight: '600', fontSize: type.micro },
   });
 }

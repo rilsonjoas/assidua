@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
 import { usePrivacyStore } from '../store/privacyStore';
 import { togglePrivacyWithHint } from '../lib/privacy';
+import { spacing } from '../constants/tokens';
 
 // "Modo Privacidade" em todas as abas (2026-09-11, achado real do
 // Rilson: o olho só existia no cabeçalho custom da Home — quem
@@ -39,5 +40,5 @@ export function PrivacyToggleButton() {
 }
 
 const styles = StyleSheet.create({
-  button: { padding: 8, marginRight: 4 },
+  button: { padding: spacing.sm, marginRight: spacing.xs },
 });

@@ -2,6 +2,7 @@ import { Modal, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // Irmão de ConfirmDialog.tsx pra aviso/erro de um botão só (sem
 // decisão sim/não). Achado real (2026-08-14): mesmo o `Alert.alert`
@@ -77,32 +78,32 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     backdrop: {
       flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-      alignItems: 'center', justifyContent: 'center', padding: 24,
+      alignItems: 'center', justifyContent: 'center', padding: spacing.xxl,
     },
     card: {
       width: '100%', maxWidth: 360, backgroundColor: c.surface,
-      borderRadius: 18, padding: 20,
+      borderRadius: rounded.xl, padding: spacing.xl,
     },
-    title: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 8 },
-    message: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+    title: { fontSize: type.critical, fontWeight: '700', color: c.text, marginBottom: spacing.sm },
+    message: { fontSize: type.caption, color: c.textSecondary, lineHeight: 20 },
     // minHeight 48 + justifyContent nos 3 (WCAG AAA, auditoria de toque
     // mínimo 2026-09-08) — column layout (sem flexDirection), então
     // `alignItems: 'center'` só centraliza na horizontal; sem
     // `justifyContent` o texto ficaria colado no topo da caixa mais alta.
     // Componente usado em TODO alerta/erro do app — alto impacto.
     okBtn: {
-      backgroundColor: c.brand, padding: 13, borderRadius: 10, marginTop: 20,
+      backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md, marginTop: spacing.xl,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     okText: { color: c.onBrand, fontWeight: '600' },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
+    actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
     dismissBtn: {
-      flex: 1, padding: 13, borderRadius: 10,
+      flex: 1, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     dismissText: { color: c.textSecondary, fontWeight: '600' },
     actionBtn: {
-      flex: 1, backgroundColor: c.brand, padding: 13, borderRadius: 10,
+      flex: 1, backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
   });

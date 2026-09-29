@@ -38,6 +38,7 @@ import { AdherenceChart } from '../../components/AdherenceChart';
 import { AdherenceCalendar } from '../../components/AdherenceCalendar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 type StatusFilter = 'all' | 'taken' | 'skipped' | 'missed';
 
@@ -158,7 +159,12 @@ export default function HistoryScreen() {
     enabled: !!activeProfile,
   });
 
-  const { data: weeklyAdherence = [] } = useQuery({
+  // O gráfico herda o tratamento de estado do calendário (2026-09-28):
+  // sem `isLoading`/`isError`, `data = []` num erro de rede fazia
+  // `AdherenceChart` devolver `null` — o gráfico sumia sem explicação,
+  // que é o mesmo erro do calendário em outra forma: em vez de mentir
+  // ("não tomou nada"), calava. Agora ele diz que não conseguiu.
+  const { data: weeklyAdherence = [], isLoading: weeklyLoading, isError: weeklyError, refetch: refetchWeekly } = useQuery({
     queryKey: ['weekly-adherence', activeProfile?.id],
     queryFn: () => getWeeklyAdherence(activeProfile!.id),
     enabled: !!activeProfile,
@@ -527,7 +533,12 @@ export default function HistoryScreen() {
               </Text>
             )}
 
-            <AdherenceChart data={weeklyAdherence} />
+            <AdherenceChart
+              data={weeklyAdherence}
+              isLoading={weeklyLoading}
+              isError={weeklyError}
+              onRetry={refetchWeekly}
+            />
 
             {activeProfile && <AdherenceCalendar profileId={activeProfile.id} />}
 
@@ -591,7 +602,7 @@ export default function HistoryScreen() {
 
               {medications.length > 0 && (
                 <>
-                  <Text style={[styles.filterGroupLabel, { marginTop: 14 }]}>{t('history.filterMedicationLabel')}</Text>
+                  <Text style={[styles.filterGroupLabel, { marginTop: spacing.md }]}>{t('history.filterMedicationLabel')}</Text>
                   {/* "Filtro de remédio vira seletor com busca"
                       (2026-09-08) — achado real testando no aparelho: com
                       16+ remédios (incluindo itens de primeiros socorros
@@ -678,7 +689,7 @@ export default function HistoryScreen() {
             const pendingName = maskMedicationName(med?.name ?? '', isPrivate);
             return (
               <View
-                style={styles.row}
+                style={styles.rowPrn}
                 accessible
                 accessibilityLabel={t('prn.historyLabel', { name: pendingName, time: pendingTime })}
                 accessibilityHint={t('prn.pendingToast', { name: pendingName })}
@@ -741,15 +752,21 @@ export default function HistoryScreen() {
                 if (e.nativeEvent.actionName === 'activate') startEditingNote(log);
               }}
             >
-              <View style={styles.timeBox}>
-                <Text style={styles.time}>{time}</Text>
-              </View>
-              <View style={[styles.colorBar, { backgroundColor: log.medication.color }]} />
-              <View style={styles.rowBody}>
-                <Text style={styles.medName}>{maskedName}</Text>
-                <Text style={styles.dosage}>
-                  {formatDosageUnit(log.medication.dosage, log.medication.unit)}
-                </Text>
+              <View style={styles.rowTop}>
+                <View style={styles.timeBox}>
+                  <Text style={styles.time}>{time}</Text>
+                </View>
+                <View style={[styles.colorBar, { backgroundColor: log.medication.color }]} />
+                <View style={styles.rowBody}>
+                  <Text style={styles.medName}>{maskedName}</Text>
+                  <Text style={styles.dosage}>
+                    {formatDosageUnit(log.medication.dosage, log.medication.unit)}
+                  </Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: cfg.color + '1f' }]}>
+                  <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
+                  <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
+                </View>
               </View>
                 {/* P3 (2026-09-25) — a nota por escrito finalmente aparece.
                     A API sempre aceitou `notes` e o app nunca mostrou:
@@ -780,6 +797,7 @@ export default function HistoryScreen() {
                       onBlur={() => saveNote(log)}
                     />
                     <TouchableOpacity
+                      style={styles.noteIconBtn}
                       onPress={() => saveNote(log)}
                       accessibilityRole="button"
                       accessibilityLabel={t('history.noteSave')}
@@ -788,6 +806,7 @@ export default function HistoryScreen() {
                       <MaterialCommunityIcons name="check" size={22} color={colors.brand} />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      style={styles.noteIconBtn}
                       onPress={() => setEditingNoteId(null)}
                       accessibilityRole="button"
                       accessibilityLabel={t('common.cancel')}
@@ -803,10 +822,10 @@ export default function HistoryScreen() {
                         visual — e a nota é a única forma de a pessoa
                         corrigir o registro com a própria voz. */}
                     <TouchableOpacity
+                      style={styles.noteAddBtnHit}
                       onPress={() => startEditingNote(log)}
                       accessibilityRole="button"
                       accessibilityLabel={t('history.noteAdd')}
-                      hitSlop={8}
                     >
                       <Text style={styles.noteAddBtn}>
                         {log.notes ? t('history.noteEdit') : t('history.noteAdd')}
@@ -814,11 +833,7 @@ export default function HistoryScreen() {
                     </TouchableOpacity>
                   </>
                 )}
-              <View style={[styles.statusBadge, { backgroundColor: cfg.color + '1f' }]}>
-                <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
-                <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
-              </View>
-              </View>
+            </View>
           );
         }}
       />
@@ -913,14 +928,14 @@ export default function HistoryScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    headerContainer: { paddingBottom: 8 },
+    headerContainer: { paddingBottom: spacing.sm },
     summaryCard: {
       flexDirection: 'row',
       backgroundColor: c.surface,
-      marginHorizontal: 16,
-      marginTop: 16,
-      borderRadius: 16,
-      paddingVertical: 18,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.lg,
+      borderRadius: rounded.lg,
+      paddingVertical: spacing.lg,
       elevation: 2,
       shadowColor: '#000',
       shadowOpacity: 0.05,
@@ -928,23 +943,23 @@ function makeStyles(c: ThemeColors) {
       shadowOffset: { width: 0, height: 2 },
     },
     summaryItem: { flex: 1, alignItems: 'center' },
-    summaryValue: { fontSize: 26, fontWeight: '700', color: c.text },
-    summaryLabel: { fontSize: 13, fontWeight: '600', color: c.textMuted, marginTop: 4 },
-    summaryScope: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: -8, marginBottom: 12 },
-    rowNote: { fontSize: 12, color: c.textMuted, fontStyle: 'italic', marginTop: 2 },
-    noteAddBtn: { fontSize: 12, color: c.brand, fontWeight: '600', marginTop: 4 },
-    noteEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    summaryValue: { fontSize: type.metric, fontWeight: '700', color: c.text },
+    summaryLabel: { fontSize: type.micro, fontWeight: '600', color: c.textMuted, marginTop: spacing.xs },
+    summaryScope: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: -8, marginBottom: spacing.md },
+    rowNote: { fontSize: type.microTight, color: c.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
+    noteAddBtn: { fontSize: type.microTight, color: c.brand, fontWeight: '600', marginTop: spacing.xs },
+    noteEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
     noteEditInput: {
       flex: 1, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 10, padding: 8, fontSize: 14, color: c.text, minHeight: 44,
+      borderRadius: rounded.md, padding: spacing.sm, fontSize: type.caption, color: c.text, minHeight: 44,
     },
-    summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
+    summaryDivider: { width: 1, backgroundColor: c.border, marginVertical: spacing.xs },
     consultationButtonsRow: {
       flexDirection: 'column',
-      gap: 10,
-      marginHorizontal: 16,
-      marginTop: 14,
-      marginBottom: 14,
+      gap: spacing.sm,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.md,
+      marginBottom: spacing.md,
     },
     consultationButtonsRowWide: {
       flexDirection: 'row',
@@ -955,33 +970,33 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
+      gap: spacing.sm,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
       minHeight: 50,
-      borderRadius: 14,
+      borderRadius: rounded.lg,
       borderWidth: 1.5,
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    consultationButtonText: { color: c.brand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    consultationButtonText: { color: c.brand, fontSize: type.label, fontWeight: '700', textAlign: 'center' },
     consultationPdfButton: { backgroundColor: c.brand, borderColor: c.brand },
-    consultationPdfButtonText: { color: c.onBrand, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    consultationPdfButtonText: { color: c.onBrand, fontSize: type.label, fontWeight: '700', textAlign: 'center' },
     proBadge: {
-      flexDirection: 'row', alignItems: 'center', gap: 2,
-      backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8,
-      paddingHorizontal: 6, paddingVertical: 2,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.xxs,
+      backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: rounded.sm,
+      paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs,
     },
-    proBadgeText: { color: c.onBrand, fontSize: 10, fontWeight: '700' },
-    filtersWrapper: { marginHorizontal: 16, marginTop: 4, marginBottom: 12 },
-    filterWrapGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+    proBadgeText: { color: c.onBrand, fontSize: type.micro, fontWeight: '700' },
+    filtersWrapper: { marginHorizontal: spacing.lg, marginTop: spacing.xs, marginBottom: spacing.md },
+    filterWrapGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
     filterChip: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 22,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: rounded.xxl,
       backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
@@ -996,140 +1011,168 @@ function makeStyles(c: ThemeColors) {
     // maiores (tema, formato de exportação, opção da lista de
     // cuidadores) — ali sim o preenchimento sólido pesaria demais.
     filterChipActive: { backgroundColor: c.brand, borderColor: c.brand },
-    filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
+    filterChipText: { fontSize: type.caption, fontWeight: '600', color: c.textMuted },
     filterChipTextActive: { color: c.onBrand, fontWeight: '700' },
-    medicationChip: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    medicationChipDot: { width: 10, height: 10, borderRadius: 5 },
-    filterGroupLabel: { fontSize: 13, fontWeight: '700', color: c.textMuted, marginBottom: 8 },
+    medicationChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    medicationChipDot: { width: 10, height: 10, borderRadius: rounded.sm },
+    filterGroupLabel: { fontSize: type.micro, fontWeight: '700', color: c.textMuted, marginBottom: spacing.sm },
     medicationFilterButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderRadius: 14,
+      gap: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: rounded.lg,
       backgroundColor: c.surface,
       borderWidth: 1.5,
       borderColor: c.border,
       minHeight: 48,
     },
-    medicationFilterButtonText: { flex: 1, fontSize: 15, fontWeight: '600', color: c.text },
+    medicationFilterButtonText: { flex: 1, fontSize: type.label, fontWeight: '600', color: c.text },
     pickerOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0,0,0,0.4)',
       justifyContent: 'center',
-      padding: 20,
+      padding: spacing.xl,
     },
     pickerContent: {
       backgroundColor: c.surface,
-      borderRadius: 16,
-      padding: 18,
+      borderRadius: rounded.lg,
+      padding: spacing.lg,
       maxHeight: '80%',
     },
-    pickerTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 12 },
+    pickerTitle: { fontSize: type.critical, fontWeight: '700', color: c.text, marginBottom: spacing.md },
     pickerSearchInput: {
       borderWidth: 1.5,
       borderColor: c.border,
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      fontSize: 15,
+      borderRadius: rounded.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      fontSize: type.label,
       color: c.text,
-      marginBottom: 10,
+      marginBottom: spacing.sm,
       minHeight: 48,
     },
     pickerList: { maxHeight: 320 },
     pickerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 14,
-      borderRadius: 12,
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: rounded.md,
       minHeight: 48,
     },
     pickerRowActive: { backgroundColor: c.brandSubtle },
-    pickerRowText: { fontSize: 15, fontWeight: '600', color: c.text },
+    pickerRowText: { fontSize: type.label, fontWeight: '600', color: c.text },
     pickerRowTextActive: { color: c.brand, fontWeight: '700' },
     pickerEmptyText: {
       textAlign: 'center',
       color: c.textMuted,
-      fontSize: 14,
-      paddingVertical: 20,
+      fontSize: type.caption,
+      paddingVertical: spacing.xl,
     },
     pickerCancelButton: {
-      marginTop: 12,
-      paddingVertical: 14,
-      borderRadius: 12,
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: rounded.md,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 48,
       backgroundColor: c.background,
     },
-    pickerCancelText: { fontSize: 15, fontWeight: '700', color: c.textMuted },
+    pickerCancelText: { fontSize: type.label, fontWeight: '700', color: c.textMuted },
     // Marcador de troca de fuso (2026-09-11) — linha discreta, sem o
     // aparato de horário/status de uma dose (não é uma dose), mas
     // sempre no mesmo feed por data.
     timezoneChangeRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      paddingVertical: 10, paddingHorizontal: 4,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      paddingVertical: spacing.sm, paddingHorizontal: spacing.xs,
     },
-    timezoneChangeText: { fontSize: 13, color: c.textMuted, flex: 1 },
-    list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
-    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 8 },
+    timezoneChangeText: { fontSize: type.micro, color: c.textMuted, flex: 1 },
+    list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xxl },
+    listWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingTop: spacing.sm },
     sectionHeaderBox: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
-      paddingTop: 16,
-      paddingBottom: 8,
+      gap: spacing.sm,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
       backgroundColor: c.background,
     },
     sectionHeader: {
-      fontSize: 15,
+      fontSize: type.label,
       fontWeight: '700',
       color: c.textSecondary,
       letterSpacing: 0.2,
     },
-    // P3: a linha passou a ter dois filhos (resumo acessível + ação), e
-    // o badge de status precisa ficar alinhado à direita. O wrapper do
-    // resumo cresce, e o badge continua no fim.
-    // P3: a linha tem duas faixas (resumo acessível em cima, nota+ação
-    // embaixo). rowTop é a faixa de cima; rowA11y2 é o nó acessível que
-    // carrega hora+nome+dose.
+    // A linha tem DUAS faixas (P3, 2026-09-25): `rowTop` é a faixa de
+    // cima — hora, barra de cor, nome, dose, badge de status, tudo em
+    // linha, que é o que permite varrer a lista. A nota e a ação de
+    // editar ficam ABAIXO, dentro do próprio `row` (que agora é
+    // `column`).
+    //
+    // Bug corrigido em 2026-09-28: `row` estava em `column` e `rowTop`
+    // nunca era aplicado — os dois estilos existiam, documentados, e
+    // órfãos. Resultado: hora, nome, dose, nota e badge empilhavam
+    // verticalmente, e a lista inteira virava uma coluna de cartões
+    // em vez de linhas escaneáveis. Para quem precisa varrer o
+    // histórico, isso é a diferença entre ler e garimpar.
     rowTop: { flexDirection: 'row', alignItems: 'center' },
     rowA11y2: { flex: 1, flexDirection: 'row', alignItems: 'center' },
     row: {
       flexDirection: 'column',
-      alignItems: 'center',
       backgroundColor: c.surface,
-      borderRadius: 14,
+      borderRadius: rounded.lg,
       overflow: 'hidden',
       elevation: 2,
       shadowColor: '#000',
       shadowOpacity: 0.05,
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
-      marginBottom: 10,
+      marginBottom: spacing.sm,
     },
-    timeBox: { paddingHorizontal: 14, alignItems: 'center', minWidth: 60 },
-    time: { fontSize: 16, fontWeight: '700', color: c.brand },
+    // Alvo de 44×44 (NBR 17060 5.1.2.13 / WCAG 2.1 2.5.5 AAA) para os
+    // dois botões de nota. Antes eram só o ícone de 22px, sem
+    // `minHeight` — o `TextInput` vizinho já tinha 44, e os dois botões
+    // ao lado dele é que estavam espremidos. Confirmar e cancelar nota
+    // é justamente o caminho de quem não usa teclado.
+    noteIconBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    noteAddBtnHit: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+    // A dose de resgate (P4) é sempre uma faixa única — hora, nome,
+    // badge de pendência. Não tem nota nem status, então não usa a
+    // estrutura de duas faixas nem o `rowTop`.
+    rowPrn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: c.surface,
+      borderRadius: rounded.lg,
+      overflow: 'hidden',
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      marginBottom: spacing.sm,
+    },
+    timeBox: { paddingHorizontal: spacing.md, alignItems: 'center', minWidth: 60 },
+    time: { fontSize: type.body, fontWeight: '700', color: c.brand },
     colorBar: { width: 5, alignSelf: 'stretch' },
-    rowBody: { flex: 1, paddingVertical: 16, paddingLeft: 14 },
-    medName: { fontSize: 16, fontWeight: '700', color: c.text },
-    dosage: { fontSize: 14, color: c.textMuted, marginTop: 4 },
+    rowBody: { flex: 1, paddingVertical: spacing.lg, paddingLeft: spacing.md },
+    medName: { fontSize: type.body, fontWeight: '700', color: c.text },
+    dosage: { fontSize: type.caption, color: c.textMuted, marginTop: spacing.xs },
     statusBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
-      marginRight: 14,
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: rounded.xl,
+      marginRight: spacing.md,
     },
-    statusLabel: { fontSize: 13, fontWeight: '700' },
-    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
-    emptyTitle: { fontSize: 18, fontWeight: '700', color: c.textSecondary },
-    emptyText: { fontSize: 15, color: c.textMuted, textAlign: 'center', lineHeight: 22 },
+    statusLabel: { fontSize: type.micro, fontWeight: '700' },
+    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.huge, gap: spacing.md },
+    emptyTitle: { fontSize: type.section, fontWeight: '700', color: c.textSecondary },
+    emptyText: { fontSize: type.label, color: c.textMuted, textAlign: 'center', lineHeight: 22 },
   });
 }

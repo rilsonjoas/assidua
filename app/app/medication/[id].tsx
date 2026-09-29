@@ -54,6 +54,7 @@ import { ThemeColors } from '../../constants/theme';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AppText as Text } from '../../components/AppText';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -2192,21 +2193,21 @@ function getDateTimePicker() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { padding: 20, paddingBottom: 48 },
-    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 24, paddingBottom: 48 },
+    inner: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+    innerWide: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xxxl },
     caregiverNotice: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      backgroundColor: c.brandSubtle, borderRadius: 12, padding: 12, marginBottom: 16,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+      backgroundColor: c.brandSubtle, borderRadius: rounded.md, padding: spacing.md, marginBottom: spacing.lg,
       borderWidth: 1, borderColor: c.brand,
     },
-    caregiverNoticeText: { color: c.brand, fontSize: 13, fontWeight: '600', flex: 1 },
+    caregiverNoticeText: { color: c.brand, fontSize: type.micro, fontWeight: '600', flex: 1 },
     // "Como você toma esse remédio?" (2026-09-07) — cards grandes de
     // propósito, não chips pequenos: é a decisão mais importante da
     // seção Horários, tem que ser impossível de perder de vista.
     // marginBottom 20 (2026-09-09, achado de design real do Rilson) —
     // era 4, bem menor que qualquer outro espaçamento da tela (14-24),
     // deixava os cards colados na lista de horários logo abaixo.
-    scheduleKindRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+    scheduleKindRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
     // P4/§10.4 — a ação principal do remédio de resgate. Laranja e não
     // a cor da marca: ela não é "salvar cadastro", é o equivalente a
     // "Tomei" da Home, e precisa se parecer com isso.
@@ -2214,23 +2215,23 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: spacing.sm,
       backgroundColor: '#ea580c',
-      borderRadius: 12,
-      paddingVertical: 14,
-      marginBottom: 12,
+      borderRadius: rounded.md,
+      paddingVertical: spacing.md,
+      marginBottom: spacing.md,
       // Alvo de toque de 48px: público idoso (regra já usada na tela).
       minHeight: 48,
     },
-    prnBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    prnBtnText: { color: '#fff', fontSize: type.body, fontWeight: '700' },
     scheduleKindCard: {
-      flex: 1, alignItems: 'center', gap: 6, padding: 16, borderRadius: 16,
+      flex: 1, alignItems: 'center', gap: spacing.xs, padding: spacing.lg, borderRadius: rounded.lg,
       backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
     },
     scheduleKindCardActive: { backgroundColor: c.brand, borderColor: c.brand },
-    scheduleKindCardTitle: { fontSize: 14, fontWeight: '700', color: c.text, textAlign: 'center' },
+    scheduleKindCardTitle: { fontSize: type.caption, fontWeight: '700', color: c.text, textAlign: 'center' },
     scheduleKindCardTitleActive: { color: c.onBrand },
-    scheduleKindCardExample: { fontSize: 12, color: c.textMuted, textAlign: 'center' },
+    scheduleKindCardExample: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center' },
     scheduleKindCardExampleActive: { color: c.onBrand, opacity: 0.85 },
     // Antes esta linha também carregava o título "Horários" (agora fica
     // fixo acima dos cards de modo, valendo pros dois — fixo/intervalo
@@ -2242,16 +2243,16 @@ function makeStyles(c: ThemeColors) {
     // quando na verdade pertence à lista de horários abaixo dele.
     // Proximidade agora reflete a relação real: mais perto do que ele
     // adiciona, não do que vem antes.
-    scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, marginBottom: 12 },
+    scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.xs, marginBottom: spacing.md },
     photoCircle: {
-      width: 96, height: 96, borderRadius: 48, alignSelf: 'center', marginBottom: 20,
+      width: 96, height: 96, borderRadius: rounded.full, alignSelf: 'center', marginBottom: spacing.xl,
       backgroundColor: c.surfaceSecondary, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: c.border, overflow: 'hidden',
     },
     photoImage: { width: '100%', height: '100%' },
-    photoPlaceholder: { alignItems: 'center', gap: 4 },
-    photoPlaceholderText: { fontSize: 10, color: c.textMuted, fontWeight: '600', textAlign: 'center', paddingHorizontal: 6 },
-    photoPendingHint: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: -12, marginBottom: 20 },
+    photoPlaceholder: { alignItems: 'center', gap: spacing.xs },
+    photoPlaceholderText: { fontSize: type.micro, color: c.textMuted, fontWeight: '600', textAlign: 'center', paddingHorizontal: spacing.xs },
+    photoPendingHint: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: -12, marginBottom: spacing.xl },
     // marginTop 28 (2026-09-10, achado real do Rilson com screenshot):
     // era 0 — diferente de TODO `label` do formulário (marginTop 14),
     // o título de seção ficava colado no campo anterior. 28 (o dobro do
@@ -2259,38 +2260,38 @@ function makeStyles(c: ThemeColors) {
     // não só mais um campo. marginBottom 8 separa do primeiro campo da
     // seção, ligeiramente mais que o padrão pra não competir com o novo
     // marginTop de cima.
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginTop: 28, marginBottom: 8 },
-    label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 14 },
+    sectionTitle: { fontSize: type.body, fontWeight: '700', color: c.text, marginTop: spacing.xxl, marginBottom: spacing.sm },
+    label: { fontSize: type.micro, fontWeight: '600', color: c.textSecondary, marginBottom: spacing.xs, marginTop: spacing.md },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14, fontSize: 16, color: c.text,
+      borderRadius: rounded.md, padding: spacing.md, fontSize: type.body, color: c.text,
     },
-    unitInput: { width: 80, marginLeft: 8 },
+    unitInput: { width: 80, marginLeft: spacing.sm },
     row: { flexDirection: 'row', alignItems: 'center' },
-    colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-    colorBtn: { width: 32, height: 32, borderRadius: 16 },
+    colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+    colorBtn: { width: 32, height: 32, borderRadius: rounded.lg },
     colorBtnActive: { borderWidth: 3, borderColor: c.text, transform: [{ scale: 1.15 }] },
     textarea: { height: 90, textAlignVertical: 'top' },
     saveBtn: {
-      backgroundColor: c.brand, borderRadius: 14, padding: 16,
-      alignItems: 'center', marginTop: 24,
+      backgroundColor: c.brand, borderRadius: rounded.lg, padding: spacing.lg,
+      alignItems: 'center', marginTop: spacing.xxl,
     },
-    saveBtnText: { color: c.onBrand, fontSize: 16, fontWeight: '700' },
+    saveBtnText: { color: c.onBrand, fontSize: type.body, fontWeight: '700' },
     // minHeight 48 (WCAG AAA, 2026-09-08).
     // marginTop 16 (2026-09-09, achado de design) — era 10; junto com o
     // marginBottom 8 do scheduleCard acima, fechava um gap de 18px,
     // diferente dos 24px entre Pausar→Salvar e Salvar→Excluir. Agora os
     // 3 gaps finais da tela são todos 24px, mesma escala.
     pauseBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderRadius: 12, padding: 13, marginTop: 16, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      borderRadius: rounded.md, padding: spacing.md, marginTop: spacing.lg, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     pauseBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
-    pauseBtnText: { color: c.textSecondary, fontWeight: '600', fontSize: 14 },
+    pauseBtnText: { color: c.textSecondary, fontWeight: '600', fontSize: type.caption },
     pauseBtnTextActive: { color: c.onBrand },
     pausedNotice: {
-      fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 8,
+      fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: spacing.sm,
     },
     // "Excluir medicamento" (2026-09-07, item 15) — de propósito menos
     // chamativo que o botão Salvar acima (ação permanente, não deveria
@@ -2299,56 +2300,56 @@ function makeStyles(c: ThemeColors) {
     // marginTop 24 (2026-09-09, achado de design) — era 20, agora bate
     // com os outros 2 gaps finais da tela (mesma escala de 24px).
     deleteMedicationBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      marginTop: 24, paddingVertical: 12, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      marginTop: spacing.xxl, paddingVertical: spacing.md, minHeight: 48,
     },
-    deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: 14 },
+    deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: type.caption },
     // minHeight 48 (WCAG AAA, 2026-09-08) — sozinho na própria linha,
     // sem vizinho apertado, cresce sem custo nenhum de layout.
     addScheduleBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 48,
-      backgroundColor: c.brandSubtle, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, minHeight: 48,
+      backgroundColor: c.brandSubtle, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: rounded.xl,
     },
-    addScheduleBtnText: { color: c.brand, fontWeight: '600', fontSize: 13 },
+    addScheduleBtnText: { color: c.brand, fontWeight: '600', fontSize: type.micro },
     // marginTop 16 (2026-09-09) — antes o espaço acima vinha "de graça"
     // da fileira separada de "+Adicionar" que existia aqui (removida,
     // ver comentário na JSX); sem ela, a caixa precisa do próprio respiro.
     emptySchedules: {
       alignItems: 'center',
-      paddingVertical: 20,
-      paddingHorizontal: 16,
-      gap: 10,
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
       backgroundColor: c.surfaceSecondary,
-      borderRadius: 14,
+      borderRadius: rounded.lg,
       borderWidth: 1,
       borderStyle: 'dashed',
       borderColor: c.border,
-      marginTop: 16,
-      marginBottom: 12,
+      marginTop: spacing.lg,
+      marginBottom: spacing.md,
     },
-    emptySchedulesText: { color: c.textSecondary, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    emptySchedulesText: { color: c.textSecondary, fontSize: type.micro, fontWeight: '600', textAlign: 'center' },
     scheduleCard: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 8,
+      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, marginBottom: spacing.sm,
       borderWidth: 1, borderColor: c.border,
     },
     scheduleInfo: { flex: 1 },
-    scheduleTime: { fontSize: 17, fontWeight: '700', color: c.text },
-    scheduleDays: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    scheduleTime: { fontSize: type.critical, fontWeight: '700', color: c.text },
+    scheduleDays: { fontSize: type.microTight, color: c.textMuted, marginTop: spacing.xxs },
     // Ícones só (lápis/lixeira) numa fileira apertada — hitSlop, não
     // crescer a caixa visual (auditoria de toque mínimo, 2026-09-08).
-    // marginLeft do deleteBtn subiu de 4 pra 14 (+ gap:12 do scheduleCard
+    // marginLeft do deleteBtn subiu de 4 pra 14 (+ gap: spacing.md do scheduleCard
     // = 26px de vão real) de propósito: com hitSlop de 10px nos dois,
     // cada um chega em 48px de área de toque sem as duas zonas se
     // sobreporem — evita tocar "excluir" tentando tocar "editar" (ou o
     // contrário) num remédio de idoso, risco real, não só estética.
-    editBtn: { padding: 4 },
-    deleteBtn: { padding: 4, marginLeft: 14 },
+    editBtn: { padding: spacing.xs },
+    deleteBtn: { padding: spacing.xs, marginLeft: spacing.md },
     addScheduleBox: {
-      backgroundColor: c.surface, borderRadius: 14, padding: 16,
-      borderWidth: 1, borderColor: c.border, marginTop: 4,
+      backgroundColor: c.surface, borderRadius: rounded.lg, padding: spacing.lg,
+      borderWidth: 1, borderColor: c.border, marginTop: spacing.xs,
     },
-    addScheduleTitle: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
+    addScheduleTitle: { fontSize: type.label, fontWeight: '700', color: c.text, marginBottom: spacing.xs },
     // Exceção deliberada na auditoria de toque mínimo (2026-09-08): 7
     // círculos numa fileira só (dom-sáb) não cabem em 48px cada — nem
     // com a tela cheia de largura (~360-390px), 7×48px sozinho já
@@ -2356,74 +2357,74 @@ function makeStyles(c: ThemeColors) {
     // da tela. Forçar 48 aqui quebraria a fileira (overflow/wrap feio),
     // pior pra usabilidade do que manter os 38px. Mesmo padrão aceito
     // por seletores de dia da semana de calendário em geral (iOS
-    // Lembretes, Google Agenda). `gap:6` entre eles ajuda a separar o
+    // Lembretes, Google Agenda). `gap: spacing.xs` entre eles ajuda a separar o
     // toque sem crescer o círculo.
-    daysRow: { flexDirection: 'row', gap: 6, marginTop: 4, justifyContent: 'space-between' },
+    daysRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs, justifyContent: 'space-between' },
     dayBtn: {
       flex: 1,
-      minWidth: 38, minHeight: 38, paddingHorizontal: 2, borderRadius: 19,
+      minWidth: 38, minHeight: 38, paddingHorizontal: spacing.xxs, borderRadius: rounded.xl,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     dayBtnActive: { backgroundColor: c.brand, borderColor: c.brand },
-    dayBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    dayBtnText: { fontSize: type.micro, fontWeight: '700', color: c.textSecondary },
     dayBtnTextActive: { color: c.onBrand },
     // Chips de atalho (presets de frequência/dias/intervalo, 2026-08-21)
     // — largura pelo conteúdo e quebra de linha, diferente dos botões
     // flex:1 acima: "4x por dia" não cabe espremido em quarto de tela.
-    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2, marginBottom: 6 },
+    presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs, marginBottom: spacing.xs },
     // minHeight 48 (WCAG AAA, 2026-09-08) — a fileira já quebra linha
     // (`flexWrap: 'wrap'` em presetRow), então crescer não aperta nada.
     presetChip: {
-      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, minHeight: 48,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: rounded.lg, minHeight: 48,
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: c.surfaceSecondary, borderWidth: 1, borderColor: c.border,
     },
     presetChipActive: { backgroundColor: c.brand, borderColor: c.brand },
-    presetChipText: { fontSize: 12, fontWeight: '600', color: c.textMuted },
+    presetChipText: { fontSize: type.microTight, fontWeight: '600', color: c.textMuted },
     presetChipTextActive: { color: c.onBrand },
-    fieldHint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
-    addScheduleActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    fieldHint: { fontSize: type.microTight, color: c.textMuted, marginTop: spacing.xs },
+    addScheduleActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
     // minHeight 48 + justifyContent nos 2 (WCAG AAA, auditoria de toque
     // mínimo 2026-09-08) — pares de botão de largura cheia (estoque,
     // formulário de horário), sem efeito colateral de layout ao crescer.
     cancelBtn: {
-      flex: 1, padding: 12, borderRadius: 10,
+      flex: 1, padding: spacing.md, borderRadius: rounded.md,
       borderWidth: 1, borderColor: c.border,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     cancelBtnText: { color: c.textSecondary, fontWeight: '600' },
     confirmBtn: {
-      flex: 1, backgroundColor: c.brand, padding: 12, borderRadius: 10,
+      flex: 1, backgroundColor: c.brand, padding: spacing.md, borderRadius: rounded.md,
       alignItems: 'center', justifyContent: 'center', minHeight: 48,
     },
     confirmBtnText: { color: c.onBrand, fontWeight: '600' },
     // Estoque editável na tela do remédio (2026-09-07, item 13) — mesmo
     // par Adicionar/Definir de app/(tabs)/stock.tsx, adaptado aos
     // estilos já existentes deste formulário.
-    stockEditForm: { marginTop: 4, gap: 8 },
-    stockUnit: { color: c.textSecondary, fontSize: 14, marginLeft: 8 },
-    stockEditActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    stockEditForm: { marginTop: spacing.xs, gap: spacing.sm },
+    stockUnit: { color: c.textSecondary, fontSize: type.caption, marginLeft: spacing.sm },
+    stockEditActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.sm },
     stockAddBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      borderWidth: 1.5, borderColor: c.brand, borderRadius: 10,
-      paddingHorizontal: 14, paddingVertical: 10, minHeight: 48,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      borderWidth: 1.5, borderColor: c.brand, borderRadius: rounded.md,
+      paddingHorizontal: spacing.md, paddingVertical: spacing.sm, minHeight: 48,
     },
     stockAddBtnText: { color: c.brand, fontWeight: '600' },
-    stockCurrentText: { flex: 1, fontSize: 16, color: c.brand, fontWeight: '600' },
+    stockCurrentText: { flex: 1, fontSize: type.body, color: c.brand, fontWeight: '600' },
     modalOverlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 20,
+      padding: spacing.xl,
     },
     modalContent: {
       width: '100%',
       maxWidth: 380,
       backgroundColor: c.surface,
-      borderRadius: 20,
-      padding: 20,
+      borderRadius: rounded.xl,
+      padding: spacing.xl,
       elevation: 5,
       shadowColor: '#000',
       shadowOpacity: 0.15,
@@ -2431,37 +2432,37 @@ function makeStyles(c: ThemeColors) {
       shadowOffset: { width: 0, height: 4 },
     },
     modalTitle: {
-      fontSize: 18,
+      fontSize: type.section,
       fontWeight: '700',
       color: c.text,
-      marginBottom: 16,
+      marginBottom: spacing.lg,
       textAlign: 'center',
     },
     modalOption: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      borderRadius: 12,
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderRadius: rounded.md,
       backgroundColor: c.surfaceSecondary,
-      marginBottom: 10,
+      marginBottom: spacing.sm,
     },
     modalOptionText: {
-      fontSize: 15,
+      fontSize: type.label,
       fontWeight: '600',
       color: c.text,
     },
     // minHeight 48 + justifyContent (WCAG AAA, 2026-09-08).
     modalCancelButton: {
-      marginTop: 4,
-      paddingVertical: 12,
+      marginTop: spacing.xs,
+      paddingVertical: spacing.md,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 48,
     },
     modalCancelText: {
-      fontSize: 15,
+      fontSize: type.label,
       fontWeight: '600',
       color: c.textMuted,
     },

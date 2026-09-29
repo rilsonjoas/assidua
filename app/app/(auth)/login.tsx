@@ -20,6 +20,7 @@ import { AppText as Text } from '../../components/AppText';
 import { useAlertDialog } from '../../hooks/useAlertDialog';
 
 import { isValidEmail } from '../../lib/schemas';
+import { rounded, spacing, type } from '../../constants/tokens';
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -169,36 +170,36 @@ export default function LoginScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-    logoBox: { alignItems: 'center', marginBottom: 12 },
+    inner: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xxl },
+    logoBox: { alignItems: 'center', marginBottom: spacing.md },
     logoImage: { width: 64, height: 64 },
-    title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: c.text },
-    subtitle: { fontSize: 16, textAlign: 'center', color: c.textSecondary, marginBottom: 32 },
+    title: { fontSize: type.display, fontWeight: '700', textAlign: 'center', color: c.text },
+    subtitle: { fontSize: type.body, textAlign: 'center', color: c.textSecondary, marginBottom: spacing.xxxl },
     input: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 12, color: c.text,
+      borderRadius: rounded.md, padding: spacing.lg, fontSize: type.body, marginBottom: spacing.md, color: c.text,
     },
     // minHeight 48 explícito nos dois (WCAG AAA, auditoria de toque
     // mínimo 2026-09-08) — o padding já batia perto de 48px, mas sem
     // garantia (depende do tamanho de fonte do sistema).
     button: {
-      backgroundColor: c.brand, borderRadius: 12, padding: 16, minHeight: 48,
-      alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 16,
+      backgroundColor: c.brand, borderRadius: rounded.md, padding: spacing.lg, minHeight: 48,
+      alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm, marginBottom: spacing.lg,
     },
-    buttonText: { color: c.onBrand, fontSize: 16, fontWeight: '600' },
-    dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+    buttonText: { color: c.onBrand, fontSize: type.body, fontWeight: '600' },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.xs },
     dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
-    dividerText: { color: c.textMuted, fontSize: 13 },
+    dividerText: { color: c.textMuted, fontSize: type.micro },
     googleButton: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
       backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border, minHeight: 48,
-      borderRadius: 12, padding: 14, marginBottom: 16,
+      borderRadius: rounded.md, padding: spacing.md, marginBottom: spacing.lg,
     },
-    googleButtonText: { fontSize: 15, fontWeight: '600', color: c.text },
+    googleButtonText: { fontSize: type.label, fontWeight: '600', color: c.text },
     // paddingVertical em vez de hitSlop (WCAG AAA, 2026-09-08) — nem
     // `Link` (expo-router) nem `Text` aceitam `hitSlop`; crescer a
     // própria caixa com padding é o jeito que funciona pros dois.
-    link: { alignItems: 'center', justifyContent: 'center', marginTop: 20, paddingVertical: 14, minHeight: 48 },
-    linkText: { textAlign: 'center', color: c.brand, fontSize: 15 },
+    link: { alignItems: 'center', justifyContent: 'center', marginTop: spacing.xl, paddingVertical: spacing.md, minHeight: 48 },
+    linkText: { textAlign: 'center', color: c.brand, fontSize: type.label },
   });
 }
