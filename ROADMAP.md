@@ -5,6 +5,199 @@
 > `api-remedios.narniano.com`, logos, etc. Não renomear a infraestrutura sem
 > motivo; ver `NAMING.md`). Este título estava desatualizado até 2026-09-25.
 
+## ⚠️ Reconstruction notice (2026-09-28)
+
+> Este bloco foi **reconstruído** em 2026-09-28 depois que um `git reset`
+> acidental descartou edições não-commitadas deste arquivo. As seções de
+> P0–P4 e o bloco "ESTADO EM 2026-09-27" **não foram restauradas** e
+> continuam perdidos — só o que dá para verificar foi reescrito aqui.
+>
+> **Para recuperar:** o conteúdo do estado de 2026-09-27 está resumido em
+> `CLAUDE.md:86-95` (P0–P4 em produção, commit `3dff0b6`, deploy VPS,
+> migrations `[11]`, backup com restore testado, update EAS `26e68d89` no
+> canal `preview`). O checklist de verificação está em
+> `api/CHECKLIST-VERIFICACAO-P4.md`. O APK `assidua-preview-p4.apk` não
+> está mais em `~/Downloads/`.
+>
+> Se o bloco original estiver em outro clone, num stash, ou num backup do
+> editor, vale restaurar de lá em vez de reconstituir — é registro de
+> produção e a versão exata importa.
+
+## 📌 ESTADO EM 2026-09-27 (fim do dia) — reconstruído
+
+> Reconstruído a partir de `CLAUDE.md:86-95`. **Não é o original** — ver o
+> aviso acima. O bloco completo tinha 64 linhas, incluindo as pendências
+> abertas e as mudanças de ambiente; essas não foram recuperadas.
+
+**P0–P4 estão em produção** — commit `3dff0b6` (PR #3), deploy VPS ✅,
+migrations `[11]` aplicadas, FK de `dose_logs.dose_schedule_id` em
+`SET NULL`, dados conferidos contra o backup (`1 | 17 | 5 | 82`). Backup
+com restore testado em
+`/var/backups/hetzner-infra/pre-p4-20260927_155536/`. Update EAS `26e68d89`
+publicado no canal `preview`.
+
+**Falta o teste no aparelho do P4** — `api/CHECKLIST-VERIFICACAO-P4.md`,
+quatro perguntas, nenhuma exige código.
+
+Suítes na época: backend **332** / 858 assertions (2 skipped, P6), mobile
+**455** / 48 suítes, typecheck limpo.
+
+## 🔬 Sessão de 2026-09-28 — Coerência visual e correções de leitura
+
+> **Autor:** sessão de código, a pedido do Rilson ("dar mais coerência visual
+> ao app"), depois de uma tentativa de alinhar o design a um PRD gerado pelo
+> Google Stitch. **Mobile: 51 suítes / 503 testes, typecheck limpo** (era
+> 48/455). Detalhe técnico em `docs/tokens-derivacao.md` e
+> `docs/interface-2026-09-28.md`. Commits `56a7b7f` e `860a3fc`.
+> **Nada foi para `production`** — só `preview`, aguardando verificação no
+> aparelho.
+
+### A origem: o que o Stitch inventou, e o que era verdade
+
+Tentativa de usar o Stitch para definir a direção visual. O resultado foi um
+PRD bonito e **majoritariamente errado**, e vale registrar por quê:
+
+- **Nome do produto errado.** "AssCarbon" — erro de digitação meu que entrou
+  no `DESIGN.md` e voltou no PRD. `NAMING.md:7` registra o nome oficial desde
+  2026-08-22. Hoje há teste travando o nome.
+- **Funcionalidade que não existe:** QR code para consulta, alertas de
+  áudio/háptica, login social. Nenhum existe no app.
+- **Linguagem regredida:** o app diz "Como este remédio é usado?" e o PRD
+  trocou por "Tipo de Uso".
+- **Ética regredida:** o `%` saiu da Home por decisão do Rilson e o PRD
+  trouxe de volta como métrica de destaque.
+- **O mais importante:** o PRD descrevia a Home em 4 bullets. A Home real tem
+  **1.737 linhas, 30 imports e 92 condicionais**. Um `DESIGN.md` descreve
+  tokens, não produto. Quem não viu o código preenche o vazio — foi assim que
+  apareceram QR code e Google Auth, do mesmo jeito que meu erro de nome
+  apareceu.
+
+**Decisão:** o Stitch serve para explorar layout, não para definir o produto.
+O que dele aproveitou foi geometria (botões, espaçamento, raios) — e foi
+contraído no código, não no app.
+
+### Design system: cor existia, geometria não — `56a7b7f`
+
+O achado central da sessão. `theme.ts` tinha **21 tokens de cor, todos
+testados**. Espaçamento e raio: **zero tokens** — 20 valores de
+`borderRadius` distintos e 15 de `fontSize`, todos hardcoded, cada um
+decidido sozinho num arquivo. *Isso* é a razão de duas telas do mesmo app
+parecerem feitas por pessoas diferentes. Não era falta de paleta.
+
+- `app/constants/tokens.ts` criado: escala de 4px, 6 raios, 11 tamanhos.
+- **872 números mágicos → 0**, com teste (`design-tokens.test.tsx`) que falha
+  a cada reintrodução.
+- **231 pontos mudaram de tamanho de verdade** (quase tudo 2px). Tabela
+  completa em `docs/tokens-derivacao.md`.
+- **O único valor fora da escala:** `paddingTop` do header da Home
+  (56 → 40), que era um safe-area manual. **Precisa de conferência no
+  aparelho** — é a mudança que mexe na primeira dobra.
+
+### Três bugs de contraste que estavam em produção
+
+Nenhum tinha cobertura de teste. A suíte testava `brand`/`text`/status e
+esquecia justamente o vermelho.
+
+| Onde | Antes | Agora |
+| :--- | :--- | :--- |
+| `error` no claro | 3.76:1 ❌ | 5.74:1 |
+| `error` no escuro | 3.89:1 ❌ | 5.29:1 |
+| Toast (fundo verde, texto branco) | **2.28:1** ❌ | 7.83:1 |
+
+O Toast era o pior contraste do app inteiro. `onSuccess` é token novo
+(mesmo padrão do `onBrand` que já existia).
+
+**Erro próprio, corrigido no meio:** a primeira escala de fonte parava em 17 e
+achatei os títulos 18–28 todos para 17 — o título de login encolhia de 28 para
+17. Só apareceu porque medi o diff em pixel. A escala ganhou `display`,
+`metric`, `heading`, `section`, `homeHeader` por causa disso.
+
+**Erro próprio 2:** o script de migração escreveu `spacing.none` **dentro de
+uma string de CSS** em `lib/reportHtml.ts` — o resumo em PDF que o paciente
+leva ao médico. Revertido, e o teste de geometria agora exclui geradores de
+HTML com justificativa nomeada.
+
+### Correções de leitura — `860a3fc`
+
+Auditoria das abas Remédios, Histórico e Estoque contra o checklist de
+interface. As três divergiam em 9 dos mesmos padrões. O que foi corrigido:
+
+1. **A linha do Histórico renderizava em COLUNA.** `flexDirection: 'column'`
+   com `rowTop` e `rowA11y2` **existindo e não sendo aplicados** — os estilos
+   estavam órfãos, com o comentário descrevendo a intenção que ficou pela
+   metade. Cada dose empilhava hora, nome, dose, nota e badge. Destruía a
+   varredura da lista. A PRN ganhou estilo próprio (`rowPrn`).
+2. **Falha de rede virava "mês inteiro sem dado".** `AdherenceCalendar` e
+   `AdherenceChart` liam só `data`; com `data = []` num erro de rede o
+   calendário pintava os 30 dias em cinza — indistinguível de "não tomei
+   nada", e era **falso**. Agora os dois têm loading e erro reais, com
+   "Tentar de novo". A distinção que importa: "sem dado" (o app sabe) ≠
+   "não consegui perguntar" (o app não sabe).
+3. **Duas abas davam respostas opostas sobre o mesmo estoque.** Remédios
+   dizia "0 unid em estoque" para estoque nunca informado; Estoque dizia
+   "não informado". `isStockNeverSet` existia desde **2026-09-05**, aplicado só
+   na metade certa. Agora as duas usam, com teste de contrato nos dois
+   sentidos (nunca informado ≠ zerado de verdade).
+4. **Alvos de toque:** dois botões de nota a 22×22px e o campo de estoque a
+   ~28px. Subiram para 44 e 48. O `TextInput` equivalente do Histórico já
+   tinha 44 desde 2026-09-05 — dois editores inline quase idênticos com alvos
+   diferentes.
+5. **"OK" estava hardcoded em inglês** no `useAlertDialog`, fora do i18n, e
+   apertado em 4 diálogos. Agora traduzido nos três idiomas.
+6. **As três mensagens de erro de carga repetiam literalmente o título** e
+   jogavam fora o "Nada foi apagado" — que é a frase que tranquiliza quem
+   caiu no estado de erro. Todas voltaram a dizer só isso.
+7. **"Adicionar" e "Definir" são opostos** (soma x substitui) com o mesmo peso
+   visual e sem nada na tela que diga qual é qual. Risco real: entender
+   "Definir 30" como "tenho 30" apaga o estoque, sem desfazer. **Decisão do
+   Rilson:** manter o peso igual e **explicar na tela** ("soma ao total" /
+   "substitui o total"), inclusive no `accessibilityLabel`. Hierarquizar
+   esconderia justamente o botão perigoso.
+
+### Unidade do estoque — corrigida na origem, dado antigo pendente
+
+**O bug:** `MedicationController.php:66` criava o estoque com
+`'unit' => $data['unit']` — a unidade da **DOSAGEM**. Cadastrar "Losartana
+50 mg" guardava estoque em `mg`, e a tela mostrava "30 mg" para 30
+comprimidos, ao lado de "acaba em 30 dias" que não batia com a conta. Alarme
+falso de "estou sem remédio".
+
+**A matemática nunca esteve errada:** `Medication::daysRemaining()` faz
+`floor(current_quantity / dosesPerDay)` — divide por **doses por dia**, nunca
+pela dosagem. O número já é "quantas doses restam". O defeito era o rótulo e
+a origem do dado.
+
+**Solução (decisão do Rilson):** a unidade do estoque é campo **próprio**,
+escolhido em chips na aba Estoque — lá a pessoa tem a caixa na mão. No
+cadastro do remédio a pergunta ainda não faz sentido, e é por isso que a
+unidade errada nascia ali. A `StockController.php:30` **já aceitava**
+`'unit'`; o app é que nunca mandava.
+
+**Tentativa descartada:** rotular sempre em "doses". A comparação
+`stockUnit === doseUnit` era **degenerada** (o controller copiava uma na
+outra), e "doses" mente no líquido (xarope: 200 ml não são 200 doses).
+Documentado no código para não ser tentado de novo.
+
+⚠️ **Pendente:** as linhas **já gravadas** continuam com a unidade errada. A
+migration foi escrita, **não verificada (sem PHP aqui) e removida** — trocar
+`mg` por `comprimidos` é inventar dado. As 4 consultas SQL de diagnóstico
+estão em `docs/interface-2026-09-28.md` §6; a decisão depende do número que
+elas retornarem. **A tela de Estoque já deixa corrigir manualmente**, então o
+app funciona — o que fica errado é o histórico já gravado.
+
+### ⏳ Verificação pendente no aparelho (bloqueia `production`)
+
+503 testes e typecheck **não veem pixel**. Não verificado:
+
+1. **A reestruturação do Histórico** — duas faixas em vez de coluna
+2. **`paddingTop` do header da Home** (56 → 40) — muda a primeira dobra
+3. **Os chips de unidade** — novos, nunca renderizados
+4. **O Toast no tema escuro** — único ponto que mudou entre os dois temas
+5. **As 231 mudanças de geometria**
+
+Fluxo: `eas update --channel preview` → conferir → só então `production`.
+Rollback de preview: `eas update --channel preview --rollback`.
+
 ## 📌 PAINEL DE PENDÊNCIAS E ORDEM DE IMPLEMENTAÇÃO (2026-09-25)
 
 > **Leia esta seção primeiro.** Ela é o índice de tudo que está pendente e a

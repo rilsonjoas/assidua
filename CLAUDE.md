@@ -83,7 +83,16 @@ com 10 blocos de trabalho já concluído parados atrás do botão de publicar
 adiantado do que o roadmap afirma. Últimas suítes: backend **332** / 858
 assertions (2 skipped, P6), mobile **455** / 48 suítes, typecheck limpo.
 
-**Nada commitado desde `4386662`.** Rodar as suítes antes de mexer.
+**Estado de 2026-09-27 (fim do dia):** P0–P4 **estão em produção** —
+commit `3dff0b6` (PR #3), deploy VPS ✅, migrations `[11]` aplicadas, FK de
+`dose_logs.dose_schedule_id` em `SET NULL`, dados conferidos contra o backup
+(`1 | 17 | 5 | 82`). Backup com restore testado em
+`/var/backups/hetzner-infra/pre-p4-20260927_155536/`. Update EAS `26e68d89`
+publicado no canal `preview`; APK em `~/Downloads/assidua-preview-p4.apk`.
+**Falta só o teste no aparelho** — `api/CHECKLIST-VERIFICACAO-P4.md`, quatro
+perguntas, nenhuma exige código. O bloco de estado completo, com as
+pendências abertas e as mudanças de ambiente feitas, está no `ROADMAP.md`
+(bloco "ESTADO EM 2026-09-27").
 
 ## Restrições do ambiente
 
