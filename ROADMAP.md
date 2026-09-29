@@ -198,6 +198,44 @@ app funciona — o que fica errado é o histórico já gravado.
 Fluxo: `eas update --channel preview` → conferir → só então `production`.
 Rollback de preview: `eas update --channel preview --rollback`.
 
+### ⏳ Três pendências para o Rilson decidir
+
+Nada aqui foi mexido — são decisões de produto, não bugs. As três estão
+**travadas em teste** (`api/tests/Feature/StockAlertThresholdTest.php`), que
+quebra se alguém mudar o comportamento sem decidir antes.
+
+1. **Dose de resgate (PRN) nunca avisa estoque zerado.** `days_remaining` é
+   `floor(quantity / dosesPerDay)`, e PRN não tem schedule por definição — o
+   divisor é zero e o model devolve `null`. O app trata `null` como "não
+   avisar" (`days !== null && days <= 7`). **Resultado: um resgate com 0
+   unidades é invisível nas duas abas.** A pergunta é se PRN deveria ter
+   alerta por quantidade, e isso depende de quanto "zerado" ainda é
+   plausível num frasco de resgate — que costuma ser o último a acabar.
+
+2. **`stock_items.min_alert_quantity` é uma coluna sem dono no app.**
+   Existe desde 2026-06-28, default 5, e `StockItem::isLow()` a lê — mas
+   **`isLow()` não é chamado em lugar nenhum**, porque o app usa outro
+   critério: `LOW_STOCK_DAYS_THRESHOLD = 7`, em **dias**. A API aceita
+   escrever a coluna (`sometimes`, no `StockController`), mas **nenhuma tela
+   tem o campo** e nenhum `updateStock` envia. A decisão muda o trabalho:
+   "a pessoa escolhe o limite" é UI; "a coluna sai" é migration.
+
+3. **A migration `2026_09_28_000000_fix_stock_unit_inherited_from_dosage` não
+   rodou.** Está no repositório, testada (5 casos, incluindo os três em que
+   ela **não** pode mexer), mas só roda no ambiente real com **backup antes**.
+   O SQL de diagnóstico está em `docs/interface-2026-09-28.md` §6 — a consulta
+   que dá o número de linhas afetadas.
+
+### ✅ Preview publicado (2026-09-28)
+
+`eas update` no canal `preview`, commit `4f500c7`, iOS + Android, grupo
+`dee81bd3-f5ce-4a3c-85a8-18515c9c018d`. **`production` intocado.**
+
+**Feedback do Rilson: "tá beeem melhor".** O que foi conferido no aparelho
+ainda está por registrar: header da Home (que encolheu 16px), Toast no tema
+escuro, e as 231 mudanças de geometria. Os 5 pontos da lista abaixo seguem
+como pendentes de conferência, e `production` só entra com eles resolvidos.
+
 ## 📌 PAINEL DE PENDÊNCIAS E ORDEM DE IMPLEMENTAÇÃO (2026-09-25)
 
 > **Leia esta seção primeiro.** Ela é o índice de tudo que está pendente e a
