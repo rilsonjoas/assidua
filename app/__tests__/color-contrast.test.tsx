@@ -43,6 +43,13 @@ describe('Contraste de cor — WCAG AA (auditoria 2026-08-14)', () => {
       // warning/success acima: usado como cor de texto/badge, precisa
       // do mesmo mínimo.
       ['delayed', 'surface', AA_NORMAL],
+      // `error` só entrou aqui em 2026-09-28. Usado como cor de TEXTO em
+      // `medication/[id].tsx` (botão de excluir) e como ÍCONE em mais 7
+      // lugares, e valia '#ef4444': 3.76:1 — passou esse tempo inteiro
+      // sem cobertura nenhuma, porque a suíte só testava brand/text/
+      // status e esquecia justamente o vermelho.
+      ['error', 'surface', AA_NORMAL],
+      ['error', 'background', AA_NORMAL],
     ]);
   });
 
@@ -59,6 +66,23 @@ describe('Contraste de cor — WCAG AA (auditoria 2026-08-14)', () => {
       ['success', 'surface', AA_NORMAL],
       ['warning', 'surface', AA_NORMAL],
       ['delayed', 'surface', AA_NORMAL],
+      ['error', 'surface', AA_NORMAL],
+    ]);
+  });
+
+  // `success` também é FUNDO — o Toast de confirmação pinta o container
+  // inteiro de verde. Isso não é o mesmo teste do bloco acima (onde
+  // `success` é cor de texto sobre superfície clara), e é onde vivia o
+  // pior contraste do app: `Toast.tsx` usava `#fff` fixo, que no tema
+  // escuro dava 2.28:1 — texto branco sobre verde claro. Ninguém pegou
+  // porque a suíte nunca testou cor de fundo. Agora `onSuccess` existe
+  // como token (2026-09-28) e é testado nos dois temas.
+  it('texto sobre fundo success (Toast) passa 4.5:1 nos dois temas', () => {
+    checkPairs(lightColors, [
+      ['onSuccess', 'success', AA_NORMAL],
+    ]);
+    checkPairs(darkColors, [
+      ['onSuccess', 'success', AA_NORMAL],
     ]);
   });
 

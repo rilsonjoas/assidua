@@ -18,6 +18,14 @@ export interface ThemeColors {
   // claro (funciona bem como texto sobre fundo escuro) — texto branco
   // *sobre* ele erra o contraste (ver auditoria de 2026-08-14).
   onBrand: string;
+  // Texto/ícone sobre fundo com `c.success` — mesma razão do `onBrand`,
+  // e pelo mesmo motivo: o Toast de confirmação usa `success` como
+  // fundo, e no tema escuro `success` é um verde claro. Texto branco
+  // *sobre* ele media só 2.28:1 (achado 2026-09-28) — o pior contraste
+  // do app — e a suíte não cobria, porque `success` só era testado como
+  // cor de *texto* sobre superfície clara, nunca como fundo. Aqui o texto
+  // é o próprio `background`: 7.83:1.
+  onSuccess: string;
   headerBg: string;
   headerText: string;
   headerSubtext: string;
@@ -64,6 +72,7 @@ export const lightColors: ThemeColors = {
   brandLight: '#c7d2fe',
   brandSubtle: '#eef2ff',
   onBrand: '#ffffff',
+  onSuccess: '#ffffff',
   headerBg: '#4f46e5',
   headerText: '#ffffff',
   headerSubtext: '#eef2ff',
@@ -72,7 +81,7 @@ export const lightColors: ThemeColors = {
   success: '#15803d',
   warning: '#b45309',
   delayed: '#a16207',
-  error: '#ef4444',
+  error: '#c81e1e',
 };
 
 // Modo Alto Contraste (v1.3, aprovado 2026-09-02) — vai além da
@@ -93,6 +102,7 @@ export const highContrastLightColors: ThemeColors = {
   brandLight: '#c7d2fe',
   brandSubtle: '#eef2ff',
   onBrand: '#ffffff',
+  onSuccess: '#ffffff',
   headerBg: '#312e81',
   headerText: '#ffffff',
   headerSubtext: '#ffffff',
@@ -116,6 +126,7 @@ export const highContrastDarkColors: ThemeColors = {
   brandLight: '#3730a3',
   brandSubtle: '#1e1b4b',
   onBrand: '#000000',
+  onSuccess: '#000000',
   headerBg: '#000000',
   headerText: '#ffffff',
   headerSubtext: '#ffffff',
@@ -144,6 +155,7 @@ export const darkColors: ThemeColors = {
   // só 2.98:1, abaixo até do mínimo de 3:1. `onBrand` escuro = o
   // próprio `background` (quase preto), que dá 5.98:1 sobre a lavanda.
   onBrand: '#0f172a',
+  onSuccess: '#0f172a',
   headerBg: '#1e1b4b',
   headerText: '#e0e7ff',
   headerSubtext: '#818cf8',
@@ -152,5 +164,10 @@ export const darkColors: ThemeColors = {
   success: '#22c55e',
   warning: '#f59e0b',
   delayed: '#eab308',
-  error: '#ef4444',
+  // Era '#ef4444' (3.89:1 sobre `surface`, 4.74:1 sobre `background`).
+  // Sobre superfície — onde o botão de texto de exclusão e os ícones de
+  // aviso vivem — passava só do mínimo de texto grande, e é texto normal
+  // de 14–15px. Subiu pra '#f87171': 5.29:1. Mesmo caminho do `onBrand`
+  // escuro, mesma data.
+  error: '#f87171',
 };

@@ -4,6 +4,7 @@ import { useTheme } from '../hooks/useTheme';
 import { ThemeColors } from '../constants/theme';
 import { AppText as Text } from './AppText';
 import { useToastStore } from '../store/toastStore';
+import { rounded, spacing, type } from '../constants/tokens';
 
 // Extraído do toast que só existia (ad-hoc, local ao componente) em Hoje
 // pra confirmação de dose. Montado uma vez em `_layout.tsx`, igual
@@ -19,7 +20,7 @@ export function Toast() {
 
   return (
     <View style={styles.container} accessible accessibilityLiveRegion="polite">
-      <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+      <MaterialCommunityIcons name="check-circle" size={20} color={colors.onSuccess} />
       <Text style={styles.text}>{message}</Text>
     </View>
   );
@@ -33,12 +34,12 @@ function makeStyles(c: ThemeColors) {
       left: 20,
       right: 20,
       backgroundColor: c.success,
-      borderRadius: 14,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
+      borderRadius: rounded.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: spacing.sm,
       elevation: 6,
       shadowColor: '#000',
       shadowOpacity: 0.15,
@@ -46,6 +47,6 @@ function makeStyles(c: ThemeColors) {
       shadowOffset: { width: 0, height: 4 },
       zIndex: 999,
     },
-    text: { color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 },
+    text: { color: c.onSuccess, fontSize: type.caption, fontWeight: '700', flex: 1 },
   });
 }
