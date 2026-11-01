@@ -24,7 +24,10 @@
     "permissionBannerText": "Notifications are off — you won't get dose reminders",
     "permissionBannerDialogTitle": "Enable notifications",
     "permissionBannerDialogMessage": "Without notifications enabled, the app can't remind you when it's time to take each medicine. Go to your device Settings, look for \"Notifications\", and enable them for Assídua.",
-    "permissionBannerDialogAction": "Open settings"
+    "permissionBannerDialogAction": "Open settings",
+    "permissionBannerCloseLabel": "Dismiss notification banner",
+    "permissionBannerWebDialogTitle": "Enable browser notifications",
+    "permissionBannerWebDialogMessage": "To receive reminders in this tab, click the lock or settings icon (🔒) next to the site URL in the browser address bar and select \"Notifications: Allow\"."
   },
   "tabs": {
     "today": "Today",

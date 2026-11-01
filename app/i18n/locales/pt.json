@@ -24,7 +24,10 @@
     "permissionBannerText": "Notificações desligadas — você não vai receber lembretes de dose",
     "permissionBannerDialogTitle": "Ativar notificações",
     "permissionBannerDialogMessage": "Sem notificações ativadas, o app não consegue te avisar na hora de tomar cada remédio. Vá em Configurações do aparelho, procure \"Notificações\" e ative para o Assídua.",
-    "permissionBannerDialogAction": "Abrir configurações"
+    "permissionBannerDialogAction": "Abrir configurações",
+    "permissionBannerCloseLabel": "Fechar aviso de notificações",
+    "permissionBannerWebDialogTitle": "Ativar notificações no navegador",
+    "permissionBannerWebDialogMessage": "Para receber lembretes nesta aba, clique no ícone de configurações ou cadeado (🔒) ao lado do endereço do site na barra do navegador e marque \"Notificações: Permitir\"."
   },
   "tabs": {
     "today": "Hoje",

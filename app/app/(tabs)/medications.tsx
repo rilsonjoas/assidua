@@ -291,7 +291,7 @@ export default function MedicationsScreen() {
               >
                 <Link href={`/medication/${item.id}`} asChild>
                   <TouchableOpacity
-                    style={[styles.cardContent, isPrnActive && styles.cardContentPrn]}
+                    style={StyleSheet.flatten([styles.cardContent, isPrnActive && styles.cardContentPrn])}
                     accessibilityRole="button"
                     accessibilityLabel={
                       item.is_paused

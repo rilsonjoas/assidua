@@ -86,4 +86,17 @@ describe('NotificationPermissionBanner', () => {
     expect(await screen.findByLabelText('Notificações desligadas, toque pra ativar')).toBeTruthy();
     expect(mockedNotifications.getNotificationPermissionStatus).toHaveBeenCalledTimes(2);
   });
+
+  it('permite fechar o aviso tocando no botão X', async () => {
+    mockedNotifications.getNotificationPermissionStatus.mockResolvedValue('denied');
+    render(<NotificationPermissionBanner />);
+
+    expect(await screen.findByLabelText('Notificações desligadas, toque pra ativar')).toBeTruthy();
+
+    const closeBtn = screen.getByLabelText('Fechar aviso de notificações');
+    fireEvent.press(closeBtn);
+
+    expect(screen.queryByLabelText('Notificações desligadas, toque pra ativar')).toBeNull();
+  });
 });
+

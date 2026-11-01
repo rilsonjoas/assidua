@@ -23,8 +23,11 @@
     "permissionBannerLabel": "Notificaciones desactivadas, toca para activar",
     "permissionBannerText": "Notificaciones desactivadas — no recibirás recordatorios de dosis",
     "permissionBannerDialogTitle": "Activar notificaciones",
-    "permissionBannerDialogMessage": "Sin las notificaciones activadas, la app no puede avisarte a la hora de tomar cada medicina. Ve a Configuración del dispositivo, busca \"Notificaciones\" y actívalas para Assídua.",
-    "permissionBannerDialogAction": "Abrir configuración"
+    "permissionBannerDialogMessage": "Sin las notificaciones activadas, la app no puede avisarte a la hora de tomar cada medicina. Ve a Configuración del dispositivo, busca \"Notificaciones\" e actívalas para Assídua.",
+    "permissionBannerDialogAction": "Abrir configuración",
+    "permissionBannerCloseLabel": "Cerrar aviso de notificaciones",
+    "permissionBannerWebDialogTitle": "Activar notificaciones en el navegador",
+    "permissionBannerWebDialogMessage": "Para recibir recordatorios en esta pestaña, haz clic en el icono de candado o configuración (🔒) junto a la dirección del sitio en la barra del navegador y selecciona \"Notificaciones: Permitir\"."
   },
   "tabs": {
     "today": "Hoy",

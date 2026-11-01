@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, TouchableOpacity, StyleSheet, AppState, Linking } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, AppState, Linking, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useSegments } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
-import { getNotificationPermissionStatus } from '../services/notifications';
+import { getNotificationPermissionStatus, requestNotificationPermission } from '../services/notifications';
 import { useAlertDialog } from '../hooks/useAlertDialog';
 import { AppText as Text } from './AppText';
 import { spacing, type } from '../constants/tokens';
@@ -18,17 +19,22 @@ import { spacing, type } from '../constants/tokens';
 //
 // Reconsulta ao voltar pro app (AppState 'active'), não só no mount —
 // é exatamente assim que alguém revoga: sai do app, vai nas configs do
-// sistema, desliga, volta. Sem isso, o banner só atualizaria na próxima
-// vez que o app fosse aberto do zero.
+// sistema, desliga, volta.
+//
+// Atualização de UX (2026-11-01):
+// 1. Botão "X" de fechar para permitir dispensa durante a sessão (evita
+//    barra amarela permanente forçada se a pessoa optar por não ativar).
+// 2. Escuta reativa na Web (navigator.permissions + window.focus) para
+//    sumir no mesmo milissegundo em que a pessoa der "Permitir" no navegador.
+// 3. Clique na Web chama requestNotificationPermission() direto (1 clique).
+// 4. Oculto em rotas de autenticação/onboarding.
 export function NotificationPermissionBanner() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const segments = useSegments();
   const { showAlert, alertDialog } = useAlertDialog();
   const [status, setStatus] = useState<'granted' | 'denied' | 'undetermined' | null>(null);
-  // Default 'active' explícito, não `AppState.currentState` cru — no
-  // ambiente de teste esse valor não vem garantido como string (achado
-  // real rodando a suíte), e semanticamente já é o esperado mesmo: o
-  // componente só monta com o app já em primeiro plano.
+  const [isDismissed, setIsDismissed] = useState(false);
   const appState = useRef<string>('active');
 
   useEffect(() => {
@@ -39,13 +45,12 @@ export function NotificationPermissionBanner() {
           if (!cancelled) setStatus(s);
         })
         .catch(() => {
-          // Best-effort — um erro aqui não deveria travar a Home nem
-          // mostrar um banner errado; fica sem banner até a próxima
-          // checagem.
+          // Best-effort — um erro aqui não deveria travar nada
         });
     }
 
     check();
+
     const subscription = AppState.addEventListener('change', (next) => {
       if (appState.current.match(/inactive|background/) && next === 'active') {
         check();
@@ -53,17 +58,58 @@ export function NotificationPermissionBanner() {
       appState.current = next;
     });
 
+    // Escuta reativa na Web: foco da janela e mudança de status de permissão
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('focus', check);
+      if (typeof navigator !== 'undefined' && 'permissions' in navigator && navigator.permissions?.query) {
+        navigator.permissions
+          .query({ name: 'notifications' as PermissionName })
+          .then((statusObj) => {
+            statusObj.onchange = () => {
+              check();
+            };
+          })
+          .catch(() => {});
+      }
+    }
+
     return () => {
       cancelled = true;
       subscription.remove();
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.removeEventListener('focus', check);
+      }
     };
   }, []);
 
-  // `null` = ainda não checou (evita o banner "piscar" aparecendo e
-  // sumindo rápido no boot); 'granted' = nada a avisar.
-  if (status === null || status === 'granted') return null;
+  // Nunca poluir telas de autenticação/onboarding com banner de doses
+  const inAuthGroup =
+    segments?.[0] === '(auth)' ||
+    segments?.[0] === '(onboarding)' ||
+    segments?.[0] === 'auth-callback';
 
-  function handlePress() {
+  if (inAuthGroup || isDismissed || status === null || status === 'granted') {
+    return null;
+  }
+
+  async function handlePress() {
+    if (Platform.OS === 'web') {
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        setStatus('granted');
+        return;
+      }
+      showAlert(
+        t('notifications.permissionBannerWebDialogTitle'),
+        t('notifications.permissionBannerWebDialogMessage'),
+        {
+          label: t('common.understood', { defaultValue: 'Entendi' }),
+          onPress: () => {},
+        },
+      );
+      return;
+    }
+
     showAlert(
       t('notifications.permissionBannerDialogTitle'),
       t('notifications.permissionBannerDialogMessage'),
@@ -76,15 +122,26 @@ export function NotificationPermissionBanner() {
 
   return (
     <>
-      <TouchableOpacity
-        style={[styles.banner, { backgroundColor: colors.warning }]}
-        onPress={handlePress}
-        accessibilityRole="button"
-        accessibilityLabel={t('notifications.permissionBannerLabel')}
-      >
-        <MaterialCommunityIcons name="bell-off-outline" size={16} color="#fff" />
-        <Text style={styles.text}>{t('notifications.permissionBannerText')}</Text>
-      </TouchableOpacity>
+      <View style={[styles.banner, { backgroundColor: colors.warning }]}>
+        <TouchableOpacity
+          style={styles.bannerContent}
+          onPress={handlePress}
+          accessibilityRole="button"
+          accessibilityLabel={t('notifications.permissionBannerLabel')}
+        >
+          <MaterialCommunityIcons name="bell-off-outline" size={16} color="#fff" />
+          <Text style={styles.text}>{t('notifications.permissionBannerText')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={() => setIsDismissed(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('notifications.permissionBannerCloseLabel')}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <MaterialCommunityIcons name="close" size={16} color="#fff" />
+        </TouchableOpacity>
+      </View>
       {alertDialog}
     </>
   );
@@ -94,11 +151,25 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    minHeight: 40,
+  },
+  bannerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
     minHeight: 40,
+  },
+  closeBtn: {
+    padding: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 32,
+    minHeight: 32,
   },
   text: {
     color: '#fff',
