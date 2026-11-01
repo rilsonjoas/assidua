@@ -220,7 +220,8 @@ function makeStyles(c: ThemeColors) {
     weekdayText: { flex: 1, textAlign: 'center', fontSize: type.microTight, fontWeight: '700', color: c.textMuted },
     grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
     // 1/7 de largura cada — 7 colunas, quantas linhas o mês precisar.
-    cellSlot: { width: `${100 / 7}%`, aspectRatio: 1, padding: spacing.xxs },
+    // maxHeight evita que em telas widescreen cada dia vire um quadrado gigante.
+    cellSlot: { width: `${100 / 7}%`, aspectRatio: 1, maxHeight: 56, padding: spacing.xxs },
     cell: { flex: 1, borderRadius: rounded.sm, alignItems: 'center', justifyContent: 'center' },
     cellText: { fontSize: type.micro, fontWeight: '600' },
     legendRow: {

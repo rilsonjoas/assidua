@@ -64,6 +64,10 @@ Suítes na época: backend **332** / 858 assertions (2 skipped, P6), mobile
 >    - `photoCircle` (`medication/[id].tsx`): substituído tamanho fixo 96×96 por `minWidth: 96, minHeight: 96` com padding dinâmico e centralização, garantindo que o placeholder "Adicionar foto" não seja cortado pelo `overflow: 'hidden'` em escalas de fonte ampliadas (idosos / acessibilidade).
 >    - Seletores compactos (`profile.tsx`): `themeRow` atualizado com `flexWrap: 'wrap'`, botões com `minWidth: 90`, redução de padding lateral de 16px para 8px (liberando respiro em telas de 360px), e `numberOfLines={2}` nos rótulos de tema, idioma e escala de fonte, evitando truncamentos do tipo "Mui...".
 >    - Chips de horários rápidos (`presetChip` em `medication/[id].tsx`): suporte a até 2 linhas (`numberOfLines={2}`) para evitar corte de rótulos.
+> 9. **Passo 5 — Refinamento Web & Correção de Vazamento Visual no Histórico:**
+>    - Correção do texto vazando no card de resumo do Histórico (`summaryScope`): o aviso *"nos X registros exibidos de Y no histórico"* foi movido para dentro do `summaryCard` (com `summaryRow`), eliminando a margem negativa que cortava a borda inferior do card.
+>    - Proporção do calendário no desktop (`AdherenceCalendar.tsx`): adicionado `maxHeight: 56` ao `cellSlot`, impedindo que as células explodam em blocos gigantes de 130px em telas widescreen e mantendo proporções fluidas no mobile.
+>    - Alinhamento do seletor de perfis (`ProfileContextBar.tsx`): adicionado `wrapWide` (`maxWidth: 960, alignSelf: 'center'`) para alinhar os chips de troca de perfil com o início da coluna de cartões na Web.
 >
 > **Deploy Mobile (OTA):**
 > - EAS Update publicado no canal `preview` (branch `preview`, runtimeVersion `1.0.0`): `4f81026f-fee2-41da-9c07-322189922c2f`

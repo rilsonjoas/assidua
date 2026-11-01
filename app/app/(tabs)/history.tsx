@@ -472,65 +472,68 @@ export default function HistoryScreen() {
           <View style={styles.headerContainer}>
             {adherence !== null && (
               <View style={styles.summaryCard}>
-                {/* `accessible` + `accessibilityLabel` em cada item, com os
-                    textos internos escondidos. Sem isso o leitor de tela
-                    anuncia os nós soltos — "1", "2", "60%", "Tomadas",
-                    "Perdidas", "Adesão" — e quem não vê não tem como
-                    saber que o "1" é o valor de "Perdidas". O rótulo
-                    combinado diz a mesma coisa, inteira, e é por ele que
-                    os testes do 9.5b conferem o número. */}
-                <View
-                  style={styles.summaryItem}
-                  accessible
-                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryTaken'), value: takenCount })}
-                >
-                  <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
-                    {takenCount}
-                  </Text>
-                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
-                    {t('history.summaryTaken')}
-                  </Text>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View
-                  style={styles.summaryItem}
-                  accessible
-                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryMissed'), value: missedCount })}
-                >
-                  <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
-                    {missedCount}
-                  </Text>
-                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
-                    {t('history.summaryMissed')}
-                  </Text>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View
-                  style={styles.summaryItem}
-                  accessible
-                  accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryAdherence'), value: `${adherence}%` })}
-                >
-                  <Text
-                    style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}
-                    importantForAccessibility="no"
-                    accessibilityElementsHidden
+                <View style={styles.summaryRow}>
+                  {/* `accessible` + `accessibilityLabel` em cada item, com os
+                      textos internos escondidos. Sem isso o leitor de tela
+                      anuncia os nós soltos — "1", "2", "60%", "Tomadas",
+                      "Perdidas", "Adesão" — e quem não vê não tem como
+                      saber que o "1" é o valor de "Perdidas". O rótulo
+                      combinado diz a mesma coisa, inteira, e é por ele que
+                      os testes do 9.5b conferem o número. */}
+                  <View
+                    style={styles.summaryItem}
+                    accessible
+                    accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryTaken'), value: takenCount })}
                   >
-                    {adherence}%
-                  </Text>
-                  <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
-                    {t('history.summaryAdherence')}
-                  </Text>
+                    <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
+                      {takenCount}
+                    </Text>
+                    <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                      {t('history.summaryTaken')}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View
+                    style={styles.summaryItem}
+                    accessible
+                    accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryMissed'), value: missedCount })}
+                  >
+                    <Text style={styles.summaryValue} importantForAccessibility="no" accessibilityElementsHidden>
+                      {missedCount}
+                    </Text>
+                    <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                      {t('history.summaryMissed')}
+                    </Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View
+                    style={styles.summaryItem}
+                    accessible
+                    accessibilityLabel={t('history.summaryItemLabel', { label: t('history.summaryAdherence'), value: `${adherence}%` })}
+                  >
+                    <Text
+                      style={[styles.summaryValue, { color: adherence >= 80 ? colors.success : colors.warning }]}
+                      importantForAccessibility="no"
+                      accessibilityElementsHidden
+                    >
+                      {adherence}%
+                    </Text>
+                    <Text style={styles.summaryLabel} importantForAccessibility="no" accessibilityElementsHidden>
+                      {t('history.summaryAdherence')}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
 
-            {isPartialHistory && (
-              // 9.5c — diz o que o % acima está medindo. Enquanto a P2
-              // não vier, pelo menos o número não é lido como "adesão do
-              // histórico inteiro" sem aviso.
-              <Text style={styles.summaryScope}>
-                {t('history.summaryPartialScope', { shown: totalCount, total: historyTotal ?? 0 })}
-              </Text>
+                {isPartialHistory && (
+                  // 9.5c — diz o que o % acima está medindo. Enquanto a P2
+                  // não vier, pelo menos o número não é lido como "adesão do
+                  // histórico inteiro" sem aviso. Integrado como rodapé do
+                  // card pra não cortar a borda.
+                  <Text style={styles.summaryScope}>
+                    {t('history.summaryPartialScope', { shown: totalCount, total: historyTotal ?? 0 })}
+                  </Text>
+                )}
+              </View>
             )}
 
             <AdherenceChart
@@ -930,7 +933,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.background },
     headerContainer: { paddingBottom: spacing.sm },
     summaryCard: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       backgroundColor: c.surface,
       marginHorizontal: spacing.lg,
       marginTop: spacing.lg,
@@ -942,10 +945,21 @@ function makeStyles(c: ThemeColors) {
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 2 },
     },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
     summaryItem: { flex: 1, alignItems: 'center' },
     summaryValue: { fontSize: type.metric, fontWeight: '700', color: c.text },
     summaryLabel: { fontSize: type.micro, fontWeight: '600', color: c.textMuted, marginTop: spacing.xs },
-    summaryScope: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: -8, marginBottom: spacing.md },
+    summaryScope: {
+      fontSize: type.microTight,
+      color: c.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.md,
+      paddingTop: spacing.xs,
+      paddingHorizontal: spacing.md,
+    },
     rowNote: { fontSize: type.microTight, color: c.textMuted, fontStyle: 'italic', marginTop: spacing.xxs },
     noteAddBtn: { fontSize: type.microTight, color: c.brand, fontWeight: '600', marginTop: spacing.xs },
     noteEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },

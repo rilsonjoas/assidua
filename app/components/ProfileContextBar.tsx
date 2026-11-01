@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme';
+import { useIsWideScreen } from '../hooks/useBreakpoint';
 import { useProfileStore } from '../store/profileStore';
 import { rounded, spacing, type } from '../constants/tokens';
 
@@ -28,13 +29,14 @@ import { rounded, spacing, type } from '../constants/tokens';
 export function ProfileContextBar() {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const isWide = useIsWideScreen();
   const { activeProfile, profiles, setActiveProfile } = useProfileStore();
   const isCaregiverView = activeProfile?.is_owner === false;
 
   if (!isCaregiverView && profiles.length <= 1) return null;
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, isWide && styles.wrapWide]}>
       {isCaregiverView && !!activeProfile && (
         <View
           style={[styles.banner, { backgroundColor: colors.brandSubtle }]}
@@ -83,6 +85,7 @@ export function ProfileContextBar() {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  wrapWide: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: spacing.xxl },
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start',
     borderRadius: rounded.xl, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.sm,
