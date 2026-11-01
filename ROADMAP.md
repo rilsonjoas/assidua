@@ -70,8 +70,8 @@ Suítes na época: backend **332** / 858 assertions (2 skipped, P6), mobile
 >    - Alinhamento do seletor de perfis (`ProfileContextBar.tsx`): adicionado `wrapWide` (`maxWidth: 960, alignSelf: 'center'`) para alinhar os chips de troca de perfil com o início da coluna de cartões na Web.
 >
 > **Deploy Mobile (OTA):**
-> - EAS Update publicado no canal `preview` (branch `preview`, runtimeVersion `1.0.0`): `4f81026f-fee2-41da-9c07-322189922c2f`
-> - Dashboard: https://expo.dev/accounts/rilsonjoas/projects/meus-remedios/updates/4f81026f-fee2-41da-9c07-322189922c2f
+> - EAS Update publicado no canal `preview` (branch `preview`, runtimeVersion `1.0.0`): `beaaa16d-9a9a-4386-9b2f-935a2d257d2b`
+> - Dashboard: https://expo.dev/accounts/rilsonjoas/projects/meus-remedios/updates/beaaa16d-9a9a-4386-9b2f-935a2d257d2b
 >
 > **Testes:**
 > - Backend: 371 testes, 970 assertions, 2 skipped (P6), 0 falhas.
