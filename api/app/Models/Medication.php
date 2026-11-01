@@ -26,6 +26,8 @@ class Medication extends Model
         'is_paused',
         // P4: "de resgate" (PRN) — não tem horário previsto.
         'is_prn',
+        // Teto diário seguro (D6/E3) — número máximo recomendado de doses/dia.
+        'max_daily_doses',
         // "Pausar não deveria esconder o que já aconteceu" (entrevista
         // de horário, 2026-09-12) — ver migration. Setado/limpo em
         // MedicationController::update quando `is_paused` muda.
@@ -65,6 +67,7 @@ class Medication extends Model
             'is_active' => 'boolean',
             'is_paused' => 'boolean',
             'is_prn' => 'boolean',
+            'max_daily_doses' => 'integer',
             // Instante real (UTC), igual created_at/updated_at — não sofre
             // o problema de DoseLog::scheduled_at/taken_at (aqueles são
             // hora LOCAL do perfil gravada sem fuso; este é gravado via

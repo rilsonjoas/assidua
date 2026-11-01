@@ -80,6 +80,8 @@ export function useLogPrnDose() {
       queryClient.invalidateQueries({ queryKey: ['adherence-streak'] });
       queryClient.invalidateQueries({ queryKey: ['daily-adherence'] });
       queryClient.invalidateQueries({ queryKey: ['consultation-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
 
       // Haptic só no sucesso real do servidor — vibrar antes de
       // confirmar daria falso positivo, e há um comentário idêntico no

@@ -172,7 +172,11 @@
     "sortAlphabetical": "Alfabética",
     "sortStockLow": "Estoque acabando",
     "sortAccessibilityLabel": "Ordenar por: {{label}}",
-    "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo."
+    "loadErrorText": "Pode ser a conexão. Nada foi apagado — é só tentar de novo.",
+    "endedTreatmentsHeader": "Tratamentos encerrados",
+    "endedTreatmentsBadge": "Encerrado",
+    "endedTreatmentsCount_one": "{{count}} encerrado",
+    "endedTreatmentsCount_other": "{{count}} encerrados"
   },
   "stock": {
     "empty": "Nenhum medicamento cadastrado.",
@@ -200,7 +204,13 @@
     "addHint": "soma ao total",
     "unitLabel": "Contando em",
     "unitHint": "Em que você conta o que sobrou? Não é a dose — a dose é o quanto tomar.",
-    "unitOption": "Contar em {{unit}}"
+    "unitOption": "Contar em {{unit}}",
+    "fewUnits_one": "Resta apenas {{count}} {{unit}}",
+    "fewUnits_other": "Restam apenas {{count}} {{unit}}",
+    "minAlertQuantityLabel": "Avisar estoque baixo com:",
+    "minAlertQuantityHint": "Avisar quando restar esta quantidade ou menos",
+    "dosageUnitWarning": "Esta unidade parece dosagem ({{unit}}). Corrigir para:",
+    "unitUpdatedToast": "Unidade atualizada para {{unit}} ✓"
   },
   "history": {
     "filterAll": "Todos",
@@ -399,16 +409,23 @@
     "alreadyPro": "Você já é Pro — obrigado por apoiar o app!",
     "benefit": {
       "profiles": "Perfis de paciente",
-      "medications": "Medicamentos por perfil"
+      "medications": "Medicamentos por perfil",
+      "caregivers": "Cuidadores remotos",
+      "medicalPdf": "Relatório médico em PDF"
     },
     "free": {
       "profiles": "4",
-      "medications": "15"
+      "medications": "15",
+      "caregivers": "1 cuidador",
+      "medicalPdf": "—"
     },
     "pro": {
       "profiles": "Ilimitado",
-      "medications": "Ilimitado"
+      "medications": "Ilimitado",
+      "caregivers": "Ilimitados",
+      "medicalPdf": "Incluído"
     },
+    "freeGuarantee": "Exportação completa dos seus dados e avisos de segurança são livres para sempre em qualquer plano.",
     "comingSoon": "Assinatura em breve — essa tela é só pra você conhecer os benefícios por enquanto.",
     "comingSoonLabel": "Assinatura do plano Pro em breve",
     "subscribeButton": "Assinar por {{price}}",
@@ -425,6 +442,10 @@
     "usagePrn": "Só quando precisar",
     "usagePrnExample": "Ex.: remédio para dor ou febre, que se toma quando aparece",
     "prnNoScheduleHint": "Remédio de resgate: você vai registrar cada dose na hora em que tomar, e o app não vai avisar horário nenhum.",
+    "maxDailyDosesLabel": "Limite diário recomendado (opcional)",
+    "maxDailyDosesPlaceholder": "Ex.: 4",
+    "maxDailyDosesHint": "Avisa quando atingir o número máximo seguro de doses por dia recomendado pelo médico.",
+    "maxDailyDosesAccessibilityLabel": "Limite diário de doses",
     "sectionData": "Dados do medicamento",
     "nameLabel": "Nome *",
     "nameAccessibilityLabel": "Nome do medicamento",
@@ -474,6 +495,17 @@
     "deleteConfirmMessage": "Isso vai apagar {{name}} e todo o histórico de doses e adesão dele, pra sempre. Não é possível desfazer.",
     "deletedToast": "{{name}} excluído",
     "errorDelete": "Não foi possível excluir o medicamento agora. Tente de novo em instantes.",
+    "endTreatment": "Encerrar tratamento",
+    "endTreatmentHint": "Desativa horários futuros e mantém todo o histórico de doses intacto.",
+    "endTreatmentConfirmTitle": "Encerrar tratamento?",
+    "endTreatmentConfirmMessage": "Ao encerrar {{name}}, os horários e alarmes serão desativados. Todo o histórico médico e as doses tomadas continuarão salvos no seu relatório.",
+    "endedTreatmentToast": "Tratamento de {{name}} encerrado ✓",
+    "reactivateTreatment": "Reativar tratamento",
+    "reactivatedTreatmentToast": "Tratamento de {{name}} reativado ✓",
+    "treatmentEndedNotice": "Tratamento encerrado — alarmes desativados e histórico médico preservado.",
+    "deletePermanently": "Excluir definitivamente",
+    "deletePermanentConfirmTitle": "Excluir medicamento definitivamente?",
+    "deletePermanentConfirmMessage": "Atenção: excluir apaga {{name}} e todo o histórico de doses dele para sempre. Se você já tomou este medicamento, recomendamos 'Encerrar tratamento' para não perder seus registros.",
     "pausedToast": "Medicamento pausado",
     "resumedToast": "Medicamento reativado",
     "overdueBeforePauseTitle": "Dose sem registro",
@@ -612,7 +644,12 @@
     "confirm": "Registrar",
     "error": "Não foi possível registrar a dose.",
     "historyLabel": "{{name}} às {{time}}",
-    "historyHelp": "Dose de resgate: você tomou fora de um horário previsto."
+    "historyHelp": "Dose de resgate: você tomou fora de um horário previsto.",
+    "dailyDosesCount": "{{taken}} de {{max}} doses hoje",
+    "dailyLimitReachedBadge": "Limite atingido ({{taken}}/{{max}})",
+    "dailyLimitConfirmTitle": "Limite diário atingido",
+    "dailyLimitConfirmMessage": "Você já tomou {{taken}} de {{max}} doses recomendadas para hoje de {{name}}. Ultrapassar o limite diário pode trazer riscos à saúde. Deseja registrar mesmo assim?",
+    "registerAnyway": "Registrar mesmo assim"
   },
   "pendingDoses": {
     "title": "Ficou alguma coisa de ontem?",

@@ -96,11 +96,9 @@ class StockAlertThresholdTest extends TestCase
         $medication->refresh()->load('schedules', 'stock');
 
         $this->assertNull($medication->days_remaining);
-        // E o app trata null como "não avisar", então o estoque zerado de
-        // uma PRN é invisível nas duas abas. Documentado, não corrigido:
-        // a solução (avisar por quantidade para PRN?) é decisão do
-        // Rilson, e depende de quanto "zerado" ainda é plausível numa PRN
-        // — o frasco de resgate costuma ser o último a acabar.
+        // PRN não tem days_remaining por definição (sem horários agendados),
+        // mas `stock->isLow()` identifica estoque zerado ou abaixo do limiar (0 <= 5).
+        $this->assertTrue($medication->stock->isLow());
     }
 
     public function test_min_alert_quantity_e_aceita_pela_api_mas_o_app_nao_a_envia(): void

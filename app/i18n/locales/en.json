@@ -172,7 +172,11 @@
     "sortAlphabetical": "Alphabetical",
     "sortStockLow": "Stock running out",
     "sortAccessibilityLabel": "Sort by: {{label}}",
-    "loadErrorText": "Might be the connection. Nothing was deleted — just try again."
+    "loadErrorText": "Might be the connection. Nothing was deleted — just try again.",
+    "endedTreatmentsHeader": "Ended treatments",
+    "endedTreatmentsBadge": "Ended",
+    "endedTreatmentsCount_one": "{{count}} ended",
+    "endedTreatmentsCount_other": "{{count}} ended"
   },
   "stock": {
     "empty": "No medicines added yet.",
@@ -200,7 +204,13 @@
     "addHint": "adds to the total",
     "unitLabel": "Counting in",
     "unitHint": "What do you count what is left in? Not the dose — the dose is how much to take.",
-    "unitOption": "Count in {{unit}}"
+    "unitOption": "Count in {{unit}}",
+    "fewUnits_one": "Only {{count}} {{unit}} left",
+    "fewUnits_other": "Only {{count}} {{unit}} left",
+    "minAlertQuantityLabel": "Low stock alert at:",
+    "minAlertQuantityHint": "Notify when this amount or fewer remain",
+    "dosageUnitWarning": "This unit looks like dosage ({{unit}}). Correct to:",
+    "unitUpdatedToast": "Stock unit updated to {{unit}} ✓"
   },
   "history": {
     "filterAll": "All",
@@ -399,16 +409,23 @@
     "alreadyPro": "You're already Pro — thanks for supporting the app!",
     "benefit": {
       "profiles": "Patient profiles",
-      "medications": "Medicines per profile"
+      "medications": "Medicines per profile",
+      "caregivers": "Remote caregivers",
+      "medicalPdf": "Medical PDF report"
     },
     "free": {
       "profiles": "4",
-      "medications": "15"
+      "medications": "15",
+      "caregivers": "1 caregiver",
+      "medicalPdf": "—"
     },
     "pro": {
       "profiles": "Unlimited",
-      "medications": "Unlimited"
+      "medications": "Unlimited",
+      "caregivers": "Unlimited",
+      "medicalPdf": "Included"
     },
+    "freeGuarantee": "Complete data export and safety alerts are always free on any plan.",
     "comingSoon": "Subscription coming soon — this screen is just to show you the benefits for now.",
     "comingSoonLabel": "Pro plan subscription coming soon",
     "subscribeButton": "Subscribe for {{price}}",
@@ -425,6 +442,10 @@
     "usagePrn": "Only when needed",
     "usagePrnExample": "E.g.: pain or fever medicine, taken when symptoms show up",
     "prnNoScheduleHint": "Rescue medicine: you will record each dose when you take it, and the app will not remind you at any time.",
+    "maxDailyDosesLabel": "Recommended daily limit (optional)",
+    "maxDailyDosesPlaceholder": "E.g.: 4",
+    "maxDailyDosesHint": "Warns you when you reach the maximum safe doses per day recommended by your doctor.",
+    "maxDailyDosesAccessibilityLabel": "Daily dose limit",
     "sectionData": "Medicine details",
     "nameLabel": "Name *",
     "nameAccessibilityLabel": "Medicine name",
@@ -474,6 +495,17 @@
     "deleteConfirmMessage": "This will permanently delete {{name}} and all of its dose history and adherence — forever. This can't be undone.",
     "deletedToast": "{{name}} deleted",
     "errorDelete": "Couldn't delete the medication right now. Try again in a moment.",
+    "endTreatment": "End treatment",
+    "endTreatmentHint": "Deactivates upcoming reminders and preserves complete dose history.",
+    "endTreatmentConfirmTitle": "End treatment?",
+    "endTreatmentConfirmMessage": "Ending {{name}} will deactivate schedules and alarms. All medical history and recorded doses will remain safely in your reports.",
+    "endedTreatmentToast": "Treatment for {{name}} ended ✓",
+    "reactivateTreatment": "Resume treatment",
+    "reactivatedTreatmentToast": "Treatment for {{name}} resumed ✓",
+    "treatmentEndedNotice": "Treatment ended — reminders disabled and health history preserved.",
+    "deletePermanently": "Delete permanently",
+    "deletePermanentConfirmTitle": "Permanently delete medication?",
+    "deletePermanentConfirmMessage": "Warning: deleting will erase {{name}} and all its dose history forever. If you have taken doses, we recommend 'End treatment' instead.",
     "pausedToast": "Medication paused",
     "resumedToast": "Medication resumed",
     "overdueBeforePauseTitle": "Dose with no record",
@@ -612,7 +644,12 @@
     "confirm": "Record",
     "error": "Couldn't record the dose.",
     "historyLabel": "{{name}} at {{time}}",
-    "historyHelp": "Rescue dose: you took it outside a scheduled time."
+    "historyHelp": "Rescue dose: you took it outside a scheduled time.",
+    "dailyDosesCount": "{{taken}} of {{max}} doses today",
+    "dailyLimitReachedBadge": "Daily limit reached ({{taken}}/{{max}})",
+    "dailyLimitConfirmTitle": "Daily limit reached",
+    "dailyLimitConfirmMessage": "You have already taken {{taken}} of {{max}} recommended doses today for {{name}}. Exceeding the daily limit may pose health risks. Do you want to record it anyway?",
+    "registerAnyway": "Record anyway"
   },
   "pendingDoses": {
     "title": "Anything left from yesterday?",

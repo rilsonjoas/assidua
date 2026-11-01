@@ -1,4 +1,4 @@
-# Meus Remédios
+# Assídua
 
 Gestão de medicamentos para pacientes crônicos — controle de doses, alarmes, histórico de adesão e estoque. Produto de massa (freemium), com assinatura Pro via RevenueCat como prioridade de monetização (decisão 2026-08-21). AdMob fica adiado pra uma revisão futura, não descartado — mas nenhuma tela de dose/alarme recebe anúncio, decisão essa sim permanente.
 
@@ -36,7 +36,7 @@ Hoje: OAuth funcionando, fuso horário corrigido, LGPD com política real e revi
 ## Estrutura
 
 ```
-meus-remedios/
+assidua/
 ├── app/                          # Expo (React Native)
 │   ├── app/
 │   │   ├── _layout.tsx           # Root layout, auth guard, permissão de notificação
@@ -119,7 +119,9 @@ users
 - [x] Filtros no histórico: `status`, `medication_id`, `date_from`, `date_to`
 - [x] Colaboração cuidador↔paciente (convite, resgate, autorização por Policy)
 - [x] Dockerfile + nginx + supervisord prontos para deploy em container
-- [x] No ar em `api-remedios.narniano.com` (VPS Hetzner, Postgres compartilhado)
+- [x] No ar em `api-assidua.narniano.com` (VPS Hetzner, Postgres compartilhado)
+
+> **Nomes antigos.** Este README usa a marca atual (**Assídua**, desde 2026-08-22). Os identificadores técnicos `slug: "meus-remedios"` no `app.json`, banco `meus_remedios_db`, role `remedios_app` e volume `remedios-storage` continuam com o nome antigo **de propósito** — o slug do EAS é imutável e os outros exigem migração real, não find-replace. O hostname antigo `api-remedios.narniano.com` **não resolve mais** (verificado por DNS em 2026-09-27). Fonte: [`NAMING.md`](NAMING.md).
 
 ### Notificações
 - [x] Locais: permissão solicitada no startup, agendada ao criar horário de dose, cancelada ao remover

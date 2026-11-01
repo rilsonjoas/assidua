@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   FlatList,
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,12 +14,15 @@ import { useTranslation } from 'react-i18next';
 import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useMedicationsSortStore, MedicationsSort } from '../../store/medicationsSortStore';
+import { useLogPrnDose } from '../../hooks/useLogPrnDose';
+import { useAlertDialog } from '../../hooks/useAlertDialog';
 import { maskMedicationName } from '../../lib/privacy';
-import { isStockNeverSet, formatStockQuantity } from '../../lib/stockQuantity';
+import { isStockNeverSet, formatStockQuantity, isMedicationLowStock } from '../../lib/stockQuantity';
 import { getMedications, formatDosageUnit, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { useTheme } from '../../hooks/useTheme';
 import { useIsWideScreen } from '../../hooks/useBreakpoint';
 import { ThemeColors } from '../../constants/theme';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ProfileContextBar } from '../../components/ProfileContextBar';
 import { SkeletonList } from '../../components/Skeleton';
 import { LoadErrorState } from '../../components/LoadErrorState';
@@ -45,15 +49,56 @@ export default function MedicationsScreen() {
   const isWide = useIsWideScreen();
   const sort = useMedicationsSortStore((s) => s.sort);
   const setSort = useMedicationsSortStore((s) => s.setSort);
+  const [showEndedTreatments, setShowEndedTreatments] = useState(false);
+  const [prnCeilingConfirmMed, setPrnCeilingConfirmMed] = useState<(typeof rawMedications)[number] | null>(null);
+  const logPrnDose = useLogPrnDose();
+  const { showAlert, alertDialog } = useAlertDialog();
+
+  function executeQuickLogPrn(med: (typeof rawMedications)[number]) {
+    if (!activeProfile) return;
+    logPrnDose.mutate(
+      {
+        medicationId: med.id,
+        profileId: activeProfile.id,
+        medicationName: maskMedicationName(med.name, isPrivate),
+        takenAt: new Date(),
+      },
+      {
+        onError: (err: any) => {
+          showAlert(t('prn.error'), err?.response?.data?.message ?? t('common.error'));
+        },
+      }
+    );
+  }
+
+  function handleQuickLogPrn(med: (typeof rawMedications)[number]) {
+    if (!activeProfile) return;
+    if (
+      med.max_daily_doses != null &&
+      (med.today_prn_doses_count ?? 0) >= med.max_daily_doses
+    ) {
+      setPrnCeilingConfirmMed(med);
+      return;
+    }
+    executeQuickLogPrn(med);
+  }
 
   const { data: rawMedications = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['medications', activeProfile?.id],
-    queryFn: () => getMedications(activeProfile!.id),
+    queryKey: ['medications', activeProfile?.id, { include_inactive: true }],
+    queryFn: () => getMedications(activeProfile!.id, { include_inactive: true }),
     enabled: !!activeProfile,
   });
 
+  const activeMedications = useMemo(() => {
+    return rawMedications.filter((m) => m.is_active !== false);
+  }, [rawMedications]);
+
+  const endedMedications = useMemo(() => {
+    return rawMedications.filter((m) => m.is_active === false);
+  }, [rawMedications]);
+
   const medications = useMemo(() => {
-    const list = [...rawMedications];
+    const list = [...activeMedications];
     if (sort === 'alphabetical') {
       list.sort((a, b) => a.name.localeCompare(b.name, i18n.language));
     } else {
@@ -68,7 +113,7 @@ export default function MedicationsScreen() {
       });
     }
     return list;
-  }, [rawMedications, sort, i18n.language]);
+  }, [activeMedications, sort, i18n.language]);
 
   return (
     <View style={styles.container}>
@@ -131,6 +176,91 @@ export default function MedicationsScreen() {
               <Text style={styles.empty}>{t('medications.empty')}</Text>
             )
           }
+          ListFooterComponent={
+            endedMedications.length > 0 ? (
+              <View style={styles.endedSection}>
+                <TouchableOpacity
+                  style={styles.endedAccordionHeader}
+                  onPress={() => setShowEndedTreatments((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('medications.endedTreatmentsHeader')}, ${endedMedications.length}`}
+                  accessibilityState={{ expanded: showEndedTreatments }}
+                >
+                  <View style={styles.endedHeaderLeft}>
+                    <MaterialCommunityIcons
+                      name={showEndedTreatments ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
+                    <Text style={styles.endedHeaderTitle}>
+                      {t('medications.endedTreatmentsHeader')}
+                    </Text>
+                    <View style={styles.endedBadge}>
+                      <Text style={styles.endedBadgeCount}>{endedMedications.length}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                {showEndedTreatments && (
+                  <View style={styles.endedList}>
+                    {endedMedications.map((item) => {
+                      const maskedName = maskMedicationName(item.name, isPrivate);
+                      return (
+                        <Link key={item.id} href={`/medication/${item.id}`} asChild>
+                          <TouchableOpacity
+                            style={StyleSheet.flatten([
+                              styles.card,
+                              styles.cardEnded,
+                              isWide && { width: '100%' },
+                            ])}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${maskedName}, ${t('medications.endedTreatmentsBadge')}`}
+                          >
+                            {item.photo_url ? (
+                              <Image
+                                source={{ uri: item.photo_url }}
+                                style={[styles.photoThumb, styles.endedThumb]}
+                              />
+                            ) : (
+                              <View
+                                style={[
+                                  styles.colorDot,
+                                  { backgroundColor: item.color },
+                                  styles.endedDot,
+                                ]}
+                              />
+                            )}
+                            <View style={styles.info}>
+                              <View style={styles.nameRow}>
+                                <Text style={[styles.name, styles.endedName]}>{maskedName}</Text>
+                                <View style={styles.endedStatusBadge}>
+                                  <MaterialCommunityIcons
+                                    name="archive-outline"
+                                    size={11}
+                                    color={colors.textMuted}
+                                  />
+                                  <Text style={styles.endedStatusBadgeText}>
+                                    {t('medications.endedTreatmentsBadge')}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.dosage}>
+                                {formatDosageUnit(item.dosage, item.unit)}
+                              </Text>
+                            </View>
+                            <MaterialCommunityIcons
+                              name="chevron-right"
+                              size={22}
+                              color={colors.textMuted}
+                            />
+                          </TouchableOpacity>
+                        </Link>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ) : null
+          }
           renderItem={({ item }) => {
             const maskedName = maskMedicationName(item.name, isPrivate);
             // "Remédios não avisa estoque baixo" (2026-09-08, achado real
@@ -138,92 +268,144 @@ export default function MedicationsScreen() {
             // quem só olha a lista de Remédios no dia a dia não via nada.
             // Mesmo limiar/cor/ícone que já existiam lá (`stock.tsx`).
             const daysRemaining = item.days_remaining;
-            const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
+            const isLow = isMedicationLowStock(item, LOW_STOCK_DAYS_THRESHOLD);
+            const isPrnActive = item.is_prn && !item.is_paused;
+            const alertText = item.is_prn
+              ? (item.stock?.current_quantity ?? 0) <= 0
+                ? t('stock.stockOut')
+                : t('stock.fewUnits', {
+                    count: item.stock?.current_quantity ?? 0,
+                    unit: item.stock?.unit || t('stock.unitsFallback'),
+                  })
+              : (daysRemaining ?? 0) <= 0
+                ? t('stock.stockOut')
+                : t('stock.endsIn', { count: daysRemaining });
             return (
-              <Link href={`/medication/${item.id}`} asChild>
-                <TouchableOpacity
-                  style={StyleSheet.flatten([styles.card, isLow && styles.cardAlert, item.is_paused && styles.cardPaused, isWide && { flex: 1 }])}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    item.is_paused
-                      ? `${t('medicationForm.pausedNotice')} ${t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })}`
-                      : t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })
-                  }
-                >
-                  {item.photo_url ? (
-                    <Image
-                      source={{ uri: item.photo_url }}
-                      style={[styles.photoThumb, item.is_paused && styles.colorDotPaused]}
-                    />
-                  ) : (
-                    <View style={[styles.colorDot, { backgroundColor: item.color }, item.is_paused && styles.colorDotPaused]} />
-                  )}
-                  <View style={styles.info}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.name}>{maskedName}</Text>
-                    {item.is_paused && (
-                      <View style={styles.pausedBadge}>
-                        <MaterialCommunityIcons name="pause" size={11} color={colors.textMuted} />
-                        <Text style={styles.pausedBadgeText}>{t('medications.pausedBadge')}</Text>
-                      </View>
-                    )}
-                    {/* P4/§10.4 — sem isto o cartão de um resgate
-                        aparecia como "0 horários", que parece remendo de
-                        cadastro. O badge diz o que ele é: não tem
-                        horário porque é para tomar quando precisar. */}
-                    {item.is_prn && !item.is_paused && (
-                      <View style={styles.prnBadge}>
-                        <MaterialCommunityIcons name="medical-bag" size={11} color="#ea580c" />
-                        <Text style={styles.prnBadgeText}>{t('prn.badge')}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.dosage}>{formatDosageUnit(item.dosage, item.unit)}</Text>
-                  <Text style={styles.schedules}>
-                    {/*
-                      P4: para o resgate, "0 horários" era a linha
-                      inteira — e é a única informação que a pessoa tem
-                      na lista. "sem horário previsto" diz a verdade e
-                      evita a leitura de cadastro quebrado.
-                    */}
-                    {item.is_prn ? t('prn.noSchedule') : t('medications.scheduleCount', { count: item.schedules.length })}
-                    {' · '}
-                    {/* Mesma distinção do Estoque (2026-09-28): estoque
-                        nunca informado NÃO é "0 em estoque". Aqui dizia
-                        "0 unid em estoque" liso, enquanto a aba Estoque —
-                        com o mesmo dado — dizia "não informado". Para um
-                        idoso, "0" significa "estou sem remédio": ele ia
-                        à farmácia ou desistia de tomar o que tem em
-                        casa. `isStockNeverSet` já existia desde
-                        2026-09-05, aplicado só em um dos dois lugares. */}
-                    {isStockNeverSet(item.stock) ? (
-                      <Text style={styles.neverSetInline}>{t('stock.neverSetShort')}</Text>
+              <View
+                style={StyleSheet.flatten([
+                  styles.card,
+                  isLow && styles.cardAlert,
+                  item.is_paused && styles.cardPaused,
+                  isWide && { flex: 1 },
+                ])}
+              >
+                <Link href={`/medication/${item.id}`} asChild>
+                  <TouchableOpacity
+                    style={[styles.cardContent, isPrnActive && styles.cardContentPrn]}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      item.is_paused
+                        ? `${t('medicationForm.pausedNotice')} ${t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })}`
+                        : t('medications.cardLabel', { count: item.schedules.length, name: maskedName, dosageUnit: formatDosageUnit(item.dosage, item.unit) })
+                    }
+                  >
+                    {item.photo_url ? (
+                      <Image
+                        source={{ uri: item.photo_url }}
+                        style={[styles.photoThumb, item.is_paused && styles.colorDotPaused]}
+                      />
                     ) : (
-                      <>
-                        {/* Mesma unidade do campo próprio da aba Estoque
-                            (2026-09-28) — ver `formatStockQuantity`. */}
-                        {formatStockQuantity({
-                          quantity: item.stock?.current_quantity ?? 0,
-                          stockUnit: item.stock?.unit,
-                        })}{' '}
-                        {t('medications.stockCount')}
-                      </>
+                      <View style={[styles.colorDot, { backgroundColor: item.color }, item.is_paused && styles.colorDotPaused]} />
                     )}
-                  </Text>
-                  {isLow && (
-                    <View style={styles.alertRow}>
-                      <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
-                      <Text style={styles.alertText}>
-                        {daysRemaining! <= 0 ? t('stock.stockOut') : t('stock.endsIn', { count: daysRemaining })}
+                    <View style={styles.info}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.name}>{maskedName}</Text>
+                        {item.is_paused && (
+                          <View style={styles.pausedBadge}>
+                            <MaterialCommunityIcons name="pause" size={11} color={colors.textMuted} />
+                            <Text style={styles.pausedBadgeText}>{t('medications.pausedBadge')}</Text>
+                          </View>
+                        )}
+                        {/* P4/§10.4 — sem isto o cartão de um resgate
+                            aparecia como "0 horários", que parece remendo de
+                            cadastro. O badge diz o que ele é: não tem
+                            horário porque é para tomar quando precisar. */}
+                        {item.is_prn && !item.is_paused && (
+                          <>
+                            <View style={styles.prnBadge}>
+                              <MaterialCommunityIcons name="medical-bag" size={11} color="#ea580c" />
+                              <Text style={styles.prnBadgeText}>{t('prn.badge')}</Text>
+                            </View>
+                            {item.max_daily_doses != null && (item.today_prn_doses_count ?? 0) >= item.max_daily_doses && (
+                              <View style={styles.prnLimitBadge}>
+                                <MaterialCommunityIcons name="alert-circle-outline" size={11} color={colors.warning} />
+                                <Text style={styles.prnLimitBadgeText}>
+                                  {t('prn.dailyLimitReachedBadge', {
+                                    taken: item.today_prn_doses_count ?? 0,
+                                    max: item.max_daily_doses,
+                                  })}
+                                </Text>
+                              </View>
+                            )}
+                          </>
+                        )}
+                      </View>
+                      <Text style={styles.dosage}>{formatDosageUnit(item.dosage, item.unit)}</Text>
+                      <Text style={styles.schedules}>
+                        {/*
+                          P4: para o resgate, "0 horários" era a linha
+                          inteira — e é a única informação que a pessoa tem
+                          na lista. "sem horário previsto" diz a verdade e
+                          evita a leitura de cadastro quebrado.
+                        */}
+                        {item.is_prn
+                          ? item.max_daily_doses != null
+                            ? t('prn.dailyDosesCount', {
+                                taken: item.today_prn_doses_count ?? 0,
+                                max: item.max_daily_doses,
+                              })
+                            : t('prn.noSchedule')
+                          : t('medications.scheduleCount', { count: item.schedules.length })}
+                        {' · '}
+                        {/* Mesma distinção do Estoque (2026-09-28): estoque
+                            nunca informado NÃO é "0 em estoque". Aqui dizia
+                            "0 unid em estoque" liso, enquanto a aba Estoque —
+                            com o mesmo dado — dizia "não informado". Para um
+                            idoso, "0" significa "estou sem remédio": ele ia
+                            à farmácia ou desistia de tomar o que tem em
+                            casa. `isStockNeverSet` já existia desde
+                            2026-09-05, aplicado só em um dos dois lugares. */}
+                        {isStockNeverSet(item.stock) ? (
+                          <Text style={styles.neverSetInline}>{t('stock.neverSetShort')}</Text>
+                        ) : (
+                          <>
+                            {/* Mesma unidade do campo próprio da aba Estoque
+                                (2026-09-28) — ver `formatStockQuantity`. */}
+                            {formatStockQuantity({
+                              quantity: item.stock?.current_quantity ?? 0,
+                              stockUnit: item.stock?.unit,
+                            })}{' '}
+                            {t('medications.stockCount')}
+                          </>
+                        )}
                       </Text>
+                      {isLow && (
+                        <View style={styles.alertRow}>
+                          <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
+                          <Text style={styles.alertText}>{alertText}</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
-              </TouchableOpacity>
-            </Link>
-          );
-        }}
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </Link>
+                {isPrnActive && (
+                  <View style={styles.prnCardFooter}>
+                    <TouchableOpacity
+                      style={styles.prnQuickLogBtn}
+                      onPress={() => handleQuickLogPrn(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('prn.registerLabel', { name: maskedName })}
+                      disabled={logPrnDose.isPending}
+                    >
+                      <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.brand} />
+                      <Text style={styles.prnQuickLogBtnText}>{t('prn.registerAction')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          }}
         />
       )}
 
@@ -232,13 +414,37 @@ export default function MedicationsScreen() {
           tem seu próprio botão grande "Adicionar medicamento"; o FAB por
           cima virava um segundo botão fazendo a mesma coisa, redundante.
           Mesma regra que a Home já aplica certo no próprio FAB dela. */}
-      {activeProfile?.is_owner !== false && medications.length > 0 && (
+      {activeProfile?.is_owner !== false && (medications.length > 0 || endedMedications.length > 0) && (
         <Link href="/medication/new" asChild>
           <TouchableOpacity style={styles.fab} accessibilityRole="button" accessibilityLabel={t('medications.addLabel')}>
             <MaterialCommunityIcons name="plus" size={28} color="#fff" />
           </TouchableOpacity>
         </Link>
       )}
+      <ConfirmDialog
+        visible={!!prnCeilingConfirmMed}
+        title={t('prn.dailyLimitConfirmTitle')}
+        message={
+          prnCeilingConfirmMed
+            ? t('prn.dailyLimitConfirmMessage', {
+                taken: prnCeilingConfirmMed.today_prn_doses_count ?? 0,
+                max: prnCeilingConfirmMed.max_daily_doses ?? 0,
+                name: maskMedicationName(prnCeilingConfirmMed.name, isPrivate),
+              })
+            : ''
+        }
+        cancelLabel={t('common.cancel')}
+        confirmLabel={t('prn.registerAnyway')}
+        destructive
+        onCancel={() => setPrnCeilingConfirmMed(null)}
+        onConfirm={() => {
+          if (prnCeilingConfirmMed) {
+            executeQuickLogPrn(prnCeilingConfirmMed);
+          }
+          setPrnCeilingConfirmMed(null);
+        }}
+      />
+      {alertDialog}
     </View>
   );
 }
@@ -288,14 +494,51 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: spacing.xxs,
     },
     prnBadgeText: { color: '#c2410c', fontSize: type.micro, fontWeight: '700' },
+    prnLimitBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xxs,
+      backgroundColor: c.surfaceSecondary,
+      borderWidth: 1,
+      borderColor: c.warning,
+      borderRadius: rounded.sm,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.xxs,
+    },
+    prnLimitBadgeText: { color: c.warning, fontSize: type.micro, fontWeight: '700' },
     // "Estoque não informado" dentro da linha de metadados: mesma
     // cor do texto, sem destacar — é informação, não alarme. O que não
     // pode é aparecer o número "0" (ver `isStockNeverSet`).
     neverSetInline: { color: c.textMuted },
     card: {
       backgroundColor: c.surface, borderRadius: rounded.lg,
-      flexDirection: 'row', alignItems: 'center', padding: spacing.lg,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+      overflow: 'hidden',
+    },
+    cardContent: {
+      flexDirection: 'row', alignItems: 'center', padding: spacing.lg,
+    },
+    cardContentPrn: {
+      paddingBottom: spacing.sm,
+    },
+    prnCardFooter: {
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      backgroundColor: c.surfaceSecondary,
+      paddingHorizontal: spacing.sm,
+    },
+    prnQuickLogBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      minHeight: 48,
+      borderRadius: rounded.md,
+    },
+    prnQuickLogBtnText: {
+      fontSize: type.caption,
+      fontWeight: '700',
+      color: c.brand,
     },
     cardPaused: { opacity: 0.6 },
     // Mesmo tratamento visual do alerta de estoque baixo na aba Estoque.
@@ -316,6 +559,75 @@ function makeStyles(c: ThemeColors) {
     pausedBadgeText: { fontSize: type.micro, fontWeight: '700', color: c.textMuted, textTransform: 'uppercase' },
     dosage: { fontSize: type.caption, color: c.textSecondary, marginTop: spacing.xxs },
     schedules: { fontSize: type.micro, color: c.textMuted, marginTop: spacing.xs },
+    endedSection: {
+      marginTop: spacing.xl,
+      marginBottom: spacing.xxl,
+    },
+    endedAccordionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      minHeight: 48,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      borderRadius: rounded.md,
+    },
+    endedHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    endedHeaderTitle: {
+      fontSize: type.body,
+      fontWeight: '600',
+      color: c.textSecondary,
+    },
+    endedBadge: {
+      backgroundColor: c.surfaceSecondary,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xxs,
+      borderRadius: rounded.full,
+    },
+    endedBadgeCount: {
+      fontSize: type.micro,
+      fontWeight: '700',
+      color: c.textSecondary,
+    },
+    endedList: {
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+    cardEnded: {
+      opacity: 0.75,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surfaceSecondary,
+    },
+    endedThumb: {
+      opacity: 0.7,
+    },
+    endedDot: {
+      opacity: 0.6,
+    },
+    endedName: {
+      color: c.textSecondary,
+    },
+    endedStatusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xxs,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: rounded.sm,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.xxs,
+    },
+    endedStatusBadgeText: {
+      fontSize: type.micro,
+      fontWeight: '600',
+      color: c.textMuted,
+    },
     fab: {
       position: 'absolute', right: 24, bottom: 24,
       width: 56, height: 56, borderRadius: rounded.xxl,

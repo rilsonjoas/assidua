@@ -532,7 +532,7 @@ export default function ProfileScreen() {
             />
             <Text
               style={[styles.themeBtnText, themeMode === opt.mode && styles.themeBtnTextActive]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {opt.label}
             </Text>
@@ -564,7 +564,7 @@ export default function ProfileScreen() {
             />
             <Text
               style={[styles.themeBtnText, languageMode === opt.mode && styles.themeBtnTextActive]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {opt.label}
             </Text>
@@ -604,7 +604,7 @@ export default function ProfileScreen() {
             />
             <Text
               style={[styles.themeBtnText, fontScaleMode === opt.mode && styles.themeBtnTextActive]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {opt.shortLabel}
             </Text>
@@ -1051,14 +1051,14 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1.5, borderColor: c.brand, borderStyle: 'dashed', marginBottom: spacing.lg,
     },
     addBtnText: { color: c.brand, fontWeight: '600', fontSize: type.label },
-    themeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+    themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
     themeBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, minHeight: 48,
+      flex: 1, minWidth: 90, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+      backgroundColor: c.surface, borderRadius: rounded.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     themeBtnActive: { borderColor: c.brand, backgroundColor: c.brandSubtle },
-    themeBtnText: { fontSize: type.micro, fontWeight: '600', color: c.textMuted },
+    themeBtnText: { fontSize: type.micro, fontWeight: '600', color: c.textMuted, textAlign: 'center' },
     themeBtnTextActive: { color: c.brand },
     // Grade 2x2 (2026-08-13) — 4 opções de idioma cabiam apertadas numa
     // linha só; largura fixa em vez de flex:1 dá espaço de sobra e
@@ -1066,7 +1066,7 @@ function makeStyles(c: ThemeColors) {
     languageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
     languageBtn: {
       width: '48%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-      backgroundColor: c.surface, borderRadius: rounded.md, padding: spacing.md, minHeight: 48,
+      backgroundColor: c.surface, borderRadius: rounded.md, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, minHeight: 48,
       borderWidth: 1.5, borderColor: c.border,
     },
     // Web wide (2026-08-22) — achado do Rilson: os 48% fixos (pensados

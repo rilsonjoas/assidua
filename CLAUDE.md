@@ -1,4 +1,4 @@
-# Meus Remédios — Contexto para Claude
+# Assídua — Contexto para Claude
 
 ## O que é este projeto
 

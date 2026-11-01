@@ -16,7 +16,13 @@ import { useProfileStore } from '../../store/profileStore';
 import { usePrivacyStore } from '../../store/privacyStore';
 import { useToastStore } from '../../store/toastStore';
 import { maskMedicationName } from '../../lib/privacy';
-import { parseStockQuantity, isStockNeverSet, formatStockQuantity } from '../../lib/stockQuantity';
+import {
+  parseStockQuantity,
+  isStockNeverSet,
+  formatStockQuantity,
+  isMedicationLowStock,
+  isLegacyDosageStockUnit,
+} from '../../lib/stockQuantity';
 import { getMedications, updateStock, Medication, LOW_STOCK_DAYS_THRESHOLD } from '../../services/medications';
 import { scheduleRefillAlert } from '../../services/notifications';
 import { useTheme } from '../../hooks/useTheme';
@@ -47,6 +53,7 @@ export default function StockScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<number | null>(null);
   const [qty, setQty] = useState('');
+  const [minAlertQty, setMinAlertQty] = useState('5');
   // Unidade do ESTOQUE, escolhida aqui (2026-09-28). Não é a unidade da
   // dose: "50 mg" é quanto tomar, "30 comprimidos" é o que sobrou. O
   // cadastro do remédio gravava a unidade da dose na linha de estoque
@@ -75,9 +82,28 @@ export default function StockScreen() {
     enabled: !!activeProfile,
   });
 
+  const activeMedications = useMemo(
+    () => medications.filter((m) => m.is_active !== false),
+    [medications],
+  );
+
   const mutation = useMutation({
-    mutationFn: ({ id, quantity, unit: u }: { id: number; quantity: number; unit?: string }) =>
-      updateStock(id, u ? { current_quantity: quantity, unit: u } : { current_quantity: quantity }),
+    mutationFn: ({
+      id,
+      quantity,
+      unit: u,
+      minAlert,
+    }: {
+      id: number;
+      quantity: number;
+      unit?: string;
+      minAlert?: number;
+    }) =>
+      updateStock(id, {
+        current_quantity: quantity,
+        ...(u ? { unit: u } : {}),
+        ...(minAlert !== undefined ? { min_alert_quantity: minAlert } : {}),
+      }),
     onSuccess: async (_stock, { id }) => {
       await queryClient.invalidateQueries({ queryKey: ['medications', activeProfile?.id] });
       const fresh = queryClient.getQueryData<Medication[]>(['medications', activeProfile?.id]);
@@ -117,11 +143,24 @@ export default function StockScreen() {
     return quantity;
   }
 
+  function parseTypedMinAlert(med: Medication): number | undefined {
+    if (!minAlertQty.trim()) return undefined;
+    const parsed = parseStockQuantity(minAlertQty);
+    if (parsed === null) return undefined;
+    if (editing === med.id && parsed === (med.stock?.min_alert_quantity ?? 5)) return undefined;
+    return parsed;
+  }
+
   function setQtyAbsolute(med: Medication) {
     const quantity = parseTypedQty();
     if (quantity === null) return;
     setPendingAction('set');
-    mutation.mutate({ id: med.id, quantity, unit: unitToSend(med) });
+    mutation.mutate({
+      id: med.id,
+      quantity,
+      unit: unitToSend(med),
+      minAlert: parseTypedMinAlert(med),
+    });
   }
 
   function addQty(med: Medication) {
@@ -129,7 +168,12 @@ export default function StockScreen() {
     if (typed === null) return;
     const current = med.stock?.current_quantity ?? 0;
     setPendingAction('add');
-    mutation.mutate({ id: med.id, quantity: current + typed, unit: unitToSend(med) });
+    mutation.mutate({
+      id: med.id,
+      quantity: current + typed,
+      unit: unitToSend(med),
+      minAlert: parseTypedMinAlert(med),
+    });
   }
 
   // Só envia `unit` quando a pessoa mexeu nela. Reenviar sempre
@@ -144,6 +188,7 @@ export default function StockScreen() {
   function startEdit(med: Medication) {
     setEditing(med.id);
     setQty(String(med.stock?.current_quantity ?? 0));
+    setMinAlertQty(med.stock?.min_alert_quantity != null ? String(med.stock.min_alert_quantity) : '5');
     // Abre no valor que o item já tem, e não sempre no primeiro da
     // lista — trocar o campo ao abrir é pior que não ter.
     setUnit(STOCK_UNITS.includes((med.stock?.unit ?? '').toLowerCase() as (typeof STOCK_UNITS)[number])
@@ -154,6 +199,7 @@ export default function StockScreen() {
   function cancelEdit() {
     setEditing(null);
     setQty('');
+    setMinAlertQty('5');
     setEditingUnit(null);
   }
 
@@ -171,7 +217,7 @@ export default function StockScreen() {
         <SkeletonList lines={2} />
       ) : (
         <FlatList
-          data={medications}
+          data={activeMedications}
           key={isWide ? 'grid' : 'list'}
           numColumns={isWide ? 2 : 1}
           columnWrapperStyle={isWide ? styles.gridRow : undefined}
@@ -181,7 +227,9 @@ export default function StockScreen() {
           renderItem={({ item }) => {
             const stock = item.stock;
             const daysRemaining = item.days_remaining;
-            const isLow = daysRemaining !== null && daysRemaining <= LOW_STOCK_DAYS_THRESHOLD;
+            const isLow = isMedicationLowStock(item, LOW_STOCK_DAYS_THRESHOLD);
+            const isPrn = !!item.is_prn;
+            const currentQty = stock?.current_quantity ?? 0;
             const maskedName = maskMedicationName(item.name, isPrivate);
             // Achado real de uso (2026-09-05): remédio cadastrado sem
             // preencher "estoque inicial" (opcional) mostra "0 unid" liso
@@ -191,6 +239,16 @@ export default function StockScreen() {
             // `StockController::update`); nulo com quantidade zero é o
             // sinal confiável de "nunca foi tocado", distinto de "acabou".
             const neverSet = isStockNeverSet(stock);
+            const isLegacyUnit = !neverSet && isLegacyDosageStockUnit(stock?.unit);
+
+            const alertText = isPrn
+              ? (currentQty <= 0
+                  ? t('stock.stockOut')
+                  : t('stock.fewUnits', { count: currentQty, unit: stock?.unit || t('stock.defaultUnit') }))
+              : (daysRemaining !== null && daysRemaining <= 0
+                  ? t('stock.stockOut')
+                  : t('stock.endsIn', { count: daysRemaining ?? 0 }));
+
             return (
               <View style={[styles.card, isLow && styles.cardAlert, isWide && { flex: 1 }]}>
                 <View style={[styles.colorDot, { backgroundColor: item.color }]} />
@@ -199,11 +257,7 @@ export default function StockScreen() {
                   {isLow && (
                     <View style={styles.alertRow}>
                       <MaterialCommunityIcons name="alert-circle-outline" size={14} color={colors.warning} />
-                      <Text style={styles.alertText}>
-                        {daysRemaining! <= 0
-                          ? t('stock.stockOut')
-                          : t('stock.endsIn', { count: daysRemaining })}
-                      </Text>
+                      <Text style={styles.alertText}>{alertText}</Text>
                     </View>
                   )}
                   {editing === item.id ? (
@@ -258,32 +312,29 @@ export default function StockScreen() {
                         </View>
                         <Text style={styles.unitBlockHint}>{t('stock.unitHint')}</Text>
                       </View>
+                      {/* Limiar de alerta configurável (decisão do Rilson 2026-11-01) */}
+                      <View style={styles.minAlertBlock}>
+                        <Text style={styles.minAlertBlockLabel}>{t('stock.minAlertQuantityLabel')}</Text>
+                        <View style={styles.minAlertRow}>
+                          <TextInput
+                            style={[styles.minAlertInput, { color: colors.text }]}
+                            value={minAlertQty}
+                            onChangeText={setMinAlertQty}
+                            keyboardType="decimal-pad"
+                            placeholder="5"
+                            placeholderTextColor={colors.textMuted}
+                            accessibilityLabel={t('stock.minAlertQuantityHint')}
+                          />
+                          <Text style={styles.minAlertUnit}>{unit}</Text>
+                        </View>
+                        <Text style={styles.minAlertBlockHint}>{t('stock.minAlertQuantityHint')}</Text>
+                      </View>
                       {/* Achado real de uso (2026-09-02): "editar só reescreve —
                           falta adicionar e definir". Dois botões claros, sem
                           menu escondido; o que o usuário digitou acima
                           significa a mesma coisa nos dois, quem muda é a
                           operação. */}
-                      {/* Reorganizado (2026-09-08, achado real do Rilson com
-                          screenshot): os 3 botões numa fileira só ficavam
-                          espremidos com pesos visuais diferentes (texto
-                          solto, contornado, preenchido) competindo por
-                          atenção. Agora "Adicionar"/"Definir" — as duas
-                          ações que de fato mudam o estoque — dividem uma
-                          fileira com o mesmo peso visual, e "Cancelar"
-                          (sair sem salvar) fica sozinho embaixo, discreto. */}
                       <View style={styles.editActions}>
-                        {/* "Adicionar" e "Definir" têm o mesmo peso visual
-                            por decisão deliberada (ver comentário em
-                            `editPrimaryRow`) — e OPSPOSTOS: um SOMA ao
-                            total, o outro SUBSTITUI. Decisão de produto
-                            2026-09-28: manter o peso igual e explicar a
-                            diferença NA TELA, em vez de hierarquizar.
-                            Raciocínio: a hierarquia esconderia "Definir",
-                            que é justamente o botão perigoso; e quem
-                            entende "Definir 30" como "tenho 30" e toca
-                            errado apaga o estoque real, sem desfazer. A
-                            diferença precisa estar escrita, não só na
-                            cor. */}
                         <View style={styles.actionHints}>
                           <Text style={styles.actionHint}>{t('stock.addHint')}</Text>
                           <Text style={styles.actionHint}>{t('stock.setHint')}</Text>
@@ -335,15 +386,44 @@ export default function StockScreen() {
                       <Text style={styles.neverSetText}>{t('stock.neverSetHint')}</Text>
                     </View>
                   ) : (
-                    <Text style={styles.qty}>
-                      {/* A unidade do estoque é campo próprio, escolhido
-                          nos chips acima (2026-09-28) — antes vinha da
-                          dose e produzia "30 mg" para 30 comprimidos. */}
-                      {formatStockQuantity({
-                        quantity: stock?.current_quantity ?? 0,
-                        stockUnit: stock?.unit,
-                      })}
-                    </Text>
+                    <>
+                      <Text style={styles.qty}>
+                        {formatStockQuantity({
+                          quantity: currentQty,
+                          stockUnit: stock?.unit,
+                        })}
+                      </Text>
+                      {/* Correção em 1 toque de unidade legada herdada da dose */}
+                      {isLegacyUnit && (
+                        <View style={styles.legacyUnitBanner}>
+                          <View style={styles.legacyUnitHeader}>
+                            <MaterialCommunityIcons name="lightbulb-outline" size={14} color={colors.brand} />
+                            <Text style={styles.legacyUnitText}>
+                              {t('stock.dosageUnitWarning', { unit: stock?.unit })}
+                            </Text>
+                          </View>
+                          <View style={styles.legacyUnitChips}>
+                            {(['comprimidos', 'gotas', 'cápsulas'] as const).map((tu) => (
+                              <TouchableOpacity
+                                key={tu}
+                                style={styles.legacyUnitChip}
+                                onPress={() => {
+                                  mutation.mutate({
+                                    id: item.id,
+                                    quantity: currentQty,
+                                    unit: tu,
+                                  });
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('stock.unitOption', { unit: tu })}
+                              >
+                                <Text style={styles.legacyUnitChipText}>{tu}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
                 {editing !== item.id && (
@@ -377,26 +457,10 @@ function makeStyles(c: ThemeColors) {
     empty: { textAlign: 'center', color: c.textMuted, marginTop: spacing.huge, fontSize: type.body },
     card: {
       backgroundColor: c.surface, borderRadius: rounded.lg,
-      // "Card cresce ao editar e a bolinha de cor fica flutuando no meio"
-      // (2026-09-08, achado real do Rilson com screenshot): era
-      // `alignItems: 'center'`, então ao abrir o formulário de edição a
-      // bolinha se centralizava na altura toda do card (que cresce),
-      // ficando longe do nome — flex-start prende ela no topo, junto do
-      // nome, não importa quanto o card cresça.
       flexDirection: 'row', alignItems: 'flex-start', padding: spacing.lg,
       elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     },
     cardAlert: { borderWidth: 1.5, borderColor: c.warning },
-    // Achado real (2026-08-14): botão de editar era só ícone de lápis,
-    // sem rótulo visível — tinha `accessibilityLabel` pro leitor de
-    // tela, mas quem enxerga e não é fluente em ícone de app não sabia
-    // o que fazia sem tocar. Cartão tem espaço de sobra pra texto,
-    // diferente da linha apertada de perfil.
-    // marginTop nos dois: alinha opticamente com a primeira linha do nome
-    // agora que o card usa `alignItems: 'flex-start'` (ver nota em `card`).
-    // minHeight 48 (WCAG AAA, auditoria de toque mínimo 2026-09-08) —
-    // ícone+texto, não ícone sozinho; o card tem espaço de sobra, então
-    // crescer aqui não aperta nada ao redor.
     editBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs, marginTop: spacing.xxs, minHeight: 48 },
     editBtnText: { fontSize: type.micro, fontWeight: '600', color: c.textMuted },
     colorDot: { width: 14, height: 14, borderRadius: rounded.sm, marginRight: spacing.md, marginTop: spacing.xxs },
@@ -409,17 +473,10 @@ function makeStyles(c: ThemeColors) {
     neverSetText: { fontSize: type.micro, color: c.textMuted, fontStyle: 'italic' },
     editForm: { marginTop: spacing.xs, gap: spacing.sm },
     editRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    // O campo de quantidade ficou ~28px de altura até 2026-09-28: o
-    // `paddingVertical` era de 4px, e com bordas e fonte de 15px dava
-    // isso. É o ÚNICO `TextInput` da tela — o passo que muda o dado
-    // real, com `autoFocus` e teclado numérico. O `TextInput`
-    // equivalente do Histórico (`noteEditInput`, `history.tsx`) já tinha
-    // `minHeight: 44` desde 2026-09-05; aqui faltava, e os dois editores
-    // inline quase idênticos tinham alvos diferentes.
     input: {
       borderWidth: 1, borderColor: c.border, borderRadius: rounded.sm,
       paddingHorizontal: spacing.sm, width: 88, fontSize: type.label,
-      minHeight: 48, // alvo mínimo, não escolha estética
+      minHeight: 48,
       textAlign: 'center',
       backgroundColor: c.surface,
     },
@@ -436,23 +493,34 @@ function makeStyles(c: ThemeColors) {
     unitChipSelected: { borderColor: c.brand, backgroundColor: c.brandSubtle },
     unitChipText: { fontSize: type.caption, color: c.textSecondary, fontWeight: '600' },
     unitChipTextSelected: { color: c.brand },
-    // Reorganizado (2026-09-08, achado real com screenshot): antes os 3
-    // botões viviam numa fileira só, com pesos visuais bem diferentes
-    // brigando por atenção (texto solto "Cancelar", contornado
-    // "Adicionar", preenchido "Definir") — ficava bagunçado, especialmente
-    // com o card já maior por causa do formulário. Agora "Adicionar" e
-    // "Definir" — as ações que de fato mudam o estoque — dividem uma
-    // fileira com o mesmo peso (mesma largura, `flex: 1` nos dois), e
-    // "Cancelar" fica sozinho embaixo, discreto, claramente secundário.
+    minAlertBlock: { gap: spacing.xs, marginTop: spacing.xs },
+    minAlertBlockLabel: { fontSize: type.micro, color: c.textSecondary, fontWeight: '600' },
+    minAlertRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    minAlertInput: {
+      borderWidth: 1, borderColor: c.border, borderRadius: rounded.sm,
+      paddingHorizontal: spacing.sm, width: 72, fontSize: type.caption,
+      minHeight: 48, textAlign: 'center', backgroundColor: c.surface,
+    },
+    minAlertUnit: { color: c.textSecondary, fontSize: type.caption },
+    minAlertBlockHint: { fontSize: type.microTight, color: c.textMuted },
+    legacyUnitBanner: {
+      marginTop: spacing.sm, padding: spacing.sm,
+      backgroundColor: c.brandSubtle, borderRadius: rounded.sm,
+      borderWidth: 1, borderColor: c.border, gap: spacing.xs,
+    },
+    legacyUnitHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    legacyUnitText: { fontSize: type.micro, color: c.textSecondary, fontWeight: '600', flex: 1 },
+    legacyUnitChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
+    legacyUnitChip: {
+      minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.md,
+      borderRadius: rounded.full, borderWidth: 1, borderColor: c.brand,
+      backgroundColor: c.surface,
+    },
+    legacyUnitChipText: { fontSize: type.caption, color: c.brand, fontWeight: '600' },
     editActions: { gap: spacing.sm },
-    // As duas ações são opostas (soma x substitui) e têm o mesmo peso
-    // visual. A diferença é dita em texto, logo acima dos botões.
     actionHints: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
     actionHint: { fontSize: type.microTight, color: c.textMuted, flex: 1 },
     editPrimaryRow: { flexDirection: 'row', gap: spacing.sm },
-    // minHeight 48 nos três (WCAG AAA, achado revisando toque mínimo
-    // 2026-09-05) — sem isso ficavam ~30-32px de altura real, abaixo do
-    // alvo mínimo pro público idoso/baixa destreza motora do app.
     cancelBtn: { alignSelf: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, minHeight: 48, justifyContent: 'center' },
     cancelBtnText: { color: c.textMuted, fontWeight: '600', fontSize: type.micro },
     addBtn: {

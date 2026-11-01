@@ -206,6 +206,10 @@ export default function MedicationFormScreen() {
   // registrada sob demanda. Default false = todo mundo que já usa o
   // app é medicamento com horário até marcar o contrário.
   const [isPrn, setIsPrn] = useState(false);
+  const [maxDailyDoses, setMaxDailyDoses] = useState('');
+  const [todayPrnDosesCount, setTodayPrnDosesCount] = useState(0);
+  const [confirmingPrnOverLimit, setConfirmingPrnOverLimit] = useState(false);
+  const [pendingPrnAction, setPendingPrnAction] = useState<(() => void) | null>(null);
   const [prnModalVisible, setPrnModalVisible] = useState(false);
   const [prnPickTime, setPrnPickTime] = useState(false);
   const [prnTime, setPrnTime] = useState(new Date());
@@ -287,6 +291,9 @@ export default function MedicationFormScreen() {
   // destoava do resto do app (achado real testando no dispositivo).
   const [scheduleToRemove, setScheduleToRemove] = useState<DoseSchedule | null>(null);
   const [removingSchedule, setRemovingSchedule] = useState(false);
+  const [isActive, setIsActive] = useState(true);
+  const [confirmingEndTreatment, setConfirmingEndTreatment] = useState(false);
+  const [endingTreatment, setEndingTreatment] = useState(false);
   const { showAlert, alertDialog } = useAlertDialog();
   // Achado real de uso (2026-09-02): "salvar sem feedback visual" — ver
   // store/toastStore.ts (precisa ser global porque este `router.back()`
@@ -309,11 +316,14 @@ export default function MedicationFormScreen() {
         setNotes(med.notes ?? '');
         setPhotoUrl(med.photo_url);
         setIsPaused(med.is_paused ?? false);
+        setIsActive(med.is_active ?? true);
         // `?? false` e não `||`: o backend manda false explicitamente, e
         // um `||` aqui transformaria qualquer valor ausente em PRN —
         // vale a pena ser explícito num campo que decide se a tela
         // mostra horários ou não.
         setIsPrn(med.is_prn ?? false);
+        setMaxDailyDoses(med.max_daily_doses != null ? String(med.max_daily_doses) : '');
+        setTodayPrnDosesCount(med.today_prn_doses_count ?? 0);
         setStock(med.stock);
         setSchedules(med.schedules ?? []);
         // Modo inicial inferido dos horários reais — remédios antigos
@@ -365,6 +375,7 @@ export default function MedicationFormScreen() {
     // estoque, `mg` no próprio medicamento) pra quando não é enviada.
     const dosageToSend = dosage.trim() || null;
     const unitToSend = unit.trim() || undefined;
+    const maxDailyDosesToSend = isPrn && maxDailyDoses.trim() ? parseInt(maxDailyDoses.trim(), 10) : null;
     let photoUploadFailed = false;
     setSaving(true);
     try {
@@ -378,6 +389,7 @@ export default function MedicationFormScreen() {
           notes,
           treatment_duration_days: treatmentDurationToSend,
           is_prn: isPrn,
+          max_daily_doses: maxDailyDosesToSend,
         });
         // Estoque inicial é opcional — sem preencher, fica no default
         // (0) que o backend já cria junto do medicamento; não vale a
@@ -439,6 +451,7 @@ export default function MedicationFormScreen() {
           notes,
           treatment_duration_days: treatmentDurationToSend,
           is_prn: isPrn,
+          max_daily_doses: maxDailyDosesToSend,
         });
       }
       queryClient.invalidateQueries({ queryKey: ['medications'] });
@@ -596,8 +609,15 @@ export default function MedicationFormScreen() {
    * picker nativo (mode="time") devolve a data de hoje, e ancorar
    * noutro dia jogaria o registro para o dia errado.
    */
-  function submitPrn(takenAt?: Date) {
+  function submitPrn(takenAt?: Date, bypassCeilingWarning?: boolean) {
     if (!activeProfile || !Number(id)) return;
+    const maxDosesNum = parseInt(maxDailyDoses, 10);
+    const isOverCeiling = !bypassCeilingWarning && !isNaN(maxDosesNum) && maxDosesNum > 0 && todayPrnDosesCount >= maxDosesNum;
+    if (isOverCeiling) {
+      setPendingPrnAction(() => () => submitPrn(takenAt, true));
+      setConfirmingPrnOverLimit(true);
+      return;
+    }
     let quando: Date | undefined = takenAt;
     if (!quando && prnPickTime && prnConfirmedTime) {
       quando = new Date();
@@ -614,6 +634,9 @@ export default function MedicationFormScreen() {
     // modal aberto em cima bloquearia justamente a leitura dele.
     setPrnModalVisible(false);
     logPrnDose.mutate(req, {
+      onSuccess: () => {
+        setTodayPrnDosesCount((prev) => prev + 1);
+      },
       onError: (err: any) => {
         showAlert(t('prn.error'), err?.response?.data?.message ?? t('common.error'));
       },
@@ -715,6 +738,40 @@ export default function MedicationFormScreen() {
   function cancelStockEdit() {
     setEditingStock(false);
     setStockQty('');
+  }
+
+  // "Encerrar tratamento" — desativa schedules futuros e preserva histórico
+  // médico intacto em dose_logs e relatórios.
+  async function confirmEndTreatment() {
+    setEndingTreatment(true);
+    try {
+      await Promise.all(schedules.map((s) => cancelScheduleNotifications(s.id)));
+      await updateMedication(Number(id), { is_active: false });
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('medicationForm.endedTreatmentToast', { name: maskMedicationName(name, isPrivate) }));
+      router.back();
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('common.saveError'));
+    } finally {
+      setEndingTreatment(false);
+      setConfirmingEndTreatment(false);
+    }
+  }
+
+  async function handleReactivateTreatment() {
+    setSaving(true);
+    try {
+      await updateMedication(Number(id), { is_active: true });
+      setIsActive(true);
+      queryClient.invalidateQueries({ queryKey: ['medications'] });
+      queryClient.invalidateQueries({ queryKey: ['today-doses'] });
+      showToast(t('medicationForm.reactivatedTreatmentToast', { name: maskMedicationName(name, isPrivate) }));
+    } catch (err: any) {
+      showAlert(t('common.error'), err.response?.data?.message ?? t('common.saveError'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   // "Excluir medicamento" (2026-09-07, item 15) — hard delete em
@@ -1251,6 +1308,30 @@ export default function MedicationFormScreen() {
         </View>
       )}
 
+      {!isNew && !isActive && (
+        <View style={styles.treatmentEndedBanner}>
+          <MaterialCommunityIcons name="archive-outline" size={20} color={colors.textSecondary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.treatmentEndedBannerTitle}>
+              {t('medications.endedTreatmentsBadge')}
+            </Text>
+            <Text style={styles.treatmentEndedBannerText}>
+              {t('medicationForm.treatmentEndedNotice')}
+            </Text>
+          </View>
+          {activeProfile?.is_owner !== false && (
+            <TouchableOpacity
+              style={styles.reactivateBtn}
+              onPress={handleReactivateTreatment}
+              accessibilityRole="button"
+              accessibilityLabel={t('medicationForm.reactivateTreatment')}
+            >
+              <Text style={styles.reactivateBtnText}>{t('medicationForm.reactivateTreatment')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Foto (2026-08-13; disponível também no cadastro desde 2026-09-07) */}
       <TouchableOpacity
         style={styles.photoCircle}
@@ -1531,7 +1612,23 @@ export default function MedicationFormScreen() {
         </TouchableOpacity>
       </View>
       {isPrn && (
-        <Text style={styles.fieldHint}>{t('medicationForm.prnNoScheduleHint')}</Text>
+        <View style={styles.prnSectionBox}>
+          <Text style={styles.fieldHint}>{t('medicationForm.prnNoScheduleHint')}</Text>
+          <View style={{ marginTop: spacing.md }}>
+            <Text style={styles.label}>{t('medicationForm.maxDailyDosesLabel')}</Text>
+            <TextInput
+              style={styles.input}
+              value={maxDailyDoses}
+              onChangeText={(val) => setMaxDailyDoses(val.replace(/[^0-9]/g, ''))}
+              placeholder={t('medicationForm.maxDailyDosesPlaceholder')}
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+              maxLength={2}
+              accessibilityLabel={t('medicationForm.maxDailyDosesAccessibilityLabel')}
+            />
+            <Text style={styles.fieldHint}>{t('medicationForm.maxDailyDosesHint')}</Text>
+          </View>
+        </View>
       )}
 
       {/* — Horários — */}
@@ -1756,7 +1853,7 @@ export default function MedicationFormScreen() {
                         styles.presetChipText,
                         isPresetActive(FREQUENCY_PRESET_TIMES[key]) && styles.presetChipTextActive,
                       ]}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {label}
                     </Text>
@@ -1889,6 +1986,21 @@ export default function MedicationFormScreen() {
           remédio na lista, não recebia lembrete — e não tinha onde
           registrar que o tomou. Este é o único lugar do app onde a
           dose de resgate é criada. */}
+      {!isNew && isPrn && !!maxDailyDoses && (
+        <View style={styles.prnStatusCard}>
+          <MaterialCommunityIcons
+            name={todayPrnDosesCount >= Number(maxDailyDoses) ? 'alert-circle-outline' : 'information-outline'}
+            size={16}
+            color={todayPrnDosesCount >= Number(maxDailyDoses) ? colors.warning : colors.textSecondary}
+          />
+          <Text style={[styles.prnStatusText, todayPrnDosesCount >= Number(maxDailyDoses) && styles.prnStatusTextWarning]}>
+            {todayPrnDosesCount >= Number(maxDailyDoses)
+              ? t('prn.dailyLimitReachedBadge', { taken: todayPrnDosesCount, max: maxDailyDoses })
+              : t('prn.dailyDosesCount', { taken: todayPrnDosesCount, max: maxDailyDoses })}
+          </Text>
+        </View>
+      )}
+
       {!isNew && isPrn && (
         <TouchableOpacity
           style={styles.prnBtn}
@@ -1964,21 +2076,79 @@ export default function MedicationFormScreen() {
           Salvar (cuidador não deveria poder apagar remédio de quem
           cuida). */}
       {!isNew && activeProfile?.is_owner !== false && (
-        <TouchableOpacity
-          style={styles.deleteMedicationBtn}
-          onPress={() => setConfirmingDelete(true)}
-          accessibilityRole="button"
-          accessibilityLabel={t('medicationForm.deleteMedication')}
-        >
-          <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
-          <Text style={styles.deleteMedicationBtnText}>{t('medicationForm.deleteMedication')}</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomActionsContainer}>
+          {isActive ? (
+            <TouchableOpacity
+              style={styles.endTreatmentBtn}
+              onPress={() => setConfirmingEndTreatment(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('medicationForm.endTreatment')}
+            >
+              <MaterialCommunityIcons name="archive-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.endTreatmentBtnText}>{t('medicationForm.endTreatment')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.reactivateBottomBtn}
+              onPress={handleReactivateTreatment}
+              accessibilityRole="button"
+              accessibilityLabel={t('medicationForm.reactivateTreatment')}
+            >
+              <MaterialCommunityIcons name="refresh" size={18} color={colors.brand} />
+              <Text style={styles.reactivateBottomBtnText}>{t('medicationForm.reactivateTreatment')}</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.deleteMedicationBtn}
+            onPress={() => setConfirmingDelete(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('medicationForm.deleteMedication')}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+            <Text style={styles.deleteMedicationBtnText}>{t('medicationForm.deleteMedication')}</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <View style={{ height: 32 }} />
     </ScrollView>
     </KeyboardAvoidingView>
 
+    <ConfirmDialog
+      visible={confirmingPrnOverLimit}
+      title={t('prn.dailyLimitConfirmTitle')}
+      message={t('prn.dailyLimitConfirmMessage', {
+        taken: todayPrnDosesCount,
+        max: maxDailyDoses,
+        name: maskMedicationName(name, isPrivate),
+      })}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('prn.registerAnyway')}
+      destructive
+      onCancel={() => {
+        setConfirmingPrnOverLimit(false);
+        setPendingPrnAction(null);
+      }}
+      onConfirm={() => {
+        setConfirmingPrnOverLimit(false);
+        if (pendingPrnAction) {
+          const action = pendingPrnAction;
+          setPendingPrnAction(null);
+          action();
+        }
+      }}
+    />
+    <ConfirmDialog
+      visible={confirmingEndTreatment}
+      title={t('medicationForm.endTreatmentConfirmTitle')}
+      message={t('medicationForm.endTreatmentConfirmMessage', { name: maskMedicationName(name, isPrivate) })}
+      cancelLabel={t('common.cancel')}
+      confirmLabel={t('medicationForm.endTreatment')}
+      busy={endingTreatment}
+      onCancel={() => setConfirmingEndTreatment(false)}
+      onConfirm={confirmEndTreatment}
+    />
     <ConfirmDialog
       visible={!!scheduleToRemove}
       title={t('medicationForm.removeConfirmTitle')}
@@ -2245,13 +2415,14 @@ function makeStyles(c: ThemeColors) {
     // adiciona, não do que vem antes.
     scheduleAddRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.xs, marginBottom: spacing.md },
     photoCircle: {
-      width: 96, height: 96, borderRadius: rounded.full, alignSelf: 'center', marginBottom: spacing.xl,
+      minWidth: 96, minHeight: 96, borderRadius: rounded.full, alignSelf: 'center', marginBottom: spacing.xl,
       backgroundColor: c.surfaceSecondary, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+      padding: spacing.xs,
     },
-    photoImage: { width: '100%', height: '100%' },
-    photoPlaceholder: { alignItems: 'center', gap: spacing.xs },
-    photoPlaceholderText: { fontSize: type.micro, color: c.textMuted, fontWeight: '600', textAlign: 'center', paddingHorizontal: spacing.xs },
+    photoImage: { width: 96, height: 96, borderRadius: rounded.full },
+    photoPlaceholder: { alignItems: 'center', justifyContent: 'center', gap: spacing.xxs, paddingHorizontal: spacing.xs },
+    photoPlaceholderText: { fontSize: type.micro, color: c.textMuted, fontWeight: '600', textAlign: 'center' },
     photoPendingHint: { fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: -12, marginBottom: spacing.xl },
     // marginTop 28 (2026-09-10, achado real do Rilson com screenshot):
     // era 0 — diferente de TODO `label` do formulário (marginTop 14),
@@ -2293,15 +2464,82 @@ function makeStyles(c: ThemeColors) {
     pausedNotice: {
       fontSize: type.microTight, color: c.textMuted, textAlign: 'center', marginTop: spacing.sm,
     },
-    // "Excluir medicamento" (2026-09-07, item 15) — de propósito menos
-    // chamativo que o botão Salvar acima (ação permanente, não deveria
-    // ser fácil de tocar por engano), mas com toque mínimo de 48px
-    // (WCAG AAA) igual ao resto do app.
-    // marginTop 24 (2026-09-09, achado de design) — era 20, agora bate
-    // com os outros 2 gaps finais da tela (mesma escala de 24px).
+    treatmentEndedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: c.surfaceSecondary,
+      borderColor: c.border,
+      borderWidth: 1,
+      borderRadius: rounded.md,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    treatmentEndedBannerTitle: {
+      fontSize: type.body,
+      fontWeight: '700',
+      color: c.text,
+    },
+    treatmentEndedBannerText: {
+      fontSize: type.micro,
+      color: c.textSecondary,
+      marginTop: spacing.xxs,
+    },
+    reactivateBtn: {
+      backgroundColor: c.brand,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: rounded.md,
+      minHeight: 48,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    reactivateBtnText: {
+      color: c.onBrand,
+      fontSize: type.micro,
+      fontWeight: '600',
+    },
+    bottomActionsContainer: {
+      gap: spacing.sm,
+      marginTop: spacing.xl,
+    },
+    endTreatmentBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      minHeight: 48,
+      borderRadius: rounded.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surfaceSecondary,
+      paddingVertical: spacing.md,
+    },
+    endTreatmentBtnText: {
+      color: c.textSecondary,
+      fontWeight: '600',
+      fontSize: type.caption,
+    },
+    reactivateBottomBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      minHeight: 48,
+      borderRadius: rounded.md,
+      borderWidth: 1,
+      borderColor: c.brand,
+      backgroundColor: c.surface,
+      paddingVertical: spacing.md,
+    },
+    reactivateBottomBtnText: {
+      color: c.brand,
+      fontWeight: '600',
+      fontSize: type.caption,
+    },
     deleteMedicationBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-      marginTop: spacing.xxl, paddingVertical: spacing.md, minHeight: 48,
+      marginTop: spacing.xs, paddingVertical: spacing.md, minHeight: 48,
     },
     deleteMedicationBtnText: { color: c.error, fontWeight: '600', fontSize: type.caption },
     // minHeight 48 (WCAG AAA, 2026-09-08) — sozinho na própria linha,
@@ -2465,6 +2703,30 @@ function makeStyles(c: ThemeColors) {
       fontSize: type.label,
       fontWeight: '600',
       color: c.textMuted,
+    },
+    prnSectionBox: {
+      marginTop: spacing.xs,
+    },
+    prnStatusCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      backgroundColor: c.surfaceSecondary,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: rounded.md,
+      marginBottom: spacing.xs,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    prnStatusText: {
+      fontSize: type.caption,
+      color: c.textSecondary,
+      fontWeight: '500',
+    },
+    prnStatusTextWarning: {
+      color: c.warning,
+      fontWeight: '600',
     },
   });
 }

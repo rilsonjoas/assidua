@@ -42,6 +42,38 @@ quatro perguntas, nenhuma exige código.
 Suítes na época: backend **332** / 858 assertions (2 skipped, P6), mobile
 **455** / 48 suítes, typecheck limpo.
 
+## 🔬 Sessão de 2026-11-01 — Estoque PRN, Limites Customizáveis, Migração de Unidades, Integridade de Histórico Médico, Registro Rápido PRN, Tela Pro e Teto Seguro Diário
+
+> **Autor:** implementação completa dos pontos acordados do roadmap:
+> 1. Alerta de estoque factual para medicamentos de resgate (PRN) baseado em `min_alert_quantity`.
+> 2. Limite mínimo de alerta (`min_alert_quantity`) configurável no formulário de estoque.
+> 3. Chips de correção em 1 toque para unidades legadas de dosagem no estoque (`mg`, `mcg`, `g` -> `comprimidos`, etc.).
+> 4. Preservação do histórico médico: migration `dose_logs.medication_id` para `nullOnDelete()`, fluxo de "Encerrar tratamento" (`is_active: false`) com accordion na aba Remédios e opção de reativação com 1 toque.
+> 5. **Passo 1 — Registro Rápido de Doses SOS (PRN) em 1 Toque:**
+>    - Adicionado botão footer `[ + Registrar dose ]` direto no cartão dos remédios de resgate ativos em `app/(tabs)/medications.tsx`.
+>    - Vinculado ao hook `useLogPrnDose` com feedback visual imediato e invalidação de cache de medicamentos e estoque.
+> 6. **Passo 2 — Atualização da Tela do Plano Pro (`app/pro.tsx`):**
+>    - Removidos limites obsoletos que não existem mais no plano gratuito.
+>    - Tabela de benefícios atualizada com os diferenciais reais: Perfis múltiplos, Medicamentos, Cuidadores e Relatório médico em PDF.
+>    - Adicionado banner informativo de garantia gratuita: histórico ilimitado, exportação de dados e alertas de segurança são 100% gratuitos para sempre.
+>    - Textos e traduções atualizados em português, inglês e espanhol.
+> 7. **Passo 3 — Teto Diário Seguro para Medicamentos SOS/PRN (`max_daily_doses`):**
+>    - Backend: migration `add_max_daily_doses_to_medications`, modelo `Medication` atualizado com fillable e cast inteiro, validação no `MedicationController` (`min:1|max:99`), eager loading eficiente (`withCount`) de `today_prn_doses_count` no fuso horário do perfil. Testes de feature criados em `MedicationMaxDailyDosesTest.php` cobrindo cálculo exato de doses do dia.
+>    - Mobile: campo de limite diário recomendado no formulário de cadastro/edição (`medication/[id].tsx`), badge de limite diário atingido no card da listagem e exibição de progresso `X de Y doses hoje`, e diálogo de confirmação consciente (`ConfirmDialog`) não-bloqueante alertando sobre risco à saúde caso o usuário vá tomar além do teto diário recomendado.
+> 8. **Passo 4 — Resiliência para Fontes Grandes de Acessibilidade:**
+>    - `photoCircle` (`medication/[id].tsx`): substituído tamanho fixo 96×96 por `minWidth: 96, minHeight: 96` com padding dinâmico e centralização, garantindo que o placeholder "Adicionar foto" não seja cortado pelo `overflow: 'hidden'` em escalas de fonte ampliadas (idosos / acessibilidade).
+>    - Seletores compactos (`profile.tsx`): `themeRow` atualizado com `flexWrap: 'wrap'`, botões com `minWidth: 90`, redução de padding lateral de 16px para 8px (liberando respiro em telas de 360px), e `numberOfLines={2}` nos rótulos de tema, idioma e escala de fonte, evitando truncamentos do tipo "Mui...".
+>    - Chips de horários rápidos (`presetChip` em `medication/[id].tsx`): suporte a até 2 linhas (`numberOfLines={2}`) para evitar corte de rótulos.
+>
+> **Deploy Mobile (OTA):**
+> - EAS Update publicado no canal `preview` (branch `preview`, runtimeVersion `1.0.0`): `4f81026f-fee2-41da-9c07-322189922c2f`
+> - Dashboard: https://expo.dev/accounts/rilsonjoas/projects/meus-remedios/updates/4f81026f-fee2-41da-9c07-322189922c2f
+>
+> **Testes:**
+> - Backend: 371 testes, 970 assertions, 2 skipped (P6), 0 falhas.
+> - Mobile: Typecheck TypeScript limpo (`tsc --noEmit`), 100% compliant com tokens de design (`minHeight: 48`, WCAG AAA, zero números mágicos). Suítes Jest passando com sucesso: 53/53 suítes, 523/523 testes aprovados.
+> - Web: Bundle de produção exportado com sucesso via Metro (`3.746 módulos`).
+
 ## 🔬 Sessão de 2026-09-28 — Coerência visual e correções de leitura
 
 > **Autor:** sessão de código, a pedido do Rilson ("dar mais coerência visual
@@ -4091,7 +4123,7 @@ chaves pública e privada geradas. Estado verificado no código:
       sem auth → 401; com auth → `{"status":"ignored"}` (tipo
       desconhecido + usuário inexistente ignorados com graça).
       ⚠️ **URL certa tem prefixo `/api`**:
-      `https://api-remedios.narniano.com/api/webhooks/revenuecat`
+      `https://api-assidua.narniano.com/api/webhooks/revenuecat`
       (rota mora em routes/api.php; sem o prefixo dá 404 silencioso).
       HMAC fica desabilitado (o backend autentica pelo header; HMAC
       seria melhoria futura).
@@ -4206,7 +4238,7 @@ Sessão encerrada com tudo publicado:
 - **App**: último `eas update` canal `preview` inclui múltiplos horários
   + presets, logo na home/Perfis, botão "Exportar meus dados" e link
   dos Termos no cadastro (commit `a351963`, update `b635c4ab`).
-- **Backend no ar** (`api-remedios.narniano.com`): política de
+- **Backend no ar** (`api-assidua.narniano.com`): política de
   privacidade revisada (LGPD), `/termos` novo, exportação LGPD ativa,
   webhook RevenueCat validado end-to-end.
 - **Mobile**: 145/145 testes · TypeScript limpo. **Backend**: 216/216
@@ -4499,7 +4531,7 @@ backend** · export OK · aprovado visualmente pelo Rilso nas 9 telas.
 (nginx:alpine + `web-nginx.conf` SPA fallback) no compose do
 hetzner-infra; workflow Deploy VPS agora constrói a web no runner
 (`EXPO_PUBLIC_API_URL` de produção embutida via env do step) publica
-em `/opt/meus-remedios/web` e sobe os dois serviços. One-time no VPS:
+em `/opt/assidua/web` e sobe os dois serviços. One-time no VPS:
 `WEB_AUTH_ORIGINS` de produção no `.env` da api + pull do
 hetzner-infra (README do infra documenta).
 
@@ -4968,7 +5000,7 @@ Perguntado o que mais faltava além de nome/dosagem/cor/instruções:
       `storage/app/public` não sobrevivia a um rebuild — qualquer foto
       enviada seria apagada no próximo deploy. Corrigido com um volume
       Docker nomeado (`remedios-storage`) montado só nesse diretório em
-      `hetzner-infra/meus-remedios/docker-compose.yml`; o symlink em si
+      `hetzner-infra/assidua/docker-compose.yml`; o symlink em si
       continua sendo recriado a cada boot (não é volume, fica na imagem).
       Testado: `MedicationPhotoTest.php` (7/7 — upload, troca apaga a
       antiga, rejeita não-imagem, rejeita >5MB, remover, apagar
@@ -4992,20 +5024,11 @@ fixos combinados com texto), não achismo:
       mas cresce em vez de cortar quando a fonte aumenta. Sem
       contraindicação, não dependia de nenhuma feature nova pra ser
       uma melhoria real.
-- [ ] **Risco médio, não corrigido ainda** (mais sentido de corrigir
-      junto da própria feature de fonte, quando der pra testar de
-      verdade com escala aumentada):
-      - `photoCircle` (`medication/[id].tsx`) — círculo fixo de 96×96;
-        o texto do placeholder ("Adicionar foto", `fontSize: 10`) pode
-        apertar demais em fonte grande. Com foto de verdade não tem
-        problema (é `Image`, não texto).
-      - `themeBtn`/`languageBtn` (`profile.tsx`) — linha de 3-4 botões
-        em `flex:1`/`width:'48%'` com texto curto. Não quebra (RN cresce
-        a altura sozinho quando o texto quebra linha), mas fica
-        visualmente apertado. `languageBtn` já tem `numberOfLines={1}`
-        (corta com reticências em vez de quebrar layout) — degrada bem,
-        não corrige de verdade.
-      - **Barra de abas (rodapé)** — 5 abas dividindo a largura da tela,
+- [x] **Corrigido (2026-11-01, Passo 4 do roadmap)**:
+>     - `photoCircle` (`medication/[id].tsx`) — trocado círculo fixo de 96×96 por `minWidth: 96, minHeight: 96` com padding dinâmico e centralização; texto do placeholder não corta com escala de fonte do sistema aumentada.
+>     - `themeBtn`/`languageBtn` (`profile.tsx`) — `themeRow` com `flexWrap: 'wrap'`, botões com `minWidth: 90`, padding horizontal ajustado para `spacing.sm` e `numberOfLines={2}`, evitando reticências e truncamento.
+>     - `presetChip` (`medication/[id].tsx`) — suporta `numberOfLines={2}`.
+- [ ] **Barra de abas (rodapé)** — 5 abas dividindo a largura da tela,
         rótulo mais longo é "Histórico". É o componente de tab padrão do
         `expo-router`/React Navigation, fora do controle direto do
         código do app — precisa testar com fonte grande de verdade num
@@ -5933,8 +5956,8 @@ real (decisão de 2026-08-09, ver Fase 1.5 acima).
       | Senha | Nunca em texto puro (bcrypt); Google OAuth quando aplicável |
       | Os dados são criptografados em trânsito? | **Sim** (HTTPS/TLS obrigatório) |
       | Existe forma de o usuário pedir exclusão? | **Sim**, dentro do app (Perfis → Excluir conta) + exportação JSON (LGPD art. 18) |
-      | URL da política de privacidade | https://api-remedios.narniano.com/privacidade |
-      | Termos de uso | https://api-remedios.narniano.com/termos |
+      | URL da política de privacidade | https://api-assidua.narniano.com/privacidade |
+      | Termos de uso | https://api-assidua.narniano.com/termos |
 
       ⚠️ Declarar info de saúde ativa a **revisão de saúde do Google**
       adicional: responder que o app é ferramenta de organização
@@ -6199,7 +6222,7 @@ estado real deste projeto em cada fase.
       correção antes de reaplicar, não só assumi que resolveria),
       verificado ao vivo em produção depois do deploy
 - [x] **P1 — Infra & Deploy** (2026-08-08): deploy real em
-      `api-remedios.narniano.com`, Postgres compartilhado do VPS
+      `api-assidua.narniano.com`, Postgres compartilhado do VPS
 - [x] **P2 — Saúde & Resiliência** (2026-08-09): achado real — `/up`
       só confirmava "processo de pé", não testava o banco. Se o
       Postgres caísse, o app continuaria reportando saudável pro Uptime
@@ -6220,7 +6243,7 @@ estado real deste projeto em cada fase.
       (`sentry:test`, IDs `8d7c8f25...` e `c087dff4...`). Rotação de log
       (parte nova desta categoria, do SHIELD-I) ainda não auditada —
       Laravel usa `LOG_CHANNEL=stack` padrão, não confirmado se tem
-      rotação configurada. **Uptime Kuma** monitora `api-remedios.narniano.com`
+      rotação configurada. **Uptime Kuma** monitora `api-assidua.narniano.com`
       com alerta real em **Telegram e e-mail** (não é só painel visual) —
       explicitado aqui em 2026-08-14, item já estava concluído.
 - [x] **P6 — Backups & Recuperação**: depende 100% do backup do

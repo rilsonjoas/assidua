@@ -281,12 +281,79 @@ describe('StockScreen — refill alert inteligente', () => {
       });
     });
 
-    // O card nao refleta o novo valor sem refetch (o mock nao devolve a
-    // linha atualizada), entao a assercao fica no payload — que e onde
-    // a decisao acontece. O que importa: "ml" chega ao servidor.
     expect(mockedMedications.updateStock).not.toHaveBeenCalledWith(10, {
       current_quantity: 200,
       unit: 'doses',
     });
   });
+
+  it('remédio de resgate (PRN) zerado mostra alerta de Estoque acabou', async () => {
+    const prnZero = makeMed({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 0, unit: 'comprimidos', min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    });
+    mockedMedications.getMedications.mockResolvedValue([prnZero]);
+
+    renderStock();
+
+    expect(await screen.findByText('Losartana')).toBeTruthy();
+    expect(screen.getByText('Estoque acabou')).toBeTruthy();
+  });
+
+  it('remédio de resgate (PRN) com poucas unidades mostra alerta de poucas unidades', async () => {
+    const prnLow = makeMed({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 3, unit: 'comprimidos', min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    });
+    mockedMedications.getMedications.mockResolvedValue([prnLow]);
+
+    renderStock();
+
+    expect(await screen.findByText('Losartana')).toBeTruthy();
+    expect(screen.getByText('Restam apenas 3 comprimidos')).toBeTruthy();
+  });
+
+  it('permite configurar min_alert_quantity ao editar estoque', async () => {
+    const med = makeMed({
+      stock: { current_quantity: 30, unit: 'comprimidos', min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    });
+    mockedMedications.getMedications.mockResolvedValue([med]);
+
+    renderStock();
+
+    fireEvent.press(await screen.findByTestId('edit-stock-10'));
+    fireEvent.changeText(screen.getByLabelText('Avisar quando restar esta quantidade ou menos'), '10');
+    fireEvent.changeText(screen.getByPlaceholderText('Qtd'), '30');
+    fireEvent.press(screen.getByLabelText(/^Definir estoque/));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateStock).toHaveBeenCalledWith(10, {
+        current_quantity: 30,
+        min_alert_quantity: 10,
+      });
+    });
+  });
+
+  it('banner de correção rápida em 1 toque atualiza unidade legada (mg -> comprimidos)', async () => {
+    const medLegacy = makeMed({
+      unit: 'mg',
+      stock: { current_quantity: 20, unit: 'mg', last_updated_at: '2026-09-01T10:00:00Z' },
+    });
+    mockedMedications.getMedications.mockResolvedValue([medLegacy]);
+
+    renderStock();
+
+    expect(await screen.findByText(/Esta unidade parece dosagem \(mg\)/)).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Contar em comprimidos'));
+
+    await waitFor(() => {
+      expect(mockedMedications.updateStock).toHaveBeenCalledWith(10, {
+        current_quantity: 20,
+        unit: 'comprimidos',
+      });
+    });
+  });
 });
+

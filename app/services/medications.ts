@@ -33,6 +33,15 @@ export interface Medication {
    * com "0 horários", que parece remendo do cadastro.
    */
   is_prn?: boolean;
+  /**
+   * Teto diário de doses para medicamentos SOS/PRN (2026-11-01).
+   * Se definido, avisa o usuário caso o limite diário recomendado seja atingido.
+   */
+  max_daily_doses?: number | null;
+  /**
+   * Quantidade de doses PRN tomadas no dia atual (fuso do perfil), calculada pelo backend.
+   */
+  today_prn_doses_count?: number;
   schedules: DoseSchedule[];
   stock: StockItem | null;
   // Calculado no backend (current_quantity ÷ doses/dia médio dos
@@ -72,12 +81,16 @@ export interface StockItem {
   medication_id: number;
   current_quantity: number;
   unit: string;
-  min_alert_quantity: number;
+  min_alert_quantity?: number | null;
   last_updated_at: string | null;
 }
 
-export async function getMedications(profileId: number): Promise<Medication[]> {
-  const { data } = await api.get(`/profiles/${profileId}/medications`);
+export async function getMedications(
+  profileId: number,
+  options?: { include_inactive?: boolean },
+): Promise<Medication[]> {
+  const query = options?.include_inactive ? '?include_inactive=1' : '';
+  const { data } = await api.get(`/profiles/${profileId}/medications${query}`);
   return data;
 }
 

@@ -56,3 +56,32 @@ export function formatStockQuantity(args: {
   const unidade = (stockUnit ?? '').trim() || 'un';
   return `${quantity} ${unidade}`;
 }
+
+export function isMedicationLowStock(
+  med: {
+    is_prn?: boolean;
+    days_remaining?: number | null;
+    stock?: {
+      current_quantity: number;
+      min_alert_quantity?: number | null;
+      last_updated_at: string | null;
+    } | null;
+  },
+  lowStockDaysThreshold: number = 7,
+): boolean {
+  if (!med.stock || isStockNeverSet(med.stock)) {
+    return false;
+  }
+  if (med.is_prn) {
+    const minAlert = med.stock.min_alert_quantity ?? 5;
+    return med.stock.current_quantity <= minAlert;
+  }
+  const days = med.days_remaining;
+  return days !== null && days !== undefined && days <= lowStockDaysThreshold;
+}
+
+export function isLegacyDosageStockUnit(stockUnit?: string | null): boolean {
+  if (!stockUnit) return false;
+  const normalized = stockUnit.trim().toLowerCase();
+  return ['mg', 'mcg', 'g'].includes(normalized);
+}

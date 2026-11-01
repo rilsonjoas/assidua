@@ -1,5 +1,10 @@
 import { describe, it, expect } from '@jest/globals';
-import { parseStockQuantity, isStockNeverSet } from '../lib/stockQuantity';
+import {
+  parseStockQuantity,
+  isStockNeverSet,
+  isMedicationLowStock,
+  isLegacyDosageStockUnit,
+} from '../lib/stockQuantity';
 
 // "Estoque editável em dois lugares" (item 13) — validação extraída de
 // app/(tabs)/stock.tsx e app/medication/[id].tsx pra um lugar só
@@ -36,3 +41,65 @@ describe('isStockNeverSet', () => {
     expect(isStockNeverSet(null)).toBe(false);
   });
 });
+
+describe('isMedicationLowStock', () => {
+  it('identifica remédio com horário com days_remaining <= 7', () => {
+    expect(isMedicationLowStock({
+      days_remaining: 5,
+      stock: { current_quantity: 10, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(true);
+
+    expect(isMedicationLowStock({
+      days_remaining: 15,
+      stock: { current_quantity: 30, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(false);
+  });
+
+  it('identifica remédio PRN zerado ou abaixo de min_alert_quantity', () => {
+    // PRN com 0 unidades
+    expect(isMedicationLowStock({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 0, min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(true);
+
+    // PRN com 3 unidades (<= 5)
+    expect(isMedicationLowStock({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 3, min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(true);
+
+    // PRN com 10 unidades (> 5)
+    expect(isMedicationLowStock({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 10, min_alert_quantity: 5, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(false);
+  });
+
+  it('ignora estoque nunca configurado (neverSet)', () => {
+    expect(isMedicationLowStock({
+      is_prn: true,
+      days_remaining: null,
+      stock: { current_quantity: 0, min_alert_quantity: 5, last_updated_at: null },
+    })).toBe(false);
+  });
+});
+
+describe('isLegacyDosageStockUnit', () => {
+  it('detecta unidades clínicas herdadas da dosagem', () => {
+    expect(isLegacyDosageStockUnit('mg')).toBe(true);
+    expect(isLegacyDosageStockUnit('mcg')).toBe(true);
+    expect(isLegacyDosageStockUnit('g')).toBe(true);
+    expect(isLegacyDosageStockUnit('MG')).toBe(true);
+  });
+
+  it('retorna false para unidades normais de estoque', () => {
+    expect(isLegacyDosageStockUnit('comprimidos')).toBe(false);
+    expect(isLegacyDosageStockUnit('gotas')).toBe(false);
+    expect(isLegacyDosageStockUnit('ml')).toBe(false);
+    expect(isLegacyDosageStockUnit(null)).toBe(false);
+  });
+});
+

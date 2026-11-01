@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Medication;
 use App\Models\Profile;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,10 +27,18 @@ class MedicationController extends Controller
     {
         Gate::authorize('view', $profile);
 
-        $medications = $profile->medications()
+        $today = Carbon::today($profile->timezone)->toDateString();
+        $query = $profile->medications()
             ->with(['schedules', 'stock'])
-            ->where('is_active', true)
-            ->get();
+            ->withCount([
+                'doseLogs as today_prn_doses_count' => fn ($q) => $q
+                    ->where('status', 'taken')
+                    ->whereDate('taken_at', $today),
+            ]);
+        if (! $request->boolean('include_inactive')) {
+            $query->where('is_active', true);
+        }
+        $medications = $query->get();
 
         return response()->json($medications);
     }
@@ -69,6 +78,8 @@ class MedicationController extends Controller
             // validação. Default false mantém inalterado todo cadastro
             // existente.
             'is_prn' => 'sometimes|boolean',
+            // Teto diário seguro (D6/E3)
+            'max_daily_doses' => 'sometimes|nullable|integer|min:1|max:99',
         ]);
 
         $medication = $profile->medications()->create($data);
@@ -98,14 +109,28 @@ class MedicationController extends Controller
             'unit' => self::DEFAULT_STOCK_UNIT,
         ]);
 
-        return response()->json($medication->load(['schedules', 'stock']), 201);
+        $today = Carbon::today($profile->timezone)->toDateString();
+        $medication->load(['schedules', 'stock'])->loadCount([
+            'doseLogs as today_prn_doses_count' => fn ($q) => $q
+                ->where('status', 'taken')
+                ->whereDate('taken_at', $today),
+        ]);
+
+        return response()->json($medication, 201);
     }
 
     public function show(Request $request, Medication $medication): JsonResponse
     {
         Gate::authorize('view', $medication);
 
-        return response()->json($medication->load(['schedules', 'stock']));
+        $today = Carbon::today($medication->profile->timezone)->toDateString();
+        $medication->load(['schedules', 'stock'])->loadCount([
+            'doseLogs as today_prn_doses_count' => fn ($q) => $q
+                ->where('status', 'taken')
+                ->whereDate('taken_at', $today),
+        ]);
+
+        return response()->json($medication);
     }
 
     public function update(Request $request, Medication $medication): JsonResponse
@@ -127,6 +152,7 @@ class MedicationController extends Controller
             // P4 (§10.4) — mesma justificativa do `store` acima: sem
             // isto, nem criar nem editar o remédio de resgate.
             'is_prn' => 'sometimes|boolean',
+            'max_daily_doses' => 'sometimes|nullable|integer|min:1|max:99',
             'treatment_duration_days' => 'sometimes|nullable|integer|min:1|max:3650',
         ]);
 
@@ -165,19 +191,24 @@ class MedicationController extends Controller
         $virouResgate = array_key_exists('is_prn', $data)
             && (bool) $data['is_prn'] !== (bool) $medication->is_prn;
 
-        if (array_key_exists('is_paused', $data) && $data['is_paused'] !== $medication->is_paused) {
-            $data['paused_at'] = $data['is_paused'] ? now() : null;
+        $virouInativo = array_key_exists('is_active', $data)
+            && ! $data['is_active']
+            && $medication->is_active;
+
+        if ($virouResgate || $virouInativo) {
+            $medication->schedules()->update(['is_active' => false]);
         }
 
         $medication->update($data);
 
-        // Ver o comentário de `$virouResgate` acima: o que faz o
-        // remedy virar resgate é também o que DORME os horários.
-        if ($virouResgate) {
-            $medication->schedules()->update(['is_active' => false]);
-        }
+        $today = Carbon::today($medication->profile->timezone)->toDateString();
+        $medication->load(['schedules', 'stock'])->loadCount([
+            'doseLogs as today_prn_doses_count' => fn ($q) => $q
+                ->where('status', 'taken')
+                ->whereDate('taken_at', $today),
+        ]);
 
-        return response()->json($medication->load(['schedules', 'stock']));
+        return response()->json($medication);
     }
 
     public function destroy(Request $request, Medication $medication): JsonResponse

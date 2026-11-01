@@ -30,12 +30,17 @@ import { rounded, spacing, type } from '../constants/tokens';
 // CLAUDE.md). Deixar a tabela anunciando um limite que o backend não
 // aplica é pior do que tabela curta: é a tela de venda mentindo.
 //
-// Pendente de planejar (não implementado): a tabela agora tem só 2
-// linhas e omite os benefícios Pro que realmente diferem — cuidador
-// remoto, relatório em PDF, e o resumo de consulta de 30→90 dias.
+// Benefícios reais do Pro (§7.3 do Roadmap):
+// - Perfis de paciente: 4 (Grátis) | Ilimitado (Pro)
+// - Medicamentos por perfil: 15 (Grátis) | Ilimitado (Pro)
+// - Cuidadores remotos: 1 cuidador (Grátis) | Ilimitados (Pro)
+// - Relatório médico em PDF: — (Grátis) | Incluído (Pro)
+// E garantia explícita: exportação completa e avisos de segurança são livres em qualquer plano.
 const BENEFITS: { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; key: string }[] = [
   { icon: 'account-multiple-outline', key: 'profiles' },
   { icon: 'pill', key: 'medications' },
+  { icon: 'account-heart-outline', key: 'caregivers' },
+  { icon: 'file-pdf-box', key: 'medicalPdf' },
 ];
 
 export default function ProScreen() {
@@ -126,6 +131,11 @@ export default function ProScreen() {
         ))}
       </View>
 
+      <View style={styles.freeGuaranteeBox}>
+        <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.textSecondary} />
+        <Text style={styles.freeGuaranteeText}>{t('pro.freeGuarantee')}</Text>
+      </View>
+
       {!isPro && loadingOffering && (
         <ActivityIndicator style={styles.loading} color={colors.brand} />
       )}
@@ -213,5 +223,23 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surfaceSecondary, borderRadius: rounded.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
     },
     comingSoonText: { fontSize: type.micro, color: c.textMuted, fontWeight: '600' },
+    freeGuaranteeBox: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: c.surfaceSecondary,
+      borderRadius: rounded.md,
+      padding: spacing.md,
+      marginTop: spacing.md,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    freeGuaranteeText: {
+      flex: 1,
+      fontSize: type.micro,
+      color: c.textSecondary,
+      lineHeight: 18,
+    },
   });
 }
