@@ -69,30 +69,17 @@ App mobile de gestão de medicamentos para pacientes crônicos. Objetivo é vira
 
 ## Próximo passo ao retomar
 
-**Ler a seção `## 📌 PAINEL DE PENDÊNCIAS E ORDEM DE IMPLEMENTAÇÃO` no
-topo do `ROADMAP.md`** — é o índice de tudo que está pendente, a ordem
-recomendada e os itens que o próprio roadmap marca errado. Não planejar a
-partir do corpo do ROADMAP: ele está organizado por data de achado, não por
-prioridade, e tem partes que envelheceram.
+**Realizar a verificação no aparelho físico (canal `preview`) das entregas de 2026-11-01:**
+1. Registro rápido de dose SOS / PRN em 1 toque direto no card do medicamento.
+2. Teto diário seguro (`max_daily_doses`) com diálogo de confirmação consciente.
+3. Card de resumo do Histórico sem vazamento de borda e com contagem íntegra.
+4. Tela do Plano Pro com limites obsoletos removidos e diferenciais reais.
 
-Offline support já foi entregue (2026-08-17).
-
-**Estado de 2026-09-27:** travado num bloqueio de US$25 (conta Google Play),
-com 10 blocos de trabalho já concluído parados atrás do botão de publicar
-(inclusive o T1 — histórico sem paywall, e o P4 do PRN). O código está mais
-adiantado do que o roadmap afirma. Últimas suítes: backend **332** / 858
-assertions (2 skipped, P6), mobile **455** / 48 suítes, typecheck limpo.
-
-**Estado de 2026-09-27 (fim do dia):** P0–P4 **estão em produção** —
-commit `3dff0b6` (PR #3), deploy VPS ✅, migrations `[11]` aplicadas, FK de
-`dose_logs.dose_schedule_id` em `SET NULL`, dados conferidos contra o backup
-(`1 | 17 | 5 | 82`). Backup com restore testado em
-`/var/backups/hetzner-infra/pre-p4-20260927_155536/`. Update EAS `26e68d89`
-publicado no canal `preview`; APK em `~/Downloads/assidua-preview-p4.apk`.
-**Falta só o teste no aparelho** — `api/CHECKLIST-VERIFICACAO-P4.md`, quatro
-perguntas, nenhuma exige código. O bloco de estado completo, com as
-pendências abertas e as mudanças de ambiente feitas, está no `ROADMAP.md`
-(bloco "ESTADO EM 2026-09-27").
+**Estado em 2026-11-01:**
+- **Deploy VPS Hetzner ✅**: commit `55c600b` (workflow `Deploy VPS`, run `41336593865`), migrations aplicadas no PostgreSQL (`make_dose_logs_medication_nullable`, `add_max_daily_doses_to_medications`), build web atualizado em `/opt/assidua/web`, smoke test HTTP 200 OK nos dois domínios (`assidua.narniano.com` e `api-assidua.narniano.com`).
+- **Deploy Mobile OTA (EAS Update) ✅**: update publicado no canal `preview`, group ID `beaaa16d-9a9a-4386-9b2f-935a2d257d2b`.
+- **Suítes**: Backend 371 testes, 970 assertions, 0 falhas; Mobile 53 suítes, 523 testes, 100% de compliance com tokens de design e typecheck TypeScript limpo.
+- Detalhes completos e histórico registrados em `ROADMAP.md` (seção `🔬 Sessão de 2026-11-01`).
 
 ## Restrições do ambiente
 
