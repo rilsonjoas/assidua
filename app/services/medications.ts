@@ -12,10 +12,22 @@ export function formatDosageUnit(dosage: string | null, unit: string): string {
   return dosage ? `${dosage} ${unit}` : unit;
 }
 
+// Forma farmacêutica (2026-11-13). Espelha `Medication::FORMS` no backend.
+// `null` = remédio cadastrado antes do campo: o app trata como sempre.
+export const MEDICATION_FORMS = [
+  'comprimido', 'capsula', 'liquido', 'gotas', 'topico',
+  'spray', 'injetavel', 'adesivo', 'outro',
+] as const;
+export type MedicationForm = (typeof MEDICATION_FORMS)[number];
+
 export interface Medication {
   id: number;
   profile_id: number;
   name: string;
+  form?: MedicationForm | null;
+  // Texto livre do que vem na embalagem ("12 g", "120 mL"). Informação,
+  // não dose: nunca entra em conta.
+  package_content?: string | null;
   // Achado real de uso (2026-08-14): nem todo remédio tem dosagem
   // numérica relevante — deixou de ser obrigatório nos dois lados.
   dosage: string | null;

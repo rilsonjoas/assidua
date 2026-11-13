@@ -55,6 +55,19 @@ describe('isMedicationLowStock', () => {
     })).toBe(false);
   });
 
+  it('remédio pausado nunca é estoque baixo (não consome)', () => {
+    expect(isMedicationLowStock({
+      is_paused: true,
+      days_remaining: 3,
+      stock: { current_quantity: 3, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(false);
+    expect(isMedicationLowStock({
+      is_paused: true,
+      is_prn: true,
+      stock: { current_quantity: 0, last_updated_at: '2026-09-01T10:00:00Z' },
+    })).toBe(false);
+  });
+
   it('identifica remédio PRN zerado ou abaixo de min_alert_quantity', () => {
     // PRN com 0 unidades
     expect(isMedicationLowStock({

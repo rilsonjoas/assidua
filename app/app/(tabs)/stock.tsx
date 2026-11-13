@@ -41,7 +41,7 @@ import { rounded, spacing, type } from '../../constants/tokens';
 // aparece numa caixa de remédio de verdade. Texto livre continuaria
 // possível para o resto (patch, sachê), e nesse caso o item mantém a
 // unidade que já tinha.
-const STOCK_UNITS = ['comprimidos', 'cápsulas', 'ml', 'gotas', 'frascos', 'ampolas'] as const;
+const STOCK_UNITS = ['unidades', 'comprimidos', 'cápsulas', 'ml', 'gotas', 'frascos', 'ampolas'] as const;
 
 export default function StockScreen() {
   const { t } = useTranslation();

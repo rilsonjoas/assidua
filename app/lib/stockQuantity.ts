@@ -60,6 +60,7 @@ export function formatStockQuantity(args: {
 export function isMedicationLowStock(
   med: {
     is_prn?: boolean;
+    is_paused?: boolean;
     days_remaining?: number | null;
     stock?: {
       current_quantity: number;
@@ -70,6 +71,11 @@ export function isMedicationLowStock(
   lowStockDaysThreshold: number = 7,
 ): boolean {
   if (!med.stock || isStockNeverSet(med.stock)) {
+    return false;
+  }
+  // Remédio pausado não consome estoque (2026-11-13, achado do Rilson:
+  // "acaba em 3 dias" num remédio pausado). Sem alerta enquanto pausado.
+  if (med.is_paused) {
     return false;
   }
   if (med.is_prn) {

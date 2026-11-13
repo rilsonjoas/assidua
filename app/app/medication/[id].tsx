@@ -42,6 +42,8 @@ import {
   DoseSchedule,
   StockItem,
   LOW_STOCK_DAYS_THRESHOLD,
+  MEDICATION_FORMS,
+  MedicationForm,
 } from '../../services/medications';
 import {
   scheduleScheduleNotifications,
@@ -160,6 +162,11 @@ export default function MedicationFormScreen() {
   // quando a unidade não é enviada — deixa em branco aqui e só manda
   // se a pessoa preencher (ver `unitToSend` em `saveMedication`).
   const [unit, setUnit] = useState('');
+  // Forma e conteúdo da embalagem (2026-11-13) — caso do Vick Vaporub:
+  // "12 g" é o pote, não a dose. Ambos opcionais; `null` mantém o
+  // comportamento de remédio antigo.
+  const [form, setForm] = useState<MedicationForm | null>(null);
+  const [packageContent, setPackageContent] = useState('');
   // "Duração do tratamento" (2026-08-14) — opcional, a maioria dos
   // remédios é uso contínuo. Editável ao criar e ao editar (diferente
   // do estoque inicial).
@@ -310,6 +317,8 @@ export default function MedicationFormScreen() {
         // no envio (ver `saveMedication`), não string vazia salva à toa.
         setDosage(med.dosage ?? '');
         setUnit(med.unit);
+        setForm(med.form ?? null);
+        setPackageContent(med.package_content ?? '');
         setTreatmentDurationDays(med.treatment_duration_days != null ? String(med.treatment_duration_days) : '');
         setColor(med.color);
         setInstructions(med.instructions ?? '');
@@ -375,6 +384,8 @@ export default function MedicationFormScreen() {
     // estoque, `mg` no próprio medicamento) pra quando não é enviada.
     const dosageToSend = dosage.trim() || null;
     const unitToSend = unit.trim() || undefined;
+    // `null` limpa no backend (editar de "tópico" para "sem forma").
+    const packageContentToSend = packageContent.trim() || null;
     const maxDailyDosesToSend = isPrn && maxDailyDoses.trim() ? parseInt(maxDailyDoses.trim(), 10) : null;
     let photoUploadFailed = false;
     setSaving(true);
@@ -384,6 +395,8 @@ export default function MedicationFormScreen() {
           name,
           dosage: dosageToSend,
           unit: unitToSend,
+          form,
+          package_content: packageContentToSend,
           color,
           instructions,
           notes,
@@ -446,6 +459,8 @@ export default function MedicationFormScreen() {
           name,
           dosage: dosageToSend,
           unit: unitToSend,
+          form,
+          package_content: packageContentToSend,
           color,
           instructions,
           notes,
@@ -1378,6 +1393,29 @@ export default function MedicationFormScreen() {
         autoFocus={isNew}
       />
 
+      {/* Forma (2026-11-13): opcional. Tocar de novo na forma escolhida
+          desmarca (volta a "sem forma", como os remédios antigos). */}
+      <Text style={styles.label}>{t('medicationForm.formLabel')}</Text>
+      <View style={styles.formRow}>
+        {MEDICATION_FORMS.map((f) => {
+          const selected = form === f;
+          return (
+            <TouchableOpacity
+              key={f}
+              style={[styles.formChip, selected && styles.formChipActive]}
+              onPress={() => setForm(selected ? null : f)}
+              accessibilityRole="button"
+              accessibilityLabel={t(`medicationForm.forms.${f}`)}
+              accessibilityState={{ selected }}
+            >
+              <Text style={[styles.formChipText, selected && styles.formChipTextActive]}>
+                {t(`medicationForm.forms.${f}`)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <Text style={styles.label}>{t('medicationForm.dosageLabel')}</Text>
       <View style={styles.row}>
         <TextInput
@@ -1398,6 +1436,17 @@ export default function MedicationFormScreen() {
           accessibilityLabel={t('medicationForm.unitAccessibilityLabel')}
         />
       </View>
+
+      <Text style={styles.label}>{t('medicationForm.packageContentLabel')}</Text>
+      <TextInput
+        style={styles.input}
+        value={packageContent}
+        onChangeText={setPackageContent}
+        placeholder={t('medicationForm.packageContentPlaceholder')}
+        placeholderTextColor={colors.textMuted}
+        maxLength={50}
+        accessibilityLabel={t('medicationForm.packageContentLabel')}
+      />
 
       {/* Achado real de uso, anotado no Obsidian (2026-08-14): não
           tinha onde registrar o estoque no cadastro — precisava criar
@@ -2438,6 +2487,15 @@ function makeStyles(c: ThemeColors) {
       borderRadius: rounded.md, padding: spacing.md, fontSize: type.body, color: c.text,
     },
     unitInput: { width: 80, marginLeft: spacing.sm },
+    formRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xs },
+    // minHeight 44: alvo de toque confortável (padrão do resto da tela).
+    formChip: {
+      minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: rounded.lg,
+      backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border,
+    },
+    formChipActive: { backgroundColor: c.brand, borderColor: c.brand },
+    formChipText: { fontSize: type.caption, fontWeight: '600', color: c.text },
+    formChipTextActive: { color: c.onBrand },
     row: { flexDirection: 'row', alignItems: 'center' },
     colorRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
     colorBtn: { width: 32, height: 32, borderRadius: rounded.lg },

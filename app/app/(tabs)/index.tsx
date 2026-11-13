@@ -831,11 +831,15 @@ export default function HomeScreen() {
     // volta a acusar `string | null`. Ele também é correto por si —
     // uma dose sem horário não tem posição na linha do tempo.
     .sort((a, b) => scheduledInstantOf(a).getTime() - scheduledInstantOf(b).getTime())[0];
-  const dueCount = dueDoses.length;
-  const takenCount = dueDoses.filter((d) => d.status === 'taken').length;
-  // `skipped` fica no denominador e fora do numerador — mesma semântica do
-  // relatório: pulou de propósito não é "tomada", mas também não é falta
-  // (é por isso que `takenCount` conta só `taken` e não "não-pendentes").
+  // Anel da Home (2026-11-13, achado do Rilson com print): dose PULADA de
+  // propósito sai do denominador do anel. Antes ela ficava dentro (herdado
+  // do relatório do médico, onde o % é fato clínico) e o cabeçalho dizia
+  // "Tudo certo até agora" com o anel em 50% — o app punindo uma decisão
+  // informada. O relatório e o Histórico continuam com a regra do backend
+  // (`skipped` dentro de `totalDue`); só a tela do dia muda.
+  const ringDoses = dueDoses.filter((d) => d.status !== 'skipped');
+  const dueCount = ringDoses.length;
+  const takenCount = ringDoses.filter((d) => d.status === 'taken').length;
 
   const lowStockNames = Array.from(
     new Set(
@@ -908,7 +912,7 @@ export default function HomeScreen() {
             {doses.length > 0 && remaining === 0 && (
               <Text style={styles.progress}>{t('home.allDone')}</Text>
             )}
-            {dueCount === 0 && doses.length > 0 && (
+            {dueDoses.length === 0 && doses.length > 0 && (
               // Nem "0%" nem silêncio. Às 07:00 o dia tem 3 doses e
               // nenhuma devida: mostrar 0% seria verdicto falso, e não
               // mostrar nada algum deixaria a pessoa sem saber se o app

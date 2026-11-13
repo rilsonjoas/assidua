@@ -30,6 +30,8 @@ export const MedicationSchema = z.object({
   name: z.string(),
   dosage: z.string().nullable().optional(),
   unit: z.string(),
+  form: z.string().nullable().optional(),
+  package_content: z.string().nullable().optional(),
   color: z.string().default('#4f46e5'),
   instructions: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
