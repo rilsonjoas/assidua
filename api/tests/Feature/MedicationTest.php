@@ -145,7 +145,7 @@ class MedicationTest extends TestCase
         ])->assertCreated();
 
         $medication = Medication::where('name', 'Losartana')->first();
-        $this->assertSame('comprimidos', $medication->stock->unit);
+        $this->assertSame('unidades', $medication->stock->unit);
     }
 
     public function test_bloqueia_decimo_sexto_medicamento_ativo_no_plano_gratuito(): void

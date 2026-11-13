@@ -19,6 +19,10 @@ class Medication extends Model
         'name',
         'dosage',
         'unit',
+        // Forma farmacêutica e conteúdo da embalagem (2026-11-13). Ver
+        // a migration `add_form_and_package_content_to_medications`.
+        'form',
+        'package_content',
         'color',
         'instructions',
         'notes',
@@ -43,6 +47,12 @@ class Medication extends Model
         // massa) são coisas diferentes — mesmo padrão de
         // `last_weekly_summary_sent_at` em Profile.
         'treatment_end_notified_at',
+    ];
+
+    /** Formas aceitas em `form` (nulo = remédio antigo, sem forma). */
+    public const FORMS = [
+        'comprimido', 'capsula', 'liquido', 'gotas', 'topico',
+        'spray', 'injetavel', 'adesivo', 'outro',
     ];
 
     // Sempre presente no JSON — a tela Hoje e a tela Estoque precisam de
@@ -97,6 +107,13 @@ class Medication extends Model
     {
         return Attribute::make(get: function () {
             if (! $this->relationLoaded('stock') || ! $this->stock) {
+                return null;
+            }
+
+            // Pausado não consome estoque: não há "dias restantes" a
+            // prever (2026-11-13). Nulo faz a Home, o alerta e o lembrete
+            // de reposição ficarem calados até reativar.
+            if ($this->is_paused) {
                 return null;
             }
 

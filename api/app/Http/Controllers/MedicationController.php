@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class MedicationController extends Controller
 {
@@ -21,7 +22,20 @@ class MedicationController extends Controller
      * Estoque, onde tem a caixa na mão. Ver `store()` para por que a
      * unidade da dose NÃO é usada aqui.
      */
-    private const DEFAULT_STOCK_UNIT = 'comprimidos';
+    private const DEFAULT_STOCK_UNIT = 'unidades';
+
+    /**
+     * Unidade de contagem sugerida por forma (2026-11-13). Só o default:
+     * a pessoa troca na aba Estoque. Pomada e Vick se contam em
+     * unidades (potes/bisnagas), não em gramas.
+     */
+    private const STOCK_UNIT_BY_FORM = [
+        'comprimido' => 'comprimidos',
+        'capsula' => 'cápsulas',
+        'liquido' => 'frascos',
+        'gotas' => 'frascos',
+        'injetavel' => 'ampolas',
+    ];
 
     public function index(Request $request, Profile $profile): JsonResponse
     {
@@ -63,6 +77,8 @@ class MedicationController extends Controller
             // dosagem numérica relevante — nunca devia ser obrigatório.
             'dosage' => 'nullable|string|max:50',
             'unit' => 'sometimes|string|max:30',
+            'form' => ['sometimes', 'nullable', Rule::in(Medication::FORMS)],
+            'package_content' => 'sometimes|nullable|string|max:50',
             'color' => 'sometimes|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'instructions' => 'nullable|string',
             'notes' => 'nullable|string',
@@ -106,7 +122,7 @@ class MedicationController extends Controller
         // dose está pendente; o SQL de diagnóstico está em
         // `docs/interface-2026-09-28.md` §6.
         $medication->stock()->create([
-            'unit' => self::DEFAULT_STOCK_UNIT,
+            'unit' => self::STOCK_UNIT_BY_FORM[$data['form'] ?? ''] ?? self::DEFAULT_STOCK_UNIT,
         ]);
 
         $today = Carbon::today($profile->timezone)->toDateString();
@@ -144,6 +160,8 @@ class MedicationController extends Controller
             // cadastrado, não só omitir o campo.
             'dosage' => 'sometimes|nullable|string|max:50',
             'unit' => 'sometimes|string|max:30',
+            'form' => ['sometimes', 'nullable', Rule::in(Medication::FORMS)],
+            'package_content' => 'sometimes|nullable|string|max:50',
             'color' => 'sometimes|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'instructions' => 'nullable|string',
             'notes' => 'nullable|string',

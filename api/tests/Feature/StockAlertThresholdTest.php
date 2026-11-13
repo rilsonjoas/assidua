@@ -54,6 +54,26 @@ class StockAlertThresholdTest extends TestCase
         ]);
     }
 
+    public function test_remedio_pausado_nao_tem_dias_remaining(): void
+    {
+        $user = User::factory()->create();
+        $profile = Profile::factory()->create(['user_id' => $user->id]);
+        $medication = Medication::factory()->create(['profile_id' => $profile->id, 'is_paused' => true]);
+        $this->comSchedule($medication);
+        StockItem::create([
+            'medication_id' => $medication->id,
+            'current_quantity' => 3,
+            'unit' => 'comprimidos',
+            'min_alert_quantity' => 5,
+            'last_updated_at' => '2026-09-01 10:00:00',
+        ]);
+
+        $medication->refresh()->load('schedules', 'stock');
+
+        // Pausado não consome: sem previsão, sem alerta (2026-11-13).
+        $this->assertNull($medication->days_remaining);
+    }
+
     public function test_dose_agendada_tem_dias_remaining_e_o_app_avisa(): void
     {
         $user = User::factory()->create();
